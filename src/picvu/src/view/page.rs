@@ -1,5 +1,6 @@
 use horrorshow::html;
 
+use crate::path;
 use picvudb::msgs::*;
 
 pub struct Page
@@ -8,25 +9,34 @@ pub struct Page
     pub contents: String,
 }
 
-pub fn properties(props: &GetPropertiesResponse) -> Page
+pub fn all_objects(resp: &GetAllObjectsResponse) -> Page
 {
     let contents = html!{
+        h1: "All Objects";
         table
         {
-            tr { th : "Name"; th: "Value" }
-            @ for (name, value) in props.properties.iter()
+            tr { th : "ID"; th: "Added"; th: "Changed"; th: "Label" }
+            @ for object in resp.objects.iter()
             {
                 tr
                 {
-                    td: name;
-                    td: value;
+                    td: object.id.clone();
+                    td: object.added.to_rfc3339();
+                    td: object.changed.to_rfc3339();
+                    td: object.label.clone();
                 }
             }
+        }
+        h1: "Add New Object";
+        form(method="POST", action=path::form_add_object(), enctype="application/x-www-form-urlencoded")
+        {
+            input(type="text", name="label");
+            input(type="submit");
         }
     }.to_string();
 
     Page {
-        title: "Properties".to_owned(),
+        title: "All Objects".to_owned(),
         contents: contents,
     }
 }

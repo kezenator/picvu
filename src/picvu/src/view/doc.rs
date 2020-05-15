@@ -24,6 +24,13 @@ pub fn err<T>(builder: HttpResponseBuilder, err: T) -> HttpResponse
     html_response(builder, page)
 }
 
+pub fn redirect(path: String) -> HttpResponse
+{
+    HttpResponse::Found()
+        .header(actix_web::http::header::LOCATION, path)
+        .finish()
+}
+
 fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
 {
     let mut builder = builder;

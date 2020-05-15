@@ -1,6 +1,10 @@
 use std::fmt::Debug;
 use actix_web::HttpResponse;
-use picvudb::msgs::GetPropertiesResponse;
+
+use picvudb::msgs::GetAllObjectsResponse;
+use picvudb::msgs::AddObjectResponse;
+
+use crate::path;
 
 mod doc;
 mod page;
@@ -16,11 +20,19 @@ pub trait Viewable
     fn generate(&self) -> HttpResponse;
 }
 
-impl Viewable for GetPropertiesResponse
+impl Viewable for GetAllObjectsResponse
 {
     fn generate(&self) -> HttpResponse
     {
-        doc::ok(page::properties(self))
+        doc::ok(page::all_objects(self))
+    }
+}
+
+impl Viewable for AddObjectResponse
+{
+    fn generate(&self) -> HttpResponse
+    {
+        doc::redirect(path::index())
     }
 }
 

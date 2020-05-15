@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use crate::store::WriteOps;
 
+pub mod data;
 pub mod msgs;
 
 pub trait ApiMessage: Debug + Send + 'static

@@ -2,7 +2,6 @@ use diesel::{Connection, RunQueryDsl, SqliteConnection};
 use diesel_migrations::RunMigrationsError;
 use snafu::{ResultExt, Snafu};
 
-use crate::queries;
 use crate::models;
 use crate::schema;
 
@@ -34,7 +33,7 @@ impl DbConnection
         let db_connection = SqliteConnection::establish(path)
             .context(LowerDbConnectionError{path: path.to_owned() })?;
 
-        if queries::properties::all()
+        if schema::db_properties::table
             .load::<models::DbProperty>(&db_connection)
             .context(LowerDbPropertiesError{})
             .is_err()
@@ -43,7 +42,7 @@ impl DbConnection
                 .context(LowerDbMigrationError{})?;
 
             let name = "version".to_owned();
-            let value = "2020-05-13".to_owned();
+            let value = "2020-05-15".to_owned();
             
             diesel::insert_into(schema::db_properties::table)
                 .values(&models::DbProperty{name, value})
@@ -51,7 +50,7 @@ impl DbConnection
                 .context(LowerDbPropertiesError{})?;
         }
         
-        let mut properties = queries::properties::all()
+        let mut properties = schema::db_properties::table
             .load::<models::DbProperty>(&db_connection)
             .context(LowerDbPropertiesError{})?;
 
@@ -67,7 +66,7 @@ impl DbConnection
             version = versions[0].clone();
         }
 
-        ensure!(version == "2020-05-13", UnsupportedVersionError{ version });
+        ensure!(version == "2020-05-15", UnsupportedVersionError{ version });
 
         Ok(Self{ connection: db_connection })
     }

@@ -9,7 +9,6 @@ mod api;
 mod connection;
 mod err;
 mod models;
-mod queries;
 mod schema;
 mod store;
 
