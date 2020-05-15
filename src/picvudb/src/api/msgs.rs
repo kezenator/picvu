@@ -26,5 +26,5 @@ impl ApiMessage for GetPropertiesRequest
 #[derive(Debug, Serialize)]
 pub struct GetPropertiesResponse
 {
-    properties: HashMap<String, String>,
+    pub properties: HashMap<String, String>,
 }

@@ -11,3 +11,4 @@ picvudb = { path = "../picvudb" }
 actix="0.9.0"
 actix-rt="1.1.1"
 actix-web="2.0.0"
+horrorshow="0.8.3"
