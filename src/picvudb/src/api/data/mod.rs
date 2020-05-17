@@ -1,13 +1,8 @@
-use serde::Serialize;
-
 mod date;
-pub use date::Date;
+mod objectid;
 
-#[derive(Debug, Serialize)]
-pub struct Object
-{
-    pub id: String,
-    pub added: Date,
-    pub changed: Date,
-    pub label: String,
-}
+pub use date::Date;
+pub use objectid::ObjectId;
+
+pub mod add;
+pub mod get;

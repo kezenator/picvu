@@ -1,7 +1,13 @@
 use std::fmt::Debug;
 use actix_web::HttpResponse;
 use actix_web::dev::HttpResponseBuilder;
-use actix_web::http::header::ContentType;
+use actix_web::http::header::{
+        CacheControl, CacheDirective,
+        Charset,
+        ContentDisposition, ContentType,
+        DispositionType, DispositionParam,
+        ExtendedValue,
+        EntityTag, ETag};
 
 use horrorshow::{html, Raw};
 
@@ -31,6 +37,37 @@ pub fn redirect(path: String) -> HttpResponse
         .finish()
 }
 
+pub fn binary(bytes: Vec<u8>, filename: String, mime: mime::Mime, etag: String) -> HttpResponse
+{
+    HttpResponse::Ok()
+    .set(ContentType(mime))
+    .set(CacheControl(vec![
+        CacheDirective::NoCache,
+        CacheDirective::MaxAge(0),
+    ]))
+    .set(ETag(EntityTag::strong(etag)))
+    .set(ContentDisposition {
+        disposition: DispositionType::Inline,
+        parameters: vec![DispositionParam::FilenameExt(ExtendedValue {
+            charset: Charset::Ext("UTF-8".to_owned()),
+            language_tag: None,
+            value: filename.bytes().collect::<Vec<u8>>(),
+        })],
+    })
+    .body(bytes)
+}
+
+pub fn binary_matched(etag: String) -> HttpResponse
+{
+    HttpResponse::NotModified()
+    .set(CacheControl(vec![
+        CacheDirective::NoCache,
+        CacheDirective::MaxAge(0),
+    ]))
+    .set(ETag(EntityTag::strong(etag)))
+    .finish()
+}
+
 fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
 {
     let mut builder = builder;
@@ -49,5 +86,8 @@ fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
 
     builder
         .set(ContentType::html())
+        .set(CacheControl(vec![
+            CacheDirective::NoStore,
+        ]))
         .body(body.to_string())
 }

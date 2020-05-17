@@ -3,8 +3,8 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct Date
 {
-    pub(crate) timestamp: i64,
-    pub(crate) timestring: String,
+    timestamp: i64,
+    timestring: String,
 }
 
 impl Date
@@ -14,10 +14,34 @@ impl Date
         let local = chrono::Local::now();
         let utc = local.with_timezone(&chrono::Utc);
 
-        let timestamp = utc.timestamp();
+        let timestamp = utc.timestamp_millis();
         let timestring = local.to_rfc3339();
 
         Date { timestamp, timestring }
+    }
+
+    pub(crate) fn from_db_fields(timestamp: i64, timestring: String) -> Self
+    {
+        Date { timestamp, timestring }
+    }
+
+    pub(crate) fn from_db_timestamp(timestamp: i64) -> Self
+    {
+        let naive = chrono::naive::NaiveDateTime::from_timestamp(timestamp / 1000, ((timestamp % 1000) * 1000) as u32);
+        let utc = chrono::DateTime::<chrono::Utc>::from_utc(naive, chrono::Utc);
+        let timestring = utc.to_rfc3339();
+
+        Date { timestamp, timestring }
+    }
+
+    pub fn to_db_timestamp(&self) -> i64
+    {
+        self.timestamp
+    }
+
+    pub fn to_db_timestring(&self) -> &String
+    {
+        &self.timestring
     }
 
     pub fn to_rfc3339(&self) -> String

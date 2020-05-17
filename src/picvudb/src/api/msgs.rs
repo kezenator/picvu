@@ -1,11 +1,9 @@
 use std::collections::HashMap;
-use serde::Serialize;
 
 use crate::Error;
-use crate::models;
 use crate::api::ApiMessage;
 use crate::store::WriteOps;
-use crate::api::data::*;
+use crate::api::data;
 
 #[derive(Debug)]
 pub struct GetPropertiesRequest
@@ -25,7 +23,7 @@ impl ApiMessage for GetPropertiesRequest
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct GetPropertiesResponse
 {
     pub properties: HashMap<String, String>,
@@ -43,32 +41,55 @@ impl ApiMessage for GetAllObjectsRequest
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
-        let to_api_object = |obj: models::Object| { Object {
-            id: obj.id,
-            added: Date{ timestamp: obj.added_timestamp, timestring: obj.added_timestring, },
-            changed: Date{ timestamp: obj.changed_timestamp, timestring: obj.changed_timestring, },
-            label: obj.label,
-        }};
+        let mut results = Vec::new();
 
-        let objects = ops.get_all_objects()?
-            .drain(..)
-            .map(|obj| to_api_object(obj))
-            .collect();
+        let mut from_db = ops.get_all_objects()?;
+        results.reserve(from_db.len());
 
-        Ok(GetAllObjectsResponse{ objects })
+        for object in from_db.drain(..)
+        {
+            let mut additional = data::get::AdditionalMetadata::None;
+
+            if let Some(attachment) = ops.get_attachment_metadata(&object.id)?
+            {
+                additional = data::get::AdditionalMetadata::Photo(data::get::PhotoMetadata
+                {
+                    attachment: data::get::AttachmentMetadata
+                    {
+                        filename: attachment.filename,
+                        created: data::Date::from_db_timestamp(attachment.created),
+                        modified: data::Date::from_db_timestamp(attachment.modified),
+                        mime: attachment.mime.parse::<mime::Mime>()?,
+                        size: attachment.size as u64,
+                        hash: attachment.hash,
+                    },
+                });
+            }
+
+            results.push(data::get::ObjectMetadata
+            {
+                id: data::ObjectId::new(object.id),
+                added: data::Date::from_db_fields(object.added_timestamp, object.added_timestring),
+                changed: data::Date::from_db_fields(object.changed_timestamp, object.changed_timestring),
+                title: object.title,
+                additional: additional,
+            });
+        }
+
+        Ok(GetAllObjectsResponse{ objects: results })
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct GetAllObjectsResponse
 {
-    pub objects: Vec<Object>,
+    pub objects: Vec<data::get::ObjectMetadata>,
 }
 
 #[derive(Debug)]
 pub struct AddObjectRequest
 {
-    pub label: String,
+    pub data: data::add::ObjectData,
 }
 
 impl ApiMessage for AddObjectRequest
@@ -78,21 +99,89 @@ impl ApiMessage for AddObjectRequest
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
-        let to_api_object = |obj: models::Object| { Object {
-            id: obj.id,
-            added: Date{ timestamp: obj.added_timestamp, timestring: obj.added_timestring, },
-            changed: Date{ timestamp: obj.changed_timestamp, timestring: obj.changed_timestring, },
-            label: obj.label,
-        }};
+        let object = ops.add_object(self.data.title.clone())?;
 
-        let object = to_api_object(ops.add_object(&self.label)?);
+        match &self.data.additional
+        {
+            data::add::AdditionalData::Photo{attachment} =>
+            {
+                ops.add_attachment(
+                    &object.id,
+                    attachment.filename.clone(),
+                    attachment.created.clone(),
+                    attachment.modified.clone(),
+                    attachment.mime.to_string(),
+                    attachment.bytes.clone())?;
+            },
+        };
 
-        Ok(AddObjectResponse{ object })
+        Ok(AddObjectResponse{ object_id: data::ObjectId::new(object.id) })
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct AddObjectResponse
 {
-    pub object: Object,
+    pub object_id: data::ObjectId,
+}
+
+#[derive(Debug)]
+pub struct GetAttachmentDataRequest
+{
+    pub object_id: data::ObjectId,
+    pub cache_hash: Option<String>,
+}
+
+impl ApiMessage for GetAttachmentDataRequest
+{
+    type Response = GetAttachmentDataResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        let metadata = ops.get_attachment_metadata(&self.object_id.0)?;
+        match metadata
+        {
+            None => Ok(GetAttachmentDataResponse::NotFound),
+            Some(metadata) =>
+            {
+                let metadata = data::get::AttachmentMetadata
+                {
+                    filename: metadata.filename,
+                    created: data::Date::from_db_timestamp(metadata.created),
+                    modified: data::Date::from_db_timestamp(metadata.modified),
+                    mime: metadata.mime.parse::<mime::Mime>()?,
+                    size: metadata.size as u64,
+                    hash: metadata.hash,
+                };
+
+                if self.cache_hash.as_ref().cloned().unwrap_or_default() == metadata.hash
+                {
+                    Ok(GetAttachmentDataResponse::NotModified{ metadata })
+                }
+                else
+                {
+                    let bytes = ops.get_attachment_data(&self.object_id.0)?
+                        .ok_or(Error::DatabaseConsistencyError{ msg: format!("Object {} contains attachment metadata but no attachment data", self.object_id.0) })?;
+                    
+                    Ok(GetAttachmentDataResponse::Found{metadata, bytes})
+                }
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum GetAttachmentDataResponse
+{
+    NotFound,
+    NotModified
+    {
+        metadata: data::get::AttachmentMetadata,
+    },
+    Found
+    {
+        metadata: data::get::AttachmentMetadata,
+        bytes: Vec<u8>,
+    },
 }
