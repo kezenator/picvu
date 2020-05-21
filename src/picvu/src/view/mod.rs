@@ -8,8 +8,8 @@ use picvudb::msgs::AddObjectResponse;
 
 use crate::path;
 
-mod doc;
-mod page;
+pub mod doc;
+pub mod page;
 
 pub fn generate_response<T>(data: T) -> HttpResponse
     where T: Viewable

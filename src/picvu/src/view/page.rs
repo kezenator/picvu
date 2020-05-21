@@ -59,6 +59,12 @@ pub fn all_objects(resp: &GetAllObjectsResponse) -> Page
             input(type="file", name="file", accept="image/*,video/*");
             input(type="submit");
         }
+        h1: "Bulk Import";
+        form(method="POST", action=path::form_bulk_import(), enctype="application/x-www-form-urlencoded")
+        {
+            input(type="text", name="folder");
+            input(type="submit");
+        }
     }.to_string();
 
     Page {

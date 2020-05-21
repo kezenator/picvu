@@ -1,28 +1,42 @@
 extern crate actix_rt;
+use std::sync::{Arc, Mutex};
 use actix::SyncArbiter;
 use actix_multipart::Multipart;
 use actix_web::{web, App, HttpRequest, HttpServer, HttpResponse};
 use futures::{StreamExt, TryStreamExt};
 
 mod analyse;
+mod bulk;
 mod db;
 mod forms;
 mod path;
 mod view;
 
 struct State {
+    bulk_queue: Arc<Mutex<bulk::BulkQueue>>,
     db: db::DbAddr,
 }
 
-async fn index(state: web::Data<State>, _req: HttpRequest) -> HttpResponse {
+async fn index(state: web::Data<State>, _req: HttpRequest) -> HttpResponse
+{
+    // TODO - this should be put into a middle-ware
+    // that wraps all user-interface pages
+    {
+        let bulk_queue = state.bulk_queue.lock().unwrap();
+
+        if bulk_queue.is_op_in_progress()
+        {
+            return bulk_queue.render();
+        }
+    }
 
     let msg = picvudb::msgs::GetAllObjectsRequest{};
     let response = state.db.send(msg).await;
     view::generate_response(response)
 }
 
-async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> HttpResponse {
-
+async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> HttpResponse
+{
     let mut file: Option<(String, Vec<u8>)> = None;
 
     loop
@@ -90,6 +104,17 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
     let msg = picvudb::msgs::AddObjectRequest{ data };
     let response = state.db.send(msg).await;
     view::generate_response(response)
+}
+
+async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkImport>, _req: HttpRequest) -> HttpResponse
+{
+    {
+        let mut bulk_queue = state.bulk_queue.lock().unwrap();
+
+        bulk_queue.enqueue(bulk::import::FolderImport::new(&form.folder));
+    }
+
+    view::doc::redirect(path::index())
 }
 
 async fn attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::Attachment>, _req: HttpRequest) -> HttpResponse
@@ -194,12 +219,14 @@ async fn main() -> std::io::Result<()> {
     });
 
     let addr = rx.recv().unwrap();
+    let bulk_queue = Arc::new(Mutex::new(bulk::BulkQueue::new()));
 
     HttpServer::new(move || {
         App::new()
-            .data(State { db: db::DbAddr::new(addr.clone()) })
+            .data(State { bulk_queue: bulk_queue.clone(), db: db::DbAddr::new(addr.clone()) })
             .route("/", web::get().to(index))
             .route("/form/add_object", web::post().to(form_add_object))
+            .route("/form/bulk_import", web::post().to(form_bulk_import))
             .route("/attachments/{object_id}", web::get().to(attachment))
             .route("/thumbnails/{object_id}", web::get().to(thumbnail))
     })

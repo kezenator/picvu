@@ -12,3 +12,9 @@ pub struct Thumbnail
     pub hash: String,
     pub size: u32,
 }
+
+#[derive(Deserialize)]
+pub struct BulkImport
+{
+    pub folder: String,
+}
