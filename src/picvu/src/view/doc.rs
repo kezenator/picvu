@@ -42,8 +42,9 @@ pub fn binary(bytes: Vec<u8>, filename: String, mime: mime::Mime, etag: String) 
     HttpResponse::Ok()
     .set(ContentType(mime))
     .set(CacheControl(vec![
-        CacheDirective::NoCache,
-        CacheDirective::MaxAge(0),
+        CacheDirective::Public,
+        CacheDirective::MaxAge(24 * 3600 /* 1 day */),
+        CacheDirective::Extension("immutable".to_owned(), None),
     ]))
     .set(ETag(EntityTag::strong(etag)))
     .set(ContentDisposition {
@@ -55,17 +56,6 @@ pub fn binary(bytes: Vec<u8>, filename: String, mime: mime::Mime, etag: String) 
         })],
     })
     .body(bytes)
-}
-
-pub fn binary_matched(etag: String) -> HttpResponse
-{
-    HttpResponse::NotModified()
-    .set(CacheControl(vec![
-        CacheDirective::NoCache,
-        CacheDirective::MaxAge(0),
-    ]))
-    .set(ETag(EntityTag::strong(etag)))
-    .finish()
 }
 
 fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse

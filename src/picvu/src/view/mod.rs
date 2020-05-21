@@ -42,13 +42,13 @@ impl Viewable for GetAttachmentDataResponse
     {
         match self
         {
-            GetAttachmentDataResponse::NotFound =>
+            GetAttachmentDataResponse::ObjectNotFound =>
             {
                 doc::err(HttpResponse::NotFound(), "Object not found")
             },
-            GetAttachmentDataResponse::NotModified{metadata} =>
+            GetAttachmentDataResponse::HashNotFound =>
             {
-                doc::binary_matched(metadata.hash)
+                doc::err(HttpResponse::NotFound(), "Object not found")
             },
             GetAttachmentDataResponse::Found{metadata, bytes} =>
             {

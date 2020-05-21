@@ -39,7 +39,10 @@ pub fn all_objects(resp: &GetAllObjectsResponse) -> Page
                         td: photo.attachment.size;
                         td
                         {
-                            img(src=path::attachment_data(&object.id))
+                            a(href=path::attachment_data(&object.id, &photo.attachment.hash))
+                            {
+                                img(src=path::image_thumbnail(&object.id, &photo.attachment.hash, 128))
+                            }
                         }
                     }
                     else

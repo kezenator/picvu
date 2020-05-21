@@ -20,6 +20,16 @@ impl Date
         Date { timestamp, timestring }
     }
 
+    pub fn from_chrono_datetime<T>(local: chrono::DateTime<T>) -> Self
+        where T: chrono::offset::TimeZone,
+            T::Offset: std::fmt::Display
+    {
+        let timestamp = local.with_timezone(&chrono::Utc).timestamp_millis();
+        let timestring = local.to_rfc3339();
+
+        Date { timestamp, timestring }
+    }
+
     pub(crate) fn from_db_fields(timestamp: i64, timestring: String) -> Self
     {
         Date { timestamp, timestring }

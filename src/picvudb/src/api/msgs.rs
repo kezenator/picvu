@@ -129,7 +129,7 @@ pub struct AddObjectResponse
 pub struct GetAttachmentDataRequest
 {
     pub object_id: data::ObjectId,
-    pub cache_hash: Option<String>,
+    pub specific_hash: Option<String>,
 }
 
 impl ApiMessage for GetAttachmentDataRequest
@@ -142,7 +142,7 @@ impl ApiMessage for GetAttachmentDataRequest
         let metadata = ops.get_attachment_metadata(&self.object_id.0)?;
         match metadata
         {
-            None => Ok(GetAttachmentDataResponse::NotFound),
+            None => Ok(GetAttachmentDataResponse::ObjectNotFound),
             Some(metadata) =>
             {
                 let metadata = data::get::AttachmentMetadata
@@ -155,16 +155,17 @@ impl ApiMessage for GetAttachmentDataRequest
                     hash: metadata.hash,
                 };
 
-                if self.cache_hash.as_ref().cloned().unwrap_or_default() == metadata.hash
-                {
-                    Ok(GetAttachmentDataResponse::NotModified{ metadata })
-                }
-                else
+                if self.specific_hash.is_none()
+                    || (*self.specific_hash.as_ref().unwrap() == metadata.hash)
                 {
                     let bytes = ops.get_attachment_data(&self.object_id.0)?
                         .ok_or(Error::DatabaseConsistencyError{ msg: format!("Object {} contains attachment metadata but no attachment data", self.object_id.0) })?;
                     
                     Ok(GetAttachmentDataResponse::Found{metadata, bytes})
+                }
+                else
+                {
+                    Ok(GetAttachmentDataResponse::HashNotFound)
                 }
             },
         }
@@ -174,11 +175,8 @@ impl ApiMessage for GetAttachmentDataRequest
 #[derive(Debug)]
 pub enum GetAttachmentDataResponse
 {
-    NotFound,
-    NotModified
-    {
-        metadata: data::get::AttachmentMetadata,
-    },
+    ObjectNotFound,
+    HashNotFound,
     Found
     {
         metadata: data::get::AttachmentMetadata,

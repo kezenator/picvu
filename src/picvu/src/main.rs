@@ -2,9 +2,9 @@ extern crate actix_rt;
 use actix::SyncArbiter;
 use actix_multipart::Multipart;
 use actix_web::{web, App, HttpRequest, HttpServer, HttpResponse};
-use actix_http::httpmessage::HttpMessage;
 use futures::{StreamExt, TryStreamExt};
 
+mod analyse;
 mod db;
 mod forms;
 mod path;
@@ -65,6 +65,12 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
     let file = file.unwrap();
     let now = picvudb::data::Date::now();
 
+    {
+        let details = analyse::img::ImgAnalysis::decode(&file.1, &file.0);
+        println!("Image Analysis Details:");
+        println!("{:#?}", details);
+    }
+
     let data = picvudb::data::add::ObjectData
     {
         title: Some(file.0.clone()),
@@ -86,24 +92,87 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
     view::generate_response(response)
 }
 
-async fn attachment(state: web::Data<State>, object_id: web::Path<String>, req: HttpRequest) -> HttpResponse
+async fn attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::Attachment>, _req: HttpRequest) -> HttpResponse
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
-    let mut cache_hash = None;
-    
-    if let Some(actix_web::http::header::IfNoneMatch::Items(ref entity_vec)) = req.get_header()
-    {
-        if let Some(entity) = entity_vec.first()
-        {
-            if !entity.weak
-            {
-                cache_hash = Some(entity.tag().to_owned())
-            }
-        }
-    }
 
-    let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, cache_hash };
+    let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
     let response = state.db.send(msg).await;
+    view::generate_response(response)
+}
+
+async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<forms::Thumbnail>, _req: HttpRequest) -> HttpResponse
+{
+    let object_id = picvudb::data::ObjectId::new(path.to_string());
+
+    let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
+    let response = state.db.send(msg).await;
+
+    if response.is_err()
+    {
+        return view::generate_response(response);
+    }
+    let response = response.unwrap();
+
+    if response.is_err()
+    {
+        return view::generate_response(response);
+    }
+    let response = response.unwrap();
+
+    let response = match response
+    {
+        picvudb::msgs::GetAttachmentDataResponse::ObjectNotFound =>
+        {
+            Ok(picvudb::msgs::GetAttachmentDataResponse::ObjectNotFound)
+        },
+        picvudb::msgs::GetAttachmentDataResponse::HashNotFound =>
+        {
+            Ok(picvudb::msgs::GetAttachmentDataResponse::HashNotFound)
+        },
+        picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes} =>
+        {
+            web::block(move || -> Result<picvudb::msgs::GetAttachmentDataResponse, image::ImageError>
+            {
+                let orientation =
+                    analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename)
+                    .ok()
+                    .flatten()
+                    .map(|analysis|{ analysis.orientation })
+                    .unwrap_or(analyse::img::Orientation::Undefined);
+
+                let image = image::load_from_memory(&bytes)?;
+                let image = image.thumbnail(form.size, form.size);
+
+                let image = match orientation
+                {
+                    analyse::img::Orientation::Undefined
+                    | analyse::img::Orientation::Straight =>
+                    {
+                        image
+                    },
+                    analyse::img::Orientation::UpsideDown =>
+                    {
+                        image.rotate180()
+                    }
+                    analyse::img::Orientation::RotatedLeft =>
+                    {
+                        image.rotate90()
+                    }
+                    analyse::img::Orientation::RotatedRight =>
+                    {
+                        image.rotate270()
+                    }
+                };
+
+                let mut bytes = Vec::new();
+                image.write_to(&mut bytes, image::ImageOutputFormat::Jpeg(100))?;
+
+                Ok(picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes})
+            }).await
+        },
+    };
+
     view::generate_response(response)
 }
 
@@ -132,6 +201,7 @@ async fn main() -> std::io::Result<()> {
             .route("/", web::get().to(index))
             .route("/form/add_object", web::post().to(form_add_object))
             .route("/attachments/{object_id}", web::get().to(attachment))
+            .route("/thumbnails/{object_id}", web::get().to(thumbnail))
     })
     .bind("127.0.0.1:8080")?
     .run()

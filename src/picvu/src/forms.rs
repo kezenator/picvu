@@ -1,7 +1,14 @@
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub struct AddObject
+pub struct Attachment
 {
-    pub label: String,
+    pub hash: String,
+}
+
+#[derive(Deserialize)]
+pub struct Thumbnail
+{
+    pub hash: String,
+    pub size: u32,
 }
