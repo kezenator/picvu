@@ -24,9 +24,9 @@ async fn index(state: web::Data<State>, _req: HttpRequest) -> HttpResponse
     {
         let bulk_queue = state.bulk_queue.lock().unwrap();
 
-        if bulk_queue.is_op_in_progress()
+        if let Some(progress) = bulk_queue.get_current_progress()
         {
-            return bulk_queue.render();
+            return view::generate_response(progress);
         }
     }
 
@@ -114,7 +114,18 @@ async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkIm
         bulk_queue.enqueue(bulk::import::FolderImport::new(&form.folder));
     }
 
-    view::doc::redirect(path::index())
+    view::redirect(path::index())
+}
+
+async fn form_bulk_acknowledge(state: web::Data<State>, _req: HttpRequest) -> HttpResponse
+{
+    {
+        let bulk_queue = state.bulk_queue.lock().unwrap();
+
+        bulk_queue.remove_completed();
+    }
+
+    view::redirect(path::index())
 }
 
 async fn attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::Attachment>, _req: HttpRequest) -> HttpResponse
@@ -227,6 +238,7 @@ async fn main() -> std::io::Result<()> {
             .route("/", web::get().to(index))
             .route("/form/add_object", web::post().to(form_add_object))
             .route("/form/bulk_import", web::post().to(form_bulk_import))
+            .route("/form/bulk_acknowledge", web::post().to(form_bulk_acknowledge))
             .route("/attachments/{object_id}", web::get().to(attachment))
             .route("/thumbnails/{object_id}", web::get().to(thumbnail))
     })

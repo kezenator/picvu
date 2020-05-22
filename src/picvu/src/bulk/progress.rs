@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use horrorshow::prelude::*;
 
 pub fn channel() -> (ProgressSender, ProgressReceiver)
 {
@@ -11,6 +10,17 @@ pub fn channel() -> (ProgressSender, ProgressReceiver)
     (sender, receiver)
 }
 
+#[derive(Debug, Clone)]
+pub struct ProgressState
+{
+    pub completed_stages: Vec<String>,
+    pub current_stage: String,
+    pub percentage_complete: f64,
+    pub progress_lines: Vec<String>,
+    pub remaining_stages: Vec<String>,
+    pub complete: bool,
+}
+
 #[derive(Clone)]
 pub struct ProgressSender
 {
@@ -19,12 +29,33 @@ pub struct ProgressSender
 
 impl ProgressSender
 {
-    pub fn set<F>(&self, html: FnRenderer<F>)
-        where F: FnOnce(&mut TemplateBuffer)
+    pub fn start_stage(&self, name: String, remaining_stages: Vec<String>)
     {
         let mut data = self.inner.lock().unwrap();
 
-        data.raw_value = html.into_string().unwrap();
+        if data.started_first_stage
+        {
+            // Mark the previous state as completed
+
+            let prev_stage = data.state.current_stage.clone();
+            data.state.completed_stages.push(prev_stage);
+        }
+
+        data.started_first_stage = true;
+        data.state.current_stage = name;
+        data.state.percentage_complete = 0.0;
+        data.state.progress_lines.clear();
+        data.state.remaining_stages = remaining_stages;
+    }
+
+    pub fn set(&self, percentage_complete: f64, progress_lines: Vec<String>)
+    {
+        let mut data = self.inner.lock().unwrap();
+
+        assert!(data.started_first_stage);
+
+        data.state.percentage_complete = percentage_complete;
+        data.state.progress_lines = progress_lines;
     }
 }
 
@@ -36,21 +67,33 @@ pub struct ProgressReceiver
 
 impl ProgressReceiver
 {
-    pub fn get_raw_html(&self) -> String
+    pub fn get_state(&self) -> ProgressState
     {
-        self.inner.lock().unwrap().raw_value.clone()
+        self.inner.lock().unwrap().state.clone()
     }
 }
 
 struct ProgressInner
 {
-    raw_value: String,
+    started_first_stage: bool,
+    state: ProgressState,
 }
 
 impl ProgressInner
 {
     pub fn new() -> Self
     {
-        ProgressInner { raw_value: "Starting...".to_owned() }
+        let started_first_stage = false;
+        let state = ProgressState
+        {
+            completed_stages: Vec::new(),
+            current_stage: "Starting...".to_owned(),
+            percentage_complete: 0.0,
+            progress_lines: Vec::new(),
+            remaining_stages: Vec::new(),
+            complete: false,
+        };
+
+        ProgressInner { started_first_stage, state }
     }
 }

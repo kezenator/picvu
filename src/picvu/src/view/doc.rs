@@ -70,7 +70,11 @@ fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
             {
                 title : page.title.as_str()
             }
-            body : Raw(page.contents.as_str())
+            body
+            {
+                h1 : page.title.as_str();
+                : Raw(page.contents.as_str())
+            }
         }
     };
 

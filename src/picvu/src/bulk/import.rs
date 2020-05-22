@@ -7,7 +7,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use flate2::read::GzDecoder;
 use tar::Archive;
-use horrorshow::html;
 
 use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
@@ -44,6 +43,8 @@ impl BulkOperation for FolderImport
         {
             web::block(move || -> Result<(), std::io::Error>
             {
+                sender.start_stage("Processing file".to_owned(), vec![]);
+
                 let metadata = std::fs::metadata(self.tar_gz_file_path.clone())?;
                 let len = metadata.len();
 
@@ -61,12 +62,10 @@ impl BulkOperation for FolderImport
                     let bytes_read = counted_get.get();
 
                     let percent = (bytes_read as f64) / (len as f64) * 100.0;
+                    let progress_file = path.display().to_string();
+                    let progress_bytes = format!("{} of {} bytes", bytes_read, len);
 
-                    sender.set(html!
-                    {
-                        p : (path.display().to_string());
-                        p : (format!("{:.2} ({} of {})", percent, bytes_read, len))
-                    });
+                    sender.set(percent, vec![progress_file, progress_bytes]);
 
                     println!("{}", path.display());
                 }

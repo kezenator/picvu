@@ -1,6 +1,7 @@
-use horrorshow::html;
+use horrorshow::{html, owned_html};
 
 use crate::path;
+use crate::bulk;
 use picvudb::msgs::*;
 
 pub struct Page
@@ -9,10 +10,9 @@ pub struct Page
     pub contents: String,
 }
 
-pub fn all_objects(resp: &GetAllObjectsResponse) -> Page
+pub fn all_objects(resp: GetAllObjectsResponse) -> Page
 {
     let contents = html!{
-        h1: "All Objects";
         table
         {
             tr
@@ -69,6 +69,61 @@ pub fn all_objects(resp: &GetAllObjectsResponse) -> Page
 
     Page {
         title: "All Objects".to_owned(),
+        contents: contents,
+    }
+}
+
+pub fn bulk_progress(progress: bulk::progress::ProgressState) -> Page
+{
+    let contents = owned_html!{
+        ol
+        {
+            @for stage in progress.completed_stages.iter()
+            {
+                li { p : (stage) }
+            }
+
+            li
+            {
+                p : progress.current_stage.clone();
+
+                ul
+                {
+                    p : (format!("{:.1}", progress.percentage_complete));
+                    
+                    @for line in progress.progress_lines.iter()
+                    {
+                        p : line;
+                    }
+                }
+            }
+
+            @for stage in progress.remaining_stages.iter()
+            {
+                li { p : (stage) }
+            }
+
+            @if progress.complete
+            {
+                form(method="POST", action=path::form_bulk_acknowledge(), enctype="application/x-www-form-urlencoded")
+                {
+                    input(type="submit", value="Acknowledge");
+                }
+            }
+        }
+
+        @if !progress.complete
+        {
+            script
+            {
+                : (horrorshow::Raw("window.setTimeout(\"window.location.reload();\", 1000);"))
+            }
+        }
+        
+    }.to_string();
+
+    Page {
+        title: "Bulk Operations".to_owned(),
         contents: contents,
     }
 }

@@ -1,16 +1,12 @@
 use std::future::Future;
-use actix_web::HttpResponse;
 use std::sync::{Arc, Mutex};
-use horrorshow::html;
-
-use crate::view;
 
 pub mod import;
 pub mod progress;
 
 pub trait BulkOperation
 {
-    type Error;
+    type Error: std::fmt::Debug;
     type Future: Future<Output = Result<(), Self::Error>> + 'static;
 
     fn name(&self) -> String;
@@ -19,7 +15,7 @@ pub trait BulkOperation
 
 pub struct BulkQueue
 {
-    inner: Arc<Mutex<Option<progress::ProgressReceiver>>>,
+    inner: Arc<Mutex<BulkQueueInner>>,
 }
 
 impl BulkQueue
@@ -28,7 +24,7 @@ impl BulkQueue
     {
         BulkQueue
         {
-            inner: Arc::new(Mutex::new(None)),
+            inner: Arc::new(Mutex::new(BulkQueueInner::None)),
         }
     }
 
@@ -36,49 +32,69 @@ impl BulkQueue
     {
         let inner_cloned = self.inner.clone();
 
-        let mut opt_rx = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap();
 
-        assert!{opt_rx.is_none()};
+        assert!(if let BulkQueueInner::None = *inner { true } else { false });
 
         let (tx, rx) = progress::channel();
 
-        *opt_rx = Some(rx);
+        *inner = BulkQueueInner::InProgress(rx.clone());
 
         let future = op.start(tx.clone());
 
         actix_rt::spawn(async move
             {
-                // TODO - better error handling....
                 match future.await
                 {
                     Ok(_) => {},
-                    Err(_) => { tx.set(html!{ : "Completed with errors!" }); },
+                    Err(err) =>
+                    {
+                        tx.start_stage("Failed".to_owned(), vec![]);
+
+                        let lines = format!("{:#?}", err)
+                            .split("\n")
+                            .map(|s| s.to_owned())
+                            .collect();
+
+                        tx.set(100.0, lines);
+                    },
                 }
 
-                // Mark that we're finished
-                *inner_cloned.lock().unwrap() = None;
+                // Mark that we're completed
+                {
+                    let mut state = rx.get_state();
+                    state.complete = true;
+                    *inner_cloned.lock().unwrap() = BulkQueueInner::Completed(state);
+                }
             });
     }
 
-    pub fn is_op_in_progress(&self) -> bool
+    pub fn remove_completed(&self)
     {
-        let opt_rx = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap();
 
-        return opt_rx.is_some();
-    }
-
-    pub fn render(&self) -> HttpResponse
-    {
-        let opt_rx = self.inner.lock().unwrap();
-
-        let title = "Background Tasks".to_owned();
-
-        let contents = match &*opt_rx
+        if let BulkQueueInner::Completed(_) = *inner
         {
-            None => "No background tasks in operation.".to_owned(),
-            Some(rx) => rx.get_raw_html(),
-        };
-
-        view::doc::ok(view::page::Page{ title, contents })
+            *inner = BulkQueueInner::None;
+        }
     }
+
+    pub fn get_current_progress(&self) -> Option<progress::ProgressState>
+    {
+        let inner = self.inner.lock().unwrap();
+
+        match &*inner
+        {
+            BulkQueueInner::None => None,
+            BulkQueueInner::InProgress(rx) => Some(rx.get_state()),
+            BulkQueueInner::Completed(state) => Some(state.clone()),
+        }
+    }
+}
+
+enum BulkQueueInner
+{
+    None,
+    InProgress(progress::ProgressReceiver),
+    Completed(progress::ProgressState),
 }

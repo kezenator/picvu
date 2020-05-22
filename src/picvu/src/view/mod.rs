@@ -7,9 +7,12 @@ use picvudb::msgs::GetAttachmentDataResponse;
 use picvudb::msgs::AddObjectResponse;
 
 use crate::path;
+use crate::bulk;
 
-pub mod doc;
-pub mod page;
+mod doc;
+mod page;
+
+pub use doc::redirect;
 
 pub fn generate_response<T>(data: T) -> HttpResponse
     where T: Viewable
@@ -32,7 +35,7 @@ impl Viewable for GetAllObjectsResponse
 {
     fn generate(self) -> HttpResponse
     {
-        doc::ok(page::all_objects(&self))
+        doc::ok(page::all_objects(self))
     }
 }
 
@@ -63,6 +66,14 @@ impl Viewable for AddObjectResponse
     fn generate(self) -> HttpResponse
     {
         doc::redirect(path::index())
+    }
+}
+
+impl Viewable for bulk::progress::ProgressState
+{
+    fn generate(self) -> HttpResponse
+    {
+        doc::ok(page::bulk_progress(self))
     }
 }
 
