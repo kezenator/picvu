@@ -19,7 +19,14 @@ pub fn objects(resp: GetObjectsResponse) -> Page
     let contents = html!{
         table
         {
-            : (pagination(&resp.pagination));
+            p
+            {
+                a(href=(path::index())) : "All Objects";
+                : ", ";
+                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc))) : "By Size";
+            }
+
+            : (pagination(resp.query.clone(), resp.pagination.clone()));
 
             tr
             {
@@ -171,7 +178,7 @@ fn should_print_page(page: u64, cur_page: u64, last_page: u64) -> bool
     }
 }
 
-fn pagination(response: &picvudb::data::get::PaginationResponse) -> Box<dyn RenderBox>
+fn pagination(query: picvudb::data::get::GetObjectsQuery, response: picvudb::data::get::PaginationResponse) -> Box<dyn RenderBox>
 {
     let page_size = response.page_size;
     let total = response.total;
@@ -205,7 +212,7 @@ fn pagination(response: &picvudb::data::get::PaginationResponse) -> Box<dyn Rend
                 @if should_print_page(*page, cur_page, last_page)
                 {
                     : ({ done_elipsis = false; ""});
-                    a(href=path::index_with_pagination(*page, page_size)): (format!("{}, ", page));
+                    a(href=path::objects_with_pagination(query.clone(), *page, page_size)): (format!("{}, ", page));
                 }
                 else
                 {

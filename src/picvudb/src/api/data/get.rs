@@ -56,8 +56,9 @@ pub struct PaginationResponse
     pub total: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum GetObjectsQuery
 {
     ByModifiedDesc,
+    ByAttachmentSizeDesc,
 }

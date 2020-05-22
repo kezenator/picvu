@@ -18,8 +18,8 @@ table! {
 }
 
 table! {
-    attachments_metadata (id) {
-        id -> Text,
+    attachments_metadata (obj_id) {
+        obj_id -> Text,
         filename -> Text,
         created -> BigInt,
         modified -> BigInt,
@@ -30,9 +30,12 @@ table! {
 }
 
 table! {
-    attachments_data (id) {
-        id -> Text,
+    attachments_data (obj_id, offset) {
+        obj_id -> Text,
         offset -> BigInt,
         bytes -> Blob,
     }
 }
+
+joinable!(attachments_metadata -> objects (obj_id));
+allow_tables_to_appear_in_same_query!(objects, attachments_metadata);

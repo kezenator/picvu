@@ -28,7 +28,7 @@ pub struct Object
 #[table_name="attachments_metadata"]
 pub struct AttachmentMetadata
 {
-    pub id: String,
+    pub obj_id: String,
     pub filename: String,
     pub created: i64,
     pub modified: i64,
@@ -42,7 +42,7 @@ pub struct AttachmentMetadata
 #[table_name="attachments_data"]
 pub struct AttachmentData
 {
-    pub id: String,
+    pub obj_id: String,
     pub offset: i64,
     pub bytes: Vec<u8>,
 }

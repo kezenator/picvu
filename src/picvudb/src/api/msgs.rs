@@ -45,7 +45,11 @@ impl ApiMessage for GetObjectsRequest
     {
         let mut results = Vec::new();
 
-        let num_objects = ops.get_num_objects()?;
+        let num_objects = match self.query
+        {
+            data::get::GetObjectsQuery::ByModifiedDesc => ops.get_num_objects()?,
+            data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_num_objects_with_attachments()?,
+        };
 
         // Fix up the pagination request
         let mut pagination = self.pagination.clone();
@@ -62,7 +66,11 @@ impl ApiMessage for GetObjectsRequest
             pagination.offset *= pagination.page_size;
         }
 
-        let mut from_db = ops.get_objects_by_modified_desc(pagination.offset, pagination.page_size)?;
+        let mut from_db = match self.query
+        {
+            data::get::GetObjectsQuery::ByModifiedDesc => ops.get_objects_by_modified_desc(pagination.offset, pagination.page_size)?,
+            data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_objects_by_attachment_size_desc(pagination.offset, pagination.page_size)?,
+        };
 
         results.reserve(from_db.len());
 
@@ -138,6 +146,7 @@ impl ApiMessage for GetObjectsRequest
         Ok(GetObjectsResponse
             {
                 objects: results,
+                query: self.query.clone(),
                 pagination: data::get::PaginationResponse{
                     offset: pagination.offset,
                     page_size: pagination.page_size,
@@ -151,6 +160,7 @@ impl ApiMessage for GetObjectsRequest
 pub struct GetObjectsResponse
 {
     pub objects: Vec<data::get::ObjectMetadata>,
+    pub query: data::get::GetObjectsQuery,
     pub pagination: data::get::PaginationResponse,
 }
 

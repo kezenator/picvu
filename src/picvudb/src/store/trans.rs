@@ -42,11 +42,18 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(num)
     }
 
+    fn get_num_objects_with_attachments(&self) -> Result<u64, Error>
+    {
+        // TODO
+        self.get_num_objects()
+    }
+
     fn get_objects_by_modified_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
     {
         use schema::objects::dsl::*;
 
         let results = objects
+            .order_by(changed_timestamp.desc())
             .offset(offset as i64)
             .limit(page_size as i64)
             .load::<Object>(self.connection)?;
@@ -54,12 +61,27 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(results)
     }
 
-    fn get_attachment_metadata(&self, obj_id: &String) -> Result<Option<AttachmentMetadata>, Error>
+    fn get_objects_by_attachment_size_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    {
+        use schema::objects::dsl::*;
+
+        let results = objects
+            .inner_join(schema::attachments_metadata::table)
+            .select(schema::objects::all_columns)
+            .order_by(schema::attachments_metadata::size.desc())
+            .offset(offset as i64)
+            .limit(page_size as i64)
+            .load::<Object>(self.connection)?;
+
+        Ok(results)
+    }
+
+    fn get_attachment_metadata(&self, q_obj_id: &String) -> Result<Option<AttachmentMetadata>, Error>
     {
         use schema::attachments_metadata::dsl::*;
 
         let metadata = attachments_metadata
-            .filter(id.eq(obj_id))
+            .filter(obj_id.eq(q_obj_id))
             .load::<AttachmentMetadata>(self.connection)?
             .into_iter()
             .nth(0);
@@ -67,12 +89,12 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(metadata)
     }
 
-    fn get_attachment_data(&self, obj_id: &String) -> Result<Option<Vec<u8>>, Error>
+    fn get_attachment_data(&self, q_obj_id: &String) -> Result<Option<Vec<u8>>, Error>
     {
         use schema::attachments_data::dsl::*;
 
         let mut data = attachments_data
-            .filter(id.eq(obj_id))
+            .filter(obj_id.eq(q_obj_id))
             .order_by(offset.asc())
             .load::<AttachmentData>(self.connection)?;
 
@@ -87,7 +109,7 @@ impl<'a> ReadOps for Transaction<'a>
             if (size as i64) != d.offset
             {
                 return Err(Error::DatabaseConsistencyError{
-                    msg: format!("Object {} has invalid attachment block offsets", obj_id),
+                    msg: format!("Object {} has invalid attachment block offsets", q_obj_id),
                 });
             }
 
@@ -95,7 +117,7 @@ impl<'a> ReadOps for Transaction<'a>
             if new_size < size
             {
                 return Err(Error::DatabaseConsistencyError{
-                    msg: format!("Object {} has an attachment that is too large to fit in memory", obj_id),
+                    msg: format!("Object {} has an attachment that is too large to fit in memory", q_obj_id),
                 });
             }
 
@@ -158,7 +180,7 @@ impl<'a> WriteOps for Transaction<'a>
 
         let model_metadata = AttachmentMetadata
         {
-            id: obj_id.clone(),
+            obj_id: obj_id.clone(),
             filename: filename,
             created: created.to_db_timestamp(),
             modified: modified.to_db_timestamp(),
@@ -179,7 +201,7 @@ impl<'a> WriteOps for Transaction<'a>
 
             let model_data = AttachmentData
             {
-                id: obj_id.clone(),
+                obj_id: obj_id.clone(),
                 offset: offset as i64,
                 bytes: bytes[offset..(offset + this_time)].to_vec(),
             };

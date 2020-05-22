@@ -7,8 +7,13 @@ use crate::data;
 pub trait ReadOps
 {
     fn get_properties(&self) -> Result<HashMap<String, String>, Error>;
+
     fn get_num_objects(&self) -> Result<u64, Error>;
+    fn get_num_objects_with_attachments(&self) -> Result<u64, Error>;
+
     fn get_objects_by_modified_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
+    fn get_objects_by_attachment_size_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
+
     fn get_attachment_metadata(&self, obj_id: &String) -> Result<Option<AttachmentMetadata>, Error>;
     fn get_attachment_data(&self, obj_id: &String) -> Result<Option<Vec<u8>>, Error>;
 }

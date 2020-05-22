@@ -48,9 +48,14 @@ async fn object_query(state: web::Data<State>, pagination_query: web::Query<form
     view::generate_response(response)
 }
 
-async fn index(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
+async fn objects_by_modified_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
 {
     object_query(state, pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
+}
+
+async fn objects_by_size_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
+{
+    object_query(state, pagination_query, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc).await
 }
 
 async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> HttpResponse
@@ -267,7 +272,9 @@ async fn main() -> std::io::Result<()>
 
         App::new()
             .data(state)
-            .route("/", web::get().to(index))
+            .route("/", web::get().to(objects_by_modified_desc))
+            .route("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
+            .route("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
             .route("/form/add_object", web::post().to(form_add_object))
             .route("/form/bulk_import", web::post().to(form_bulk_import))
             .route("/form/bulk_acknowledge", web::post().to(form_bulk_acknowledge))
