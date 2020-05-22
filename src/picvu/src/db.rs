@@ -1,6 +1,7 @@
 use actix::prelude::*;
 use picvudb::*;
 
+#[derive(Clone)]
 pub struct DbAddr(Addr<DbExecutor>);
 
 impl DbAddr

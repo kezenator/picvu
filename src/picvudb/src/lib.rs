@@ -16,5 +16,6 @@ mod store;
 mod tests;
 
 pub use api::*;
+pub use connection::DbConnectionError;
 pub use err::*;
 pub use store::*;

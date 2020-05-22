@@ -15,6 +15,7 @@ mod view;
 struct State {
     bulk_queue: Arc<Mutex<bulk::BulkQueue>>,
     db: db::DbAddr,
+    db_uri: String,
 }
 
 async fn index(state: web::Data<State>, _req: HttpRequest) -> HttpResponse
@@ -111,7 +112,7 @@ async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkIm
     {
         let mut bulk_queue = state.bulk_queue.lock().unwrap();
 
-        bulk_queue.enqueue(bulk::import::FolderImport::new(&form.folder));
+        bulk_queue.enqueue(bulk::import::FolderImport::new(form.folder.clone(), state.db_uri.clone()));
     }
 
     view::redirect(path::index())
@@ -213,15 +214,20 @@ async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::
 }
 
 #[actix_rt::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> std::io::Result<()>
+{
+
+    let db_uri = "test.db";
+
+    let _remove_err = std::fs::remove_file(db_uri);
 
     let (tx, rx) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
         let sys = actix::System::new("picvu-db");
 
-        let addr = SyncArbiter::start(1, || {
-            db::DbExecutor::new(picvudb::Store::new(":memory:").expect("Could not open DB"))
+        let addr = SyncArbiter::start(1, move || {
+            db::DbExecutor::new(picvudb::Store::new(db_uri).expect("Could not open DB"))
         });
 
         tx.send(addr).unwrap();
@@ -232,9 +238,17 @@ async fn main() -> std::io::Result<()> {
     let addr = rx.recv().unwrap();
     let bulk_queue = Arc::new(Mutex::new(bulk::BulkQueue::new()));
 
-    HttpServer::new(move || {
+    HttpServer::new(move ||
+    {
+        let state = State
+        {
+            bulk_queue: bulk_queue.clone(),
+            db: db::DbAddr::new(addr.clone()),
+            db_uri: db_uri.to_owned(),
+        };
+
         App::new()
-            .data(State { bulk_queue: bulk_queue.clone(), db: db::DbAddr::new(addr.clone()) })
+            .data(state)
             .route("/", web::get().to(index))
             .route("/form/add_object", web::post().to(form_add_object))
             .route("/form/bulk_import", web::post().to(form_bulk_import))
