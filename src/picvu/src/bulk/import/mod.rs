@@ -15,6 +15,7 @@ use picvudb::ApiMessage;
 
 use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
+use crate::format;
 
 mod error;
 mod metadata;
@@ -84,7 +85,7 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {} bytes", bytes_read, len);
+                        let progress_bytes = format!("Processed {} of {} bytes", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes]);
 
@@ -167,7 +168,7 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {} bytes", bytes_read, len);
+                        let progress_bytes = format!("Processed {} of {} bytes", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
                         let progress_files = format!("Found metadata for {} out of {} media files", path_to_metadata.len(), path_to_info.len());
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes, progress_files]);
@@ -216,7 +217,7 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {} bytes", bytes_read, len);
+                        let progress_bytes = format!("Processed {} of {} bytes", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes]);
 

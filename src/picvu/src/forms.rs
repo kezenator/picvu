@@ -18,3 +18,10 @@ pub struct BulkImport
 {
     pub folder: String,
 }
+
+#[derive(Deserialize)]
+pub struct Pagination
+{
+    pub offset: Option<u64>,
+    pub page_size: Option<u64>,
+}

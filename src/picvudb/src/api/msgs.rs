@@ -30,20 +30,40 @@ pub struct GetPropertiesResponse
 }
 
 #[derive(Debug)]
-pub struct GetAllObjectsRequest
+pub struct GetObjectsRequest
 {
+    pub query: data::get::GetObjectsQuery,
+    pub pagination: data::get::PaginationRequest,
 }
 
-impl ApiMessage for GetAllObjectsRequest
+impl ApiMessage for GetObjectsRequest
 {
-    type Response = GetAllObjectsResponse;
+    type Response = GetObjectsResponse;
     type Error = Error;
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
         let mut results = Vec::new();
 
-        let mut from_db = ops.get_all_objects()?;
+        let num_objects = ops.get_num_objects()?;
+
+        // Fix up the pagination request
+        let mut pagination = self.pagination.clone();
+        {
+            if pagination.page_size < 10
+            {
+                pagination.page_size = 10;
+            }
+            if pagination.offset >= num_objects
+            {
+                pagination.offset = num_objects - 1;
+            }
+            pagination.offset /= pagination.page_size;
+            pagination.offset *= pagination.page_size;
+        }
+
+        let mut from_db = ops.get_objects_by_modified_desc(pagination.offset, pagination.page_size)?;
+
         results.reserve(from_db.len());
 
         for object in from_db.drain(..)
@@ -115,14 +135,23 @@ impl ApiMessage for GetAllObjectsRequest
             });
         }
 
-        Ok(GetAllObjectsResponse{ objects: results })
+        Ok(GetObjectsResponse
+            {
+                objects: results,
+                pagination: data::get::PaginationResponse{
+                    offset: pagination.offset,
+                    page_size: pagination.page_size,
+                    total: num_objects,
+                }
+            })
     }
 }
 
 #[derive(Debug)]
-pub struct GetAllObjectsResponse
+pub struct GetObjectsResponse
 {
     pub objects: Vec<data::get::ObjectMetadata>,
+    pub pagination: data::get::PaginationResponse,
 }
 
 #[derive(Debug)]

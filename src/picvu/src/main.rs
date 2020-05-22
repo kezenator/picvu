@@ -8,6 +8,7 @@ use futures::{StreamExt, TryStreamExt};
 mod analyse;
 mod bulk;
 mod db;
+mod format;
 mod forms;
 mod path;
 mod view;
@@ -18,7 +19,7 @@ struct State {
     db_uri: String,
 }
 
-async fn index(state: web::Data<State>, _req: HttpRequest) -> HttpResponse
+async fn object_query(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>, query: picvudb::data::get::GetObjectsQuery) -> HttpResponse
 {
     // TODO - this should be put into a middle-ware
     // that wraps all user-interface pages
@@ -31,9 +32,25 @@ async fn index(state: web::Data<State>, _req: HttpRequest) -> HttpResponse
         }
     }
 
-    let msg = picvudb::msgs::GetAllObjectsRequest{};
+    let pagination = picvudb::data::get::PaginationRequest
+    {
+        offset: pagination_query.offset.unwrap_or(0),
+        page_size: pagination_query.page_size.unwrap_or(25),
+    };
+
+    let msg = picvudb::msgs::GetObjectsRequest
+    {
+        query,
+        pagination,
+    };
+
     let response = state.db.send(msg).await;
     view::generate_response(response)
+}
+
+async fn index(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
+{
+    object_query(state, pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
 }
 
 async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> HttpResponse

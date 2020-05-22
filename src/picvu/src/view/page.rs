@@ -1,7 +1,9 @@
-use horrorshow::{html, owned_html};
+use horrorshow::prelude::*;
+use horrorshow::{html, owned_html, box_html};
 
 use crate::path;
 use crate::bulk;
+use crate::format;
 use picvudb::msgs::*;
 
 pub struct Page
@@ -10,11 +12,15 @@ pub struct Page
     pub contents: String,
 }
 
-pub fn all_objects(resp: GetAllObjectsResponse) -> Page
+pub fn objects(resp: GetObjectsResponse) -> Page
 {
+    let now = picvudb::data::Date::now();
+
     let contents = html!{
         table
         {
+            : (pagination(&resp.pagination));
+
             tr
             {
                 th : "ID";
@@ -30,13 +36,13 @@ pub fn all_objects(resp: GetAllObjectsResponse) -> Page
                 tr
                 {
                     td: object.id.to_string();
-                    td: object.added.to_rfc3339();
-                    td: object.changed.to_rfc3339();
+                    td: format::date_to_str(&object.added, &now);
+                    td: format::date_to_str(&object.changed, &now);
                     td: object.title.clone().unwrap_or(String::new());
 
                     @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
                     {
-                        td: photo.attachment.size;
+                        td: format::bytes_to_str(photo.attachment.size);
                         td
                         {
                             a(href=path::attachment_data(&object.id, &photo.attachment.hash))
@@ -47,7 +53,7 @@ pub fn all_objects(resp: GetAllObjectsResponse) -> Page
                     }
                     else if let picvudb::data::get::AdditionalMetadata::Video(video) = &object.additional
                     {
-                        td: video.attachment.size;
+                        td: format::bytes_to_str(video.attachment.size);
                         td
                         {
                             a(href=path::attachment_data(&object.id, &video.attachment.hash))
@@ -136,5 +142,81 @@ pub fn bulk_progress(progress: bulk::progress::ProgressState) -> Page
     Page {
         title: "Bulk Operations".to_owned(),
         contents: contents,
+    }
+}
+
+fn should_print_page(page: u64, cur_page: u64, last_page: u64) -> bool
+{
+    if page <= 3
+    {
+        return true;
+    }
+    else if (page + 3) >= last_page
+    {
+        return true;
+    }
+    else if (page <= cur_page)
+        && ((cur_page - page) <= 3)
+    {
+        return true;
+    }
+    else if (page >= cur_page)
+        && ((page - cur_page) <= 3)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+fn pagination(response: &picvudb::data::get::PaginationResponse) -> Box<dyn RenderBox>
+{
+    let page_size = response.page_size;
+    let total = response.total;
+
+    let mut pages = Vec::new();
+    {
+        let mut offset = 0;
+        let mut page = 1;
+        while offset < response.total
+        {
+            pages.push(page);
+            offset += response.page_size;
+            page += 1;
+        }
+        if pages.is_empty()
+        {
+            pages.push(1);
+        }
+    };
+    let mut done_elipsis = false;
+
+    let cur_page = (response.offset / response.page_size) + 1;
+    let last_page = *pages.last().unwrap();
+
+    box_html!
+    {
+        p
+        {
+            @for page in pages.iter()
+            {
+                @if should_print_page(*page, cur_page, last_page)
+                {
+                    : ({ done_elipsis = false; ""});
+                    a(href=path::index_with_pagination(*page, page_size)): (format!("{}, ", page));
+                }
+                else
+                {
+                    @if !done_elipsis
+                    {
+                        : ({ done_elipsis = true; " ... " });
+                    }
+                }
+            }
+
+            : (format!("Total: {} objects", total));
+        }
     }
 }

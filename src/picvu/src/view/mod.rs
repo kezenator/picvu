@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use actix_web::HttpResponse;
 use actix_web::dev::HttpResponseBuilder;
 
-use picvudb::msgs::GetAllObjectsResponse;
+use picvudb::msgs::GetObjectsResponse;
 use picvudb::msgs::GetAttachmentDataResponse;
 use picvudb::msgs::AddObjectResponse;
 
@@ -31,11 +31,11 @@ pub trait Viewable
     fn generate(self) -> HttpResponse;
 }
 
-impl Viewable for GetAllObjectsResponse
+impl Viewable for GetObjectsResponse
 {
     fn generate(self) -> HttpResponse
     {
-        doc::ok(page::all_objects(self))
+        doc::ok(page::objects(self))
     }
 }
 

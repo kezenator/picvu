@@ -2,6 +2,7 @@ use diesel::prelude::*;
 use diesel::{RunQueryDsl, SqliteConnection};
 use std::collections::HashMap;
 use sha2::{Sha256, Digest};
+use num_traits::cast::ToPrimitive;
 
 use crate::err::Error;
 use crate::store::ops::*;
@@ -27,12 +28,30 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(props)
     }
 
-    fn get_all_objects(&self) -> Result<Vec<Object>, Error>
+    fn get_num_objects(&self) -> Result<u64, Error>
     {
-        let objects = schema::objects::table
+        use schema::objects::dsl::*;
+        use diesel::dsl::count_star;
+
+        let num: u64 = objects
+            .select(count_star())
+            .first::<i64>(self.connection)?
+            .to_u64()
+            .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 objects in database".to_owned() })?;
+
+        Ok(num)
+    }
+
+    fn get_objects_by_modified_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    {
+        use schema::objects::dsl::*;
+
+        let results = objects
+            .offset(offset as i64)
+            .limit(page_size as i64)
             .load::<Object>(self.connection)?;
 
-        Ok(objects)
+        Ok(results)
     }
 
     fn get_attachment_metadata(&self, obj_id: &String) -> Result<Option<AttachmentMetadata>, Error>

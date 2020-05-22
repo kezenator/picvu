@@ -1,4 +1,5 @@
 pub fn index() -> String { "/".to_owned() }
+pub fn index_with_pagination(page: u64, page_size: u64) -> String { format!("/?offset={}&page_size={}", (page - 1) * page_size, page_size) }
 pub fn form_add_object() -> String { "/form/add_object".to_owned() }
 pub fn form_bulk_import() -> String { "/form/bulk_import".to_owned() }
 pub fn form_bulk_acknowledge() -> String { "/form/bulk_acknowledge".to_owned() }

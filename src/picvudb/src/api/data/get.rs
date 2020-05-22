@@ -40,3 +40,24 @@ pub struct ObjectMetadata
     pub title: Option<String>,
     pub additional: AdditionalMetadata,
 }
+
+#[derive(Debug, Clone)]
+pub struct PaginationRequest
+{
+    pub offset: u64,
+    pub page_size: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct PaginationResponse
+{
+    pub offset: u64,
+    pub page_size: u64,
+    pub total: u64,
+}
+
+#[derive(Debug)]
+pub enum GetObjectsQuery
+{
+    ByModifiedDesc,
+}
