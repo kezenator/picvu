@@ -219,7 +219,8 @@ async fn main() -> std::io::Result<()>
 
     let db_uri = "test.db";
 
-    let _remove_err = std::fs::remove_file(db_uri);
+    // TODO - better file handling
+    //let _remove_err = std::fs::remove_file(db_uri);
 
     let (tx, rx) = std::sync::mpsc::channel();
 

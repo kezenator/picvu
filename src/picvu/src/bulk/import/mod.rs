@@ -122,8 +122,7 @@ impl BulkOperation for FolderImport
                         }
                         else if ext == "mp4"
                         {
-                            // TODO - skipping video files for now
-                            //insert("video/mp4")?;
+                            insert("video/mp4")?;
                         }
                         else if ext == "json"
                         {
@@ -232,19 +231,41 @@ impl BulkOperation for FolderImport
 
                             entry.read_to_end(&mut bytes)?;
 
+                            let attachment = picvudb::data::add::Attachment
+                            {
+                                filename: file_name.clone(),
+                                created: picvudb::data::Date::now(),
+                                modified: picvudb::data::Date::now(),
+                                mime: mime.clone(),
+                                bytes: bytes,
+                            };
+
+                            let additional = if mime.type_() == mime::IMAGE
+                            {
+                                picvudb::data::add::AdditionalData::Photo
+                                {
+                                    attachment
+                                }
+                            }
+                            else if mime.type_() == mime::VIDEO
+                            {
+                                picvudb::data::add::AdditionalData::Video
+                                {
+                                    attachment
+                                }
+                            }
+                            else
+                            {
+                                return Err(
+                                    std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Unsupported MIME {}", mime))
+                                    .into()
+                                );
+                            };
+
                             let data = picvudb::data::add::ObjectData
                             {
                                 title: Some(file_name.clone()),
-                                additional: picvudb::data::add::AdditionalData::Photo
-                                {
-                                    attachment: picvudb::data::add::Attachment{
-                                        filename: file_name.clone(),
-                                        created: picvudb::data::Date::now(),
-                                        modified: picvudb::data::Date::now(),
-                                        mime: mime.clone(),
-                                        bytes: bytes,
-                                    },
-                                },                            
+                                additional,                            
                             };
 
                             let msg = picvudb::msgs::AddObjectRequest{ data };

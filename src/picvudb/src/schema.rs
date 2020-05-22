@@ -12,6 +12,7 @@ table! {
         added_timestring -> Text,
         changed_timestamp -> BigInt,
         changed_timestring -> Text,
+        obj_type -> Text,
         title -> Nullable<Text>,
     }
 }
@@ -31,6 +32,7 @@ table! {
 table! {
     attachments_data (id) {
         id -> Text,
+        offset -> BigInt,
         bytes -> Blob,
     }
 }

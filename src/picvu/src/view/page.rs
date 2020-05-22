@@ -45,6 +45,17 @@ pub fn all_objects(resp: GetAllObjectsResponse) -> Page
                             }
                         }
                     }
+                    else if let picvudb::data::get::AdditionalMetadata::Video(video) = &object.additional
+                    {
+                        td: video.attachment.size;
+                        td
+                        {
+                            a(href=path::attachment_data(&object.id, &video.attachment.hash))
+                            {
+                                : "Video link"
+                            }
+                        }
+                    }
                     else
                     {
                         td: "N/A";

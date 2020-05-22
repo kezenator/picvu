@@ -9,6 +9,7 @@ CREATE TABLE objects (
   added_timestring TEXT NOT NULL,
   changed_timestamp INTEGER NOT NULL,
   changed_timestring TEXT NOT NULL,
+  obj_type TEXT NOT NULL,
   title TEXT
 );
 
@@ -26,8 +27,10 @@ CREATE TABLE attachments_metadata (
 );
 
 CREATE TABLE attachments_data (
-  id TEXT NOT NULL PRIMARY KEY,
-  bytes BLOB NOT NULL
+  id TEXT NOT NULL,
+  offset BIGINT NOT NULL,
+  bytes BLOB NOT NULL,
+  UNIQUE(id, offset)
 );
 
 CREATE INDEX attachments_metadata_by_filename
@@ -38,3 +41,6 @@ CREATE INDEX attachments_metadata_by_size
 
 CREATE INDEX attachments_metadata_by_hash
   ON attachments_metadata(hash, id);
+
+create INDEX attachments_data_by_id_offset
+  ON attachments_data(id, offset);

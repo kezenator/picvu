@@ -47,18 +47,45 @@ impl StoreAccess for Store
             where F: FnOnce(& mut dyn WriteOps) -> Result<T, E>,
                 E: From<Error>
     {
-        let mut opt_result: Option<Result<T, E>> = None;
+        let mut opt_f_result: Option<Result<T, E>> = None;
 
-        self.db_connection.connection.transaction(||
+        let db_result = self.db_connection.connection.transaction(||
             {
                 let mut trans = Transaction{ connection: &self.db_connection.connection };
 
-                opt_result = Some(f(&mut trans));
+                match f(&mut trans)
+                {
+                    Ok(val) =>
+                    {
+                        opt_f_result = Some(Ok(val));
+                        Ok(())
+                    },
+                    Err(e) =>
+                    {
+                        opt_f_result = Some(Err(e));
+                        Err(diesel::result::Error::RollbackTransaction)
+                    },
+                }
+            });
 
-                Ok(())
-            })?;
-
-        assert!(opt_result.is_some());
-        opt_result.unwrap()
+        if let Some(Err(f_err)) = opt_f_result
+        {
+            Err(f_err)
+        }
+        else if db_result.is_err()
+        {
+            let conv_db_err: Error = db_result.unwrap_err().into();
+            Err(conv_db_err.into())
+        }
+        else if let Some(Ok(f_val)) = opt_f_result
+        {
+            Ok(f_val)
+        }
+        else
+        {
+            assert!(false);
+            let last_chance_err: Error = diesel::result::Error::RollbackTransaction.into();
+            Err(last_chance_err.into())
+        }
     }
 }

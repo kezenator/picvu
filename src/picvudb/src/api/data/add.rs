@@ -17,6 +17,10 @@ pub enum AdditionalData
     {
         attachment: Attachment,
     },
+    Video
+    {
+        attachment: Attachment,
+    },
 }
 
 #[derive(Debug)]

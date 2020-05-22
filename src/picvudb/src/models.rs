@@ -19,6 +19,7 @@ pub struct Object
     pub added_timestring: String,
     pub changed_timestamp: i64,
     pub changed_timestring: String,
+    pub obj_type: String,
     pub title: Option<String>,
 }
 
@@ -42,5 +43,6 @@ pub struct AttachmentMetadata
 pub struct AttachmentData
 {
     pub id: String,
+    pub offset: i64,
     pub bytes: Vec<u8>,
 }

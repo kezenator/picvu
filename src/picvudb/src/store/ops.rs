@@ -14,6 +14,6 @@ pub trait ReadOps
 
 pub trait WriteOps: ReadOps
 {
-    fn add_object(&self, title: Option<String>) -> Result<Object, Error>;
+    fn add_object(&self, title: Option<String>, obj_type: data::ObjectType) -> Result<Object, Error>;
     fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, bytes: Vec<u8>) -> Result<(), Error>;
 }

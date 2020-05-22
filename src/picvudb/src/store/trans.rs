@@ -52,23 +52,52 @@ impl<'a> ReadOps for Transaction<'a>
     {
         use schema::attachments_data::dsl::*;
 
-        let data = attachments_data
+        let mut data = attachments_data
             .filter(id.eq(obj_id))
-            .load::<AttachmentData>(self.connection)?
-            .into_iter()
-            .nth(0);
+            .order_by(offset.asc())
+            .load::<AttachmentData>(self.connection)?;
 
-        match data
+        if data.is_empty()
         {
-            Some(data) => Ok(Some(data.bytes)),
-            None => Ok(None),
+            return Ok(None);
         }
+
+        let mut size: usize = 0;
+        for d in data.iter()
+        {
+            if (size as i64) != d.offset
+            {
+                return Err(Error::DatabaseConsistencyError{
+                    msg: format!("Object {} has invalid attachment block offsets", obj_id),
+                });
+            }
+
+            let new_size = size + d.bytes.len();
+            if new_size < size
+            {
+                return Err(Error::DatabaseConsistencyError{
+                    msg: format!("Object {} has an attachment that is too large to fit in memory", obj_id),
+                });
+            }
+
+            size = new_size;
+        }
+
+        let mut collected_bytes = Vec::new();
+        collected_bytes.reserve(size);
+
+        for mut data in data.drain(..)
+        {
+            collected_bytes.append(&mut data.bytes);
+        }
+
+        Ok(Some(collected_bytes))
     }
 }
 
 impl<'a> WriteOps for Transaction<'a>
 {
-    fn add_object(&self, title: Option<String>) -> Result<Object, Error>
+    fn add_object(&self, title: Option<String>, obj_type: data::ObjectType) -> Result<Object, Error>
     {
         let added = data::Date::now();
         let changed = added.clone();
@@ -81,6 +110,7 @@ impl<'a> WriteOps for Transaction<'a>
             added_timestring: added.to_db_timestring().clone(),
             changed_timestamp: changed.to_db_timestamp(),
             changed_timestring: changed.to_db_timestring().clone(),
+            obj_type: obj_type.to_db_string(),
             title: title,
         };
 
@@ -93,6 +123,13 @@ impl<'a> WriteOps for Transaction<'a>
 
     fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, bytes: Vec<u8>) -> Result<(), Error>
     {
+        if bytes.is_empty()
+        {
+            return Err(Error::DatabaseConsistencyError{
+                msg: "Cannot insert zero length attacments".to_owned(),
+            });
+        }
+
         let hash =
         {
             let mut hasher = Sha256::new();
@@ -111,19 +148,29 @@ impl<'a> WriteOps for Transaction<'a>
             hash: hash,
         };
 
-        let model_data = AttachmentData
-        {
-            id: obj_id.clone(),
-            bytes: bytes,
-        };
-
         diesel::insert_into(schema::attachments_metadata::table)
             .values(&model_metadata)
             .execute(self.connection)?;
 
-        diesel::insert_into(schema::attachments_data::table)
-            .values(&model_data)
-            .execute(self.connection)?;
+        let mut offset = 0;
+        while offset < bytes.len()
+        {
+            let remaining = bytes.len() - offset;
+            let this_time = std::cmp::min(remaining, 512 * 1024);
+
+            let model_data = AttachmentData
+            {
+                id: obj_id.clone(),
+                offset: offset as i64,
+                bytes: bytes[offset..(offset + this_time)].to_vec(),
+            };
+    
+            diesel::insert_into(schema::attachments_data::table)
+                .values(&model_data)
+                .execute(self.connection)?;
+
+            offset += this_time;
+        }
 
         Ok(())
     }
