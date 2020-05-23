@@ -11,6 +11,7 @@ pub trait ReadOps
     fn get_num_objects(&self) -> Result<u64, Error>;
     fn get_num_objects_with_attachments(&self) -> Result<u64, Error>;
 
+    fn get_object_by_id(&self, obj_id: String) -> Result<Option<Object>, Error>;
     fn get_objects_by_modified_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
     fn get_objects_by_attachment_size_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
 

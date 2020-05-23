@@ -9,6 +9,7 @@ use picvudb::msgs::AddObjectResponse;
 use crate::path;
 use crate::bulk;
 
+pub mod derived;
 mod doc;
 mod page;
 
@@ -31,11 +32,48 @@ pub trait Viewable
     fn generate(self) -> HttpResponse;
 }
 
+impl Viewable for derived::ViewObjectDetails
+{
+    fn generate(self) -> HttpResponse
+    {
+        doc::ok(page::object_details(&self))
+    }
+}
+
 impl Viewable for GetObjectsResponse
 {
     fn generate(self) -> HttpResponse
     {
-        doc::ok(page::objects(self))
+        if self.pagination_request.offset != self.pagination_response.offset
+            || self.pagination_request.page_size != self.pagination_response.page_size
+        {
+            // Redirect to the index with the correct pagesize
+            doc::redirect(path::objects_with_pagination(
+                self.query,
+                self.pagination_response.offset,
+                self.pagination_request.page_size))
+        }
+        else if let picvudb::data::get::GetObjectsQuery::ByObjectId(_) = &self.query
+        {
+            if self.objects.len() == 1
+            {
+                let derived_view = derived::ViewObjectDetails
+                {
+                    object: self.objects.iter().nth(0).unwrap().clone(),
+                    image_analysis: Ok(None),
+                };
+
+                doc::ok(page::object_details(&derived_view))
+            }
+            else
+            {
+                doc::err(HttpResponse::NotFound(), "Not Found")
+            }
+        }
+        else
+        {
+            doc::ok(page::objects(self))
+        }
     }
 }
 

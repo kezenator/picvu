@@ -9,6 +9,7 @@ pub struct DbProperty
     pub value: String,
 }
 
+#[derive(Clone)]
 #[derive(Queryable)]
 #[derive(Insertable)]
 #[table_name="objects"]

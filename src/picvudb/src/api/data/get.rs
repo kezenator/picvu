@@ -1,6 +1,6 @@
 use crate::api::data::{Date, ObjectId, ObjectType};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AttachmentMetadata
 {
     pub filename: String,
@@ -11,26 +11,26 @@ pub struct AttachmentMetadata
     pub hash: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhotoMetadata
 {
     pub attachment: AttachmentMetadata,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VideoMetadata
 {
     pub attachment: AttachmentMetadata,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AdditionalMetadata
 {
     Photo(PhotoMetadata),
     Video(VideoMetadata),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ObjectMetadata
 {
     pub id: ObjectId,
@@ -61,4 +61,5 @@ pub enum GetObjectsQuery
 {
     ByModifiedDesc,
     ByAttachmentSizeDesc,
+    ByObjectId(ObjectId),
 }

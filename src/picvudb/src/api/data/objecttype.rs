@@ -1,6 +1,6 @@
 use crate::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ObjectType
 {
     Photo,
@@ -31,5 +31,13 @@ impl ObjectType
                 })
             }
         }
+    }
+}
+
+impl std::fmt::Display for ObjectType
+{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>
+    {
+        write!(fmt, "{:?}", self)
     }
 }

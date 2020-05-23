@@ -19,7 +19,7 @@ struct State {
     db_uri: String,
 }
 
-async fn object_query(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>, query: picvudb::data::get::GetObjectsQuery) -> HttpResponse
+async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, query: picvudb::data::get::GetObjectsQuery) -> HttpResponse
 {
     // TODO - this should be put into a middle-ware
     // that wraps all user-interface pages
@@ -34,8 +34,8 @@ async fn object_query(state: web::Data<State>, pagination_query: web::Query<form
 
     let pagination = picvudb::data::get::PaginationRequest
     {
-        offset: pagination_query.offset.unwrap_or(0),
-        page_size: pagination_query.page_size.unwrap_or(25),
+        offset: pagination.offset.unwrap_or(0),
+        page_size: pagination.page_size.unwrap_or(25),
     };
 
     let msg = picvudb::msgs::GetObjectsRequest
@@ -45,17 +45,56 @@ async fn object_query(state: web::Data<State>, pagination_query: web::Query<form
     };
 
     let response = state.db.send(msg).await;
+
+    // If we asked for one object, and it's a photo,
+    // see if we can also get the attachment data
+    // so that we can print out the EXIF data
+
+    if let Ok(Ok(get_obj_response)) = &response
+    {
+        if let picvudb::data::get::GetObjectsQuery::ByObjectId(_) = &get_obj_response.query
+        {
+            if let Some(object) = get_obj_response.objects.first().clone()
+            {
+                let get_attachment_data_msg = picvudb::msgs::GetAttachmentDataRequest{
+                    object_id: object.id.clone(),
+                    specific_hash: None,
+                };
+
+                let attachment_response = state.db.send(get_attachment_data_msg).await;
+                
+                if let Ok(Ok(picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes})) = attachment_response
+                {
+                    return view::generate_response(view::derived::ViewObjectDetails {
+                        object: object.clone(),
+                        image_analysis: analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename),
+                    });
+                }
+            }
+        }
+    }
+
+    // Otherwise, just generate the general listing response
+
     view::generate_response(response)
 }
 
 async fn objects_by_modified_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
 {
-    object_query(state, pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
+    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
 }
 
 async fn objects_by_size_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
 {
-    object_query(state, pagination_query, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc).await
+    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc).await
+}
+
+async fn object_details(state: web::Data<State>, object_id: web::Path<String>) -> HttpResponse
+{
+    let object_id = picvudb::data::ObjectId::new(object_id.to_string());
+    let pagination = forms::Pagination{ offset: None, page_size: None };
+
+    object_query(state, &pagination, picvudb::data::get::GetObjectsQuery::ByObjectId(object_id)).await
 }
 
 async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> HttpResponse
@@ -273,6 +312,7 @@ async fn main() -> std::io::Result<()>
         App::new()
             .data(state)
             .route("/", web::get().to(objects_by_modified_desc))
+            .route("/view/object/{obj_id}", web::get().to(object_details))
             .route("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
             .route("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
             .route("/form/add_object", web::post().to(form_add_object))

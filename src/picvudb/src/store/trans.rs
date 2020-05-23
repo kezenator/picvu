@@ -48,6 +48,18 @@ impl<'a> ReadOps for Transaction<'a>
         self.get_num_objects()
     }
 
+    fn get_object_by_id(&self, obj_id: String) -> Result<Option<Object>, Error>
+    {
+        use schema::objects::dsl::*;
+
+        let object = objects
+            .filter(id.eq(obj_id))
+            .first::<Object>(self.connection)
+            .optional()?;
+
+        Ok(object)
+    }
+
     fn get_objects_by_modified_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
     {
         use schema::objects::dsl::*;

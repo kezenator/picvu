@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use chrono::offset::TimeZone;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Orientation
 {
     Undefined,
@@ -30,7 +30,15 @@ impl Orientation
     }
 }
 
-#[derive(Debug)]
+impl std::fmt::Display for Orientation
+{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>
+    {
+        write!(fmt, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct MakeModel
 {
     pub make: String,
@@ -48,14 +56,14 @@ pub struct DebugEntry
     kind: rexif::IfdKind,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImgAnalysisError
 {
-    msg: String,
-    debug_entries: Vec<DebugEntry>,
+    pub msg: String,
+    pub debug_entries: Vec<DebugEntry>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Exposure
 {
     pub time: String,
@@ -63,7 +71,7 @@ pub struct Exposure
     pub iso: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Location
 {
     pub latitude: f64,
@@ -72,7 +80,7 @@ pub struct Location
     pub dop: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImgAnalysis
 {
     pub mime: mime::Mime,
@@ -172,6 +180,9 @@ impl ImgAnalysis
                         })
                     .collect::<Vec<DebugEntry>>();
 
+                // TODO - remove
+                println!("{:#?}", debug_entries);
+
                 // Orientation
 
                 let mut orientation = Orientation::Undefined;
@@ -205,9 +216,8 @@ impl ImgAnalysis
                                 // Accept up to a couple of seconds difference between the two times.
                                 // Find an adjustment that makes the difference a while number of minutes.
 
-                                let fixedup_diff = vec![-2, -1, 0, 1, 2]
-                                    .iter()
-                                    .map(|fixup| {difference.checked_add(&chrono::Duration::seconds(*fixup))})
+                                let fixedup_diff = (-120..120)
+                                    .map(|fixup| {difference.checked_add(&chrono::Duration::seconds(fixup))})
                                     .filter(|diff| diff.is_some())
                                     .map(|diff| diff.unwrap())
                                     .filter(|diff| *diff == chrono::Duration::minutes(diff.num_minutes()))
