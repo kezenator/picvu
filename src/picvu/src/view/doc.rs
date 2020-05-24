@@ -64,15 +64,20 @@ fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
 
     let body = html!
     {
-        html
+        : horrorshow::Raw("<!DOCTYPE html>");
+
+        html(lang="en")
         {
             head
             {
-                title : page.title.as_str()
+                meta(charset="utf-8");
+
+                title : page.title.as_str();
             }
             body
             {
                 h1 : page.title.as_str();
+                
                 : Raw(page.contents.as_str())
             }
         }

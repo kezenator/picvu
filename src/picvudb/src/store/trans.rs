@@ -60,12 +60,25 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(object)
     }
 
+    fn get_objects_by_activity_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    {
+        use schema::objects::dsl::*;
+
+        let results = objects
+            .order_by(activity_timestamp.desc())
+            .offset(offset as i64)
+            .limit(page_size as i64)
+            .load::<Object>(self.connection)?;
+
+        Ok(results)
+    }
+
     fn get_objects_by_modified_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
     {
         use schema::objects::dsl::*;
 
         let results = objects
-            .order_by(changed_timestamp.desc())
+            .order_by(modified_timestamp.desc())
             .offset(offset as i64)
             .limit(page_size as i64)
             .load::<Object>(self.connection)?;
@@ -150,21 +163,31 @@ impl<'a> ReadOps for Transaction<'a>
 
 impl<'a> WriteOps for Transaction<'a>
 {
-    fn add_object(&self, title: Option<String>, obj_type: data::ObjectType) -> Result<Object, Error>
+    fn add_object(&self, obj_type: data::ObjectType, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, location: Option<data::Location>) -> Result<Object, Error>
     {
-        let added = data::Date::now();
-        let changed = added.clone();
+        let modified_time = data::Date::now();
+        let created_time = created_time.unwrap_or(modified_time.clone());
+        let activity_time = activity_time.unwrap_or(created_time.clone());
+
         let id = format!("{}", uuid::Uuid::new_v4());
+
+        let latitude = location.clone().map(|l| l.latitude);
+        let longitude = location.clone().map(|l| l.longitude);
 
         let model_object = Object
         {
             id: id.clone(),
-            added_timestamp: added.to_db_timestamp(),
-            added_timestring: added.to_db_timestring().clone(),
-            changed_timestamp: changed.to_db_timestamp(),
-            changed_timestring: changed.to_db_timestring().clone(),
+            created_timestamp: created_time.to_db_timestamp(),
+            created_timestring: created_time.to_db_timestring().clone(),
+            modified_timestamp: modified_time.to_db_timestamp(),
+            modified_timestring: modified_time.to_db_timestring().clone(),
+            activity_timestamp: activity_time.to_db_timestamp(),
+            activity_timestring: activity_time.to_db_timestring().clone(),
             obj_type: obj_type.to_db_string(),
             title: title,
+            notes: notes,
+            latitude: latitude,
+            longitude: longitude,
         };
 
         diesel::insert_into(schema::objects::table)

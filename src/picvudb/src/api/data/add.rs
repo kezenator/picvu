@@ -1,4 +1,5 @@
 use crate::api::data::Date;
+use crate::api::data::Location;
 
 #[derive(Debug)]
 pub struct Attachment
@@ -27,5 +28,9 @@ pub enum AdditionalData
 pub struct ObjectData
 {
     pub title: Option<String>,
+    pub notes: Option<String>,
+    pub created_time: Option<Date>,
+    pub activity_time: Option<Date>,
+    pub location: Option<Location>,
     pub additional: AdditionalData,
 }

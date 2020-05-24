@@ -16,12 +16,17 @@ pub struct DbProperty
 pub struct Object
 {
     pub id: String,
-    pub added_timestamp: i64,
-    pub added_timestring: String,
-    pub changed_timestamp: i64,
-    pub changed_timestring: String,
+    pub created_timestamp: i64,
+    pub created_timestring: String,
+    pub modified_timestamp: i64,
+    pub modified_timestring: String,
+    pub activity_timestamp: i64,
+    pub activity_timestring: String,
     pub obj_type: String,
     pub title: Option<String>,
+    pub notes: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 #[derive(Queryable)]

@@ -5,16 +5,24 @@ CREATE TABLE db_properties (
 
 CREATE TABLE objects (
   id TEXT NOT NULL PRIMARY KEY,
-  added_timestamp INTEGER NOT NULL,
-  added_timestring TEXT NOT NULL,
-  changed_timestamp INTEGER NOT NULL,
-  changed_timestring TEXT NOT NULL,
+  created_timestamp INTEGER NOT NULL,
+  created_timestring TEXT NOT NULL,
+  modified_timestamp INTEGER NOT NULL,
+  modified_timestring TEXT NOT NULL,
+  activity_timestamp INTEGER NOT NULL,
+  activity_timestring TEXT NOT NULL,
   obj_type TEXT NOT NULL,
-  title TEXT
+  title TEXT,
+  notes TEXT,
+  latitude REAL,
+  longitude REAL
 );
 
-CREATE INDEX objects_by_changed_timestamp
-  ON objects(changed_timestamp, id);
+CREATE INDEX objects_by_modified_timestamp
+  ON objects(modified_timestamp, id);
+
+CREATE INDEX objects_by_activity_timestamp
+  ON objects(activity_timestamp, id);
 
 CREATE TABLE attachments_metadata (
   obj_id TEXT NOT NULL PRIMARY KEY,

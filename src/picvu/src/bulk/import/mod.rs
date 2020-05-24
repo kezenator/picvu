@@ -7,6 +7,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::path::Path;
 use flate2::read::GzDecoder;
 use tar::Archive;
 
@@ -16,9 +17,9 @@ use picvudb::ApiMessage;
 use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
 use crate::format;
+use crate::analyse;
 
 mod error;
-mod metadata;
 
 use error::*;
 
@@ -58,12 +59,14 @@ impl BulkOperation for FolderImport
             {
                 sender.start_stage(
                     "Scanning file".to_owned(),
-                    vec!["Loading Metadata".to_owned(), "Importing Media".to_owned()]);
+                    vec!["Loading Metadata".to_owned(), "Importing Media".to_owned(), "Summary".to_owned()]);
 
                 let metadata = std::fs::metadata(self.tar_gz_file_path.clone())?;
                 let len = metadata.len();
 
                 let mut path_to_info: HashMap<String, (String, mime::Mime)> = HashMap::new();
+                let mut is_google_photos_takeout_archive = false;
+                let mut warnings: Vec<String> = Vec::new();
 
                 {
                     let tar_gz = File::open(self.tar_gz_file_path.clone())?;
@@ -84,46 +87,17 @@ impl BulkOperation for FolderImport
                         let bytes_read = counted_get.get();
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
-                        let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {} bytes", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
+                        let progress_cur_file = path_str.clone();
+                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes]);
 
-                        let ext = path.extension().unwrap_or_default().to_str().unwrap().to_owned().to_ascii_lowercase();
+                        let filename = Path::new(&path_str).file_name().unwrap_or_default().to_str().unwrap().to_owned();
+                        let ext = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap().to_owned().to_ascii_lowercase();
 
-                        let mut insert = |mime: &str| -> Result<(), ImportError>
+                        if let Some(mime) = analyse::import::guess_mime_type_from_filename(&filename)
                         {
-                            let mime = mime.parse::<mime::Mime>()
-                                .map_err(|e| { std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Invalid MIME type: {:?}", e)) })?;
-
-                            let file_name = path
-                                .file_name()
-                                .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Contained file name has no file name"))?
-                                .to_str()
-                                .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Contained file name contains non-UTF-8 byte sequences"))?
-                                .to_owned();
-
-                            path_to_info.insert(path_str.clone(), (file_name, mime));
-
-                            Ok(())
-                        };
-
-                        if (ext == "jpg")
-                            || (ext == "jpeg")
-                        {
-                            insert("image/jpeg")?;
-                        }
-                        else if ext == "png"
-                        {
-                            insert("image/png")?;
-                        }
-                        else if ext == "gif"
-                        {
-                            insert("image/gif")?;
-                        }
-                        else if ext == "mp4"
-                        {
-                            insert("video/mp4")?;
+                            path_to_info.insert(path_str.clone(), (filename, mime));
                         }
                         else if ext == "json"
                         {
@@ -131,23 +105,27 @@ impl BulkOperation for FolderImport
                         }
                         else if path_str == "Takeout/archive_browser.html"
                         {
-                            // Ignore Google Takeout browsing file
+                            // If it has the Google Photos Takout browser file, then
+                            // assume it's an archive from this service.
+
+                            is_google_photos_takeout_archive = true;
                         }
                         else
                         {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
-                                format!("Unhandled extension for file {}", path_str)).into());
+                                format!("Unsupported file: {}", path_str)).into());
                         }
                     }
                 }
 
                 sender.start_stage(
                     "Loading Metadata".to_owned(),
-                    vec!["Importing Media".to_owned()]);
+                    vec!["Importing Media".to_owned(), "Summary".to_owned()]);
 
-                let mut path_to_metadata: HashMap<String, metadata::Metadata> = HashMap::new();
+                let mut path_to_metadata: HashMap<String, analyse::takeout::Metadata> = HashMap::new();
 
+                if is_google_photos_takeout_archive
                 {
                     let tar_gz = File::open(self.tar_gz_file_path.clone())?;
                     let (counted_reader, counted_get) = CountedRead::new(tar_gz);
@@ -168,7 +146,7 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {} bytes", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
+                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
                         let progress_files = format!("Found metadata for {} out of {} media files", path_to_metadata.len(), path_to_info.len());
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes, progress_files]);
@@ -179,21 +157,40 @@ impl BulkOperation for FolderImport
 
                             if path_to_info.contains_key(&media_name)
                             {
-                                let mut json = String::new();
-                                entry.read_to_string(&mut json)?;
+                                let mut json_bytes = Vec::new();
+                                entry.read_to_end(&mut json_bytes)?;
 
-                                let metadata = serde_json::from_str::<metadata::Metadata>(&json)
-                                    .map_err(|e| { std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Could not decode metadata JSON file {}: {:?}", path_str, e)) })?;
+                                let metadata = analyse::takeout::parse_google_photos_takeout_metadata(json_bytes, &path_str)?;
 
                                 path_to_metadata.insert(media_name, metadata);
                             }
                         }
                     }
+
+                    // Check that every media file has associated metadata
+
+                    // TODO - add back in when we support scanning all
+                    // archives of the Takeout.
+
+                    // for media_path in path_to_info.keys()
+                    // {
+                    //     if !path_to_metadata.contains_key(media_path)
+                    //     {
+                    //         return Err(std::io::Error::new(
+                    //             std::io::ErrorKind::InvalidData,
+                    //             format!("File {} doesn't contain Google Photos Takeout metadata", media_path)).into());
+                    //     }
+                    // }
                 }
 
                 sender.start_stage(
                     "Importing Media".to_owned(),
-                    vec![]);
+                    vec!["Summary".to_owned()]);
+
+                let mut summary_media_files: usize = 0;
+                let mut summary_media_bytes: u64 = 0;
+                let mut summary_with_google_metadata: usize = 0;
+                let mut summary_with_location: usize = 0;
 
                 let store = picvudb::Store::new(&self.db_uri)?;
 
@@ -217,11 +214,12 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {} bytes", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
+                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
+                        let progress_files = format!("Processed {} of {} media files", summary_media_files, path_to_info.len());
 
-                        sender.set(percent, vec![progress_cur_file, progress_bytes]);
+                        sender.set(percent, vec![progress_cur_file, progress_bytes, progress_files]);
 
-                        if let Some((file_name, mime)) = path_to_info.get(&path_str)
+                        if let Some((file_name, _mime)) = path_to_info.get(&path_str)
                         {
                             let file_size: usize = entry.header().size()?
                                 .try_into()
@@ -232,52 +230,55 @@ impl BulkOperation for FolderImport
 
                             entry.read_to_end(&mut bytes)?;
 
-                            let attachment = picvudb::data::add::Attachment
-                            {
-                                filename: file_name.clone(),
-                                created: picvudb::data::Date::now(),
-                                modified: picvudb::data::Date::now(),
-                                mime: mime.clone(),
-                                bytes: bytes,
-                            };
+                            summary_media_files += 1;
+                            summary_media_bytes += bytes.len() as u64;
 
-                            let additional = if mime.type_() == mime::IMAGE
+                            let google_metadata = path_to_metadata.remove(&path_str);
+
+                            if google_metadata.is_some()
                             {
-                                picvudb::data::add::AdditionalData::Photo
-                                {
-                                    attachment
-                                }
+                                summary_with_google_metadata += 1;                                
                             }
-                            else if mime.type_() == mime::VIDEO
+                            
+                            let add_msg = analyse::import::create_add_object_for_import(
+                                bytes,
+                                file_name,
+                                None,
+                                None,
+                                google_metadata,
+                                &mut warnings)?;
+
+                            if add_msg.data.location.is_some()
                             {
-                                picvudb::data::add::AdditionalData::Video
-                                {
-                                    attachment
-                                }
+                                summary_with_location += 1;
                             }
-                            else
-                            {
-                                return Err(
-                                    std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Unsupported MIME {}", mime))
-                                    .into()
-                                );
-                            };
-
-                            let data = picvudb::data::add::ObjectData
-                            {
-                                title: Some(file_name.clone()),
-                                additional,                            
-                            };
-
-                            let msg = picvudb::msgs::AddObjectRequest{ data };
 
                             store.write_transaction(|ops|
                             {
-                                msg.execute(ops)
+                                add_msg.execute(ops)
                             })?;
                         }
                     }
                 }
+
+                sender.start_stage(
+                    "Summary".to_owned(),
+                    vec![]);
+
+                let mut status = vec![
+                    format!("Imported {} media files", summary_media_files),
+                    format!("Imported {} of media data", format::bytes_to_str(summary_media_bytes)),
+                    format!("{} files had Google Photos Takeout metadata", summary_with_google_metadata),
+                    format!("{} files had location data", summary_with_location),
+                ];
+
+                if !warnings.is_empty()
+                {
+                    status.push(format!("{} Warnings:", warnings.len()));
+                    status.append(&mut warnings);
+                }
+
+                sender.set(100.0, status);
 
                 Ok(())
             }).await?;

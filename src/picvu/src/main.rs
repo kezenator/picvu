@@ -79,6 +79,11 @@ async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, q
     view::generate_response(response)
 }
 
+async fn objects_by_activity_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
+{
+    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByActivityDesc).await
+}
+
 async fn objects_by_modified_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
 {
     object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
@@ -138,34 +143,32 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
     {
         return view::generate_error_response(HttpResponse::BadRequest(), "no file provided");
     }
-    let file = file.unwrap();
-    let now = picvudb::data::Date::now();
+    let (file_name, bytes) = file.unwrap();
 
-    {
-        let details = analyse::img::ImgAnalysis::decode(&file.1, &file.0);
-        println!("Image Analysis Details:");
-        println!("{:#?}", details);
-    }
+    // We ignore warnings here
 
-    let data = picvudb::data::add::ObjectData
+    let mut warnings = Vec::new();
+
+    let add_msg = analyse::import::create_add_object_for_import(
+        bytes,
+        &file_name,
+        None,
+        None,
+        None,
+        &mut warnings);
+
+    match add_msg
     {
-        title: Some(file.0.clone()),
-        additional: picvudb::data::add::AdditionalData::Photo
+        Err(e) =>
         {
-            attachment: picvudb::data::add::Attachment
-            {
-                filename: file.0.clone(),
-                created: now.clone(),
-                modified: now.clone(),
-                mime: mime::IMAGE_JPEG,
-                bytes: file.1,
-            },
+            view::generate_response::<Result<picvudb::msgs::AddObjectResponse, _>>(Err(e))
+        },
+        Ok(add_msg) =>
+        {
+            let response = state.db.send(add_msg).await;
+            view::generate_response(response)
         }
-    };
-
-    let msg = picvudb::msgs::AddObjectRequest{ data };
-    let response = state.db.send(msg).await;
-    view::generate_response(response)
+    }
 }
 
 async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkImport>, _req: HttpRequest) -> HttpResponse
@@ -236,28 +239,28 @@ async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::
                     analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename)
                     .ok()
                     .flatten()
-                    .map(|analysis|{ analysis.orientation })
-                    .unwrap_or(analyse::img::Orientation::Undefined);
+                    .map(|(analysis, _warnings)|{ analysis.orientation })
+                    .flatten();
 
                 let image = image::load_from_memory(&bytes)?;
                 let image = image.thumbnail(form.size, form.size);
 
                 let image = match orientation
                 {
-                    analyse::img::Orientation::Undefined
-                    | analyse::img::Orientation::Straight =>
+                    None
+                        | Some(analyse::img::Orientation::Straight) =>
                     {
                         image
                     },
-                    analyse::img::Orientation::UpsideDown =>
+                    Some(analyse::img::Orientation::UpsideDown) =>
                     {
                         image.rotate180()
                     }
-                    analyse::img::Orientation::RotatedLeft =>
+                    Some(analyse::img::Orientation::RotatedLeft) =>
                     {
                         image.rotate90()
                     }
-                    analyse::img::Orientation::RotatedRight =>
+                    Some(analyse::img::Orientation::RotatedRight) =>
                     {
                         image.rotate270()
                     }
@@ -311,9 +314,10 @@ async fn main() -> std::io::Result<()>
 
         App::new()
             .data(state)
-            .route("/", web::get().to(objects_by_modified_desc))
+            .route("/", web::get().to(objects_by_activity_desc))
             .route("/view/object/{obj_id}", web::get().to(object_details))
             .route("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
+            .route("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
             .route("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
             .route("/form/add_object", web::post().to(form_add_object))
             .route("/form/bulk_import", web::post().to(form_bulk_import))

@@ -11,6 +11,7 @@ pub fn objects(query: picvudb::data::get::GetObjectsQuery) -> String
 {
     match query
     {
+        picvudb::data::get::GetObjectsQuery::ByActivityDesc => "/view/objects/by_activity_desc".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByModifiedDesc => "/view/objects/by_modified_desc".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => "/view/objects/by_size_desc".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByObjectId(obj_id) => object_details(&obj_id),

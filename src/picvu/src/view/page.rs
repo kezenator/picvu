@@ -1,9 +1,10 @@
 use horrorshow::prelude::*;
 use horrorshow::{html, owned_html, box_html};
 
-use crate::path;
+use crate::analyse;
 use crate::bulk;
 use crate::format;
+use crate::path;
 use crate::view::derived;
 use picvudb::msgs::*;
 
@@ -114,12 +115,17 @@ pub fn object_details(view: &derived::ViewObjectDetails) -> Page
             tr
             {
                 td: "Created";
-                td: format::date_to_str(&view.object.added, &now);
+                td: format::date_to_str(&view.object.created_time, &now);
             }
             tr
             {
                 td: "Modified";
-                td: format::date_to_str(&view.object.changed, &now);
+                td: format::date_to_str(&view.object.modified_time, &now);
+            }
+            tr
+            {
+                td: "Activity";
+                td: format::date_to_str(&view.object.activity_time, &now);
             }
             tr
             {
@@ -134,6 +140,16 @@ pub fn object_details(view: &derived::ViewObjectDetails) -> Page
                     td: view.object.title.clone().unwrap_or(String::new());
                 }
             }
+            @if view.object.notes.is_some()
+            {
+                tr
+                {
+                    td: "Notes";
+                    td: view.object.notes.clone().unwrap_or(String::new());
+                }
+            }
+
+            : location_details(&view.object.location);
 
             @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &view.object.additional
             {
@@ -144,74 +160,7 @@ pub fn object_details(view: &derived::ViewObjectDetails) -> Page
                 : attachment_details(&view.object.id, &video.attachment, &now);
             }
 
-            @if let Ok(image_analysis) = view.image_analysis.clone()
-            {
-                @if let Some(image_analysis) = image_analysis
-                {
-                    tr
-                    {
-                        th(colspan="2"): "Photo EXIF Data";
-                    }
-
-                    tr
-                    {
-                        td: "Orientation";
-                        td: image_analysis.orientation.to_string();
-                    }
-
-                    @if let Some(original_datetime) = image_analysis.original_datetime
-                    {
-                        tr
-                        {
-                            td: "Taken";
-                            td: format::date_to_str(&original_datetime, &now);
-                        }
-                    }
-
-                    @if let Some(exposure) = image_analysis.exposure
-                    {
-                        tr
-                        {
-                            td: "Camera Settings";
-                            td: format!("{} {} {}", exposure.aperture, exposure.time, exposure.iso);
-                        }
-                    }
-
-                    @if let Some(location) = image_analysis.location
-                    {
-                        tr
-                        {
-                            td: "Location";
-                            td
-                            {
-                                a(href=format!("https://www.google.com/maps/search/?api=1&query={},{}", location.latitude, location.longitude),
-                                    target="_blank")
-                                {
-                                    : format!("{}, {}", location.latitude, location.longitude);
-                                }
-                            }
-                        }
-                        tr
-                        {
-                            td: "Altitude";
-                            td: format!("{:.0} m", location.altitude_meters);
-                        }
-                    }
-                }
-            }
-            else if let Err(image_analysis_err) = view.image_analysis.clone()
-            {
-                tr
-                {
-                    th(colspan="2"): "Photo EXIF Data";
-                }
-
-                tr
-                {
-                    td: "Error";
-                    td: image_analysis_err.msg;
-                }
-            }
+            : exif_details(&view.image_analysis);
         }
     }.to_string();
 
@@ -238,7 +187,7 @@ pub fn bulk_progress(progress: bulk::progress::ProgressState) -> Page
 
                 ul
                 {
-                    p : (format!("{:.1}", progress.percentage_complete));
+                    p : (format!("{:.1}%", progress.percentage_complete));
                     
                     @for line in progress.progress_lines.iter()
                     {
@@ -277,6 +226,135 @@ pub fn bulk_progress(progress: bulk::progress::ProgressState) -> Page
     }
 }
 
+fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>) -> Box<dyn RenderBox>
+{
+    let exif = exif.clone();
+    let now = picvudb::data::Date::now();
+
+    box_html!
+    {
+        @if let Ok(image_analysis) = exif
+        {
+            @if let Some((image_analysis, exif_warnings)) = image_analysis
+            {
+                tr
+                {
+                    th(colspan="2"): "Photo EXIF Data";
+                }
+
+                @if let Some(orientation) = image_analysis.orientation
+                {
+                    tr
+                    {
+                        td: "Orientation";
+                        td: orientation.to_string();
+                    }
+                }
+
+                @if let Some(make_model) = image_analysis.make_model
+                {
+                    tr
+                    {
+                        td: "Model";
+                        td: format!("{} {}", make_model.make, make_model.model);
+                    }
+                }
+
+                @if let Some(original_datetime) = image_analysis.original_datetime
+                {
+                    tr
+                    {
+                        td: "Taken";
+                        td: format::date_to_str(&original_datetime, &now);
+                    }
+                }
+
+                @if let Some(camera_settings) = image_analysis.camera_settings
+                {
+                    tr
+                    {
+                        td: "Camera Settings";
+                        td: format!("{} {} {} {}",
+                            camera_settings.aperture,
+                            camera_settings.exposure_time,
+                            camera_settings.focal_length,
+                            camera_settings.iso);
+                    }
+                }
+
+                : location_details(&image_analysis.location);
+
+                @if let Some(dop) = image_analysis.location_dop
+                {
+                    tr
+                    {
+                        td: "Location DOP";
+                        td: format!("{:.1}", dop);
+                    }
+                }
+
+                @for w in exif_warnings
+                {
+                    tr
+                    {
+                        td: "Warning";
+                        td
+                        {
+                            : w;
+                        }
+                    }
+                }
+            }
+        }
+        else if let Err(image_analysis_err) = exif
+        {
+            tr
+            {
+                th(colspan="2"): "Photo EXIF Data";
+            }
+
+            tr
+            {
+                td: "Error";
+                td: image_analysis_err.msg;
+            }
+        }
+    }
+}
+
+fn location_details(location: &Option<picvudb::data::Location>) -> Box<dyn RenderBox>
+{
+    let location = location.clone();
+
+    box_html!
+    {
+        @if let Some(location) = location
+        {
+            tr
+            {
+                td: "Location";
+                td
+                {
+                    a(href=format!("https://www.google.com/maps/search/?api=1&query={},{}", location.latitude, location.longitude),
+                        target="_blank")
+                    {
+                        : format!("{}, {}", location.latitude, location.longitude);
+                    }
+                }
+            }
+
+            @if let Some(altitude) = location.altitude
+            {
+                tr
+                {
+                    td: "Altitude";
+                    td: format!("{:.0} m", altitude);
+                }
+            }
+        }
+    }
+}
+
 fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::data::get::AttachmentMetadata, now: &picvudb::data::Date) -> Box<dyn RenderBox>
 {
     let now = now.clone();
@@ -291,7 +369,7 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
     {
         tr
         {
-            td(colspan="2"): "Attachment";
+            th(colspan="2"): "Attachment";
         }
         tr
         {

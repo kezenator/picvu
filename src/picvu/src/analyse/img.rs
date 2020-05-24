@@ -4,7 +4,6 @@ use chrono::offset::TimeZone;
 #[derive(Debug, Clone)]
 pub enum Orientation
 {
-    Undefined,
     Straight,
     RotatedRight,
     UpsideDown,
@@ -13,15 +12,16 @@ pub enum Orientation
 
 impl Orientation
 {
-    fn from_rexif_str(s: &str) -> Result<Self, ImgAnalysisError>
+    fn from_rexif_str(s: &str) -> Result<Option<Self>, ImgAnalysisError>
     {
         match s
         {
-            "Straight" => Ok(Orientation::Straight),
-            "Upside down" => Ok(Orientation::UpsideDown),
-            "Rotated to left" => Ok(Orientation::RotatedLeft),
-            "Rotated to right" => Ok(Orientation::RotatedRight),
-            "Undefined" => Ok(Orientation::Undefined),
+            "Straight" => Ok(Some(Orientation::Straight)),
+            "Upside down" => Ok(Some(Orientation::UpsideDown)),
+            "Rotated to left" => Ok(Some(Orientation::RotatedLeft)),
+            "Rotated to right" => Ok(Some(Orientation::RotatedRight)),
+            "Undefined" 
+                | "Unknown (0)" => Ok(None),
             _ => Err(ImgAnalysisError{
                 msg: format!("Unknown Orientation {:?}", s),
                 debug_entries: Vec::new(),
@@ -64,30 +64,24 @@ pub struct ImgAnalysisError
 }
 
 #[derive(Debug, Clone)]
-pub struct Exposure
+pub struct CameraSettings
 {
-    pub time: String,
+    pub exposure_time: String,
     pub aperture: String,
+    pub focal_length: String,
     pub iso: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct Location
-{
-    pub latitude: f64,
-    pub longitude: f64,
-    pub altitude_meters: f64,
-    pub dop: f64,
 }
 
 #[derive(Debug, Clone)]
 pub struct ImgAnalysis
 {
     pub mime: mime::Mime,
-    pub orientation: Orientation,
+    pub orientation: Option<Orientation>,
     pub original_datetime: Option<picvudb::data::Date>,
-    pub exposure: Option<Exposure>,
-    pub location: Option<Location>,
+    pub make_model: Option<MakeModel>,
+    pub camera_settings: Option<CameraSettings>,
+    pub location: Option<picvudb::data::Location>,
+    pub location_dop: Option<f64>,
 }
 
 fn find_single(exif: &Vec<rexif::ExifEntry>, tag: rexif::ExifTag) -> Option<rexif::ExifEntry>
@@ -127,9 +121,11 @@ fn parse_urational(entry: &rexif::ExifEntry, factors: Vec<f64>, msg: String, deb
 
 impl ImgAnalysis
 {
-    pub fn decode(data: &Vec<u8>, _filename: &String) -> Result<Option<Self>, ImgAnalysisError>
+    pub fn decode(data: &Vec<u8>, file_name: &String) -> Result<Option<(Self, Vec<String>)>, ImgAnalysisError>
     {
-        match rexif::parse_buffer(&data)
+        let (exif_result, exif_warnings) = rexif::parse_buffer_quiet(&data);
+
+        match exif_result
         {
             Ok(exif) =>
             {
@@ -181,14 +177,30 @@ impl ImgAnalysis
                     .collect::<Vec<DebugEntry>>();
 
                 // TODO - remove
-                println!("{:#?}", debug_entries);
+                //println!("{:#?}", debug_entries);
 
                 // Orientation
 
-                let mut orientation = Orientation::Undefined;
+                let mut orientation = None;
                 if let Some(entry) = find_single(&exif.entries, rexif::ExifTag::Orientation)
                 {
                     orientation = Orientation::from_rexif_str(&entry.value_more_readable)?;
+                }
+
+                // Make/Model
+
+                let mut make_model = None;
+                {
+                    if let Some(make_entry) = find_single(&exif.entries, rexif::ExifTag::Make)
+                    {
+                        if let Some(model_entry) = find_single(&exif.entries, rexif::ExifTag::Model)
+                        {
+                            make_model = Some(MakeModel{
+                                make: make_entry.value_more_readable,
+                                model: model_entry.value_more_readable,
+                            });
+                        }
+                    }
                 }
 
                 // Original Date/Time
@@ -251,19 +263,35 @@ impl ImgAnalysis
 
                 // Exposure
                 
-                let mut exposure = None;
+                let mut camera_settings = None;
                 if let Some(time_entry) = find_single(&exif.entries, rexif::ExifTag::ExposureTime)
                 {
                     if let Some(aperture_entry) = find_single(&exif.entries, rexif::ExifTag::FNumber)
                     {
-                        if let Some(iso_entry) = find_single(&exif.entries, rexif::ExifTag::ISOSpeedRatings)
+                        if let Some(focal_length_entry) = find_single(&exif.entries, rexif::ExifTag::FocalLength)
                         {
-                            exposure = Some(Exposure
+                            if let Some(iso_entry) = find_single(&exif.entries, rexif::ExifTag::ISOSpeedRatings)
                             {
-                                time: time_entry.value_more_readable,
-                                aperture: aperture_entry.value_more_readable,
-                                iso: iso_entry.value_more_readable,
-                            });
+                                let mut aperture = aperture_entry.value_more_readable;
+                                if aperture.starts_with("f/")
+                                {
+                                    aperture = format!("\u{0192}/{}", &aperture[2..]);
+                                }
+
+                                let mut iso = iso_entry.value_more_readable;
+                                if iso.starts_with("ISO ")
+                                {
+                                    iso = format!("ISO{}", &iso[4..]);
+                                }
+
+                                camera_settings = Some(CameraSettings
+                                {
+                                    exposure_time: time_entry.value_more_readable,
+                                    aperture: aperture,
+                                    focal_length: focal_length_entry.value_more_readable,
+                                    iso: iso,
+                                });
+                            }
                         }
                     }
                 }
@@ -271,45 +299,30 @@ impl ImgAnalysis
                 // Location
 
                 let mut location = None;
+                let mut location_dop = None;
+
                 if let Some(lat) = find_single(&exif.entries, rexif::ExifTag::GPSLatitude)
                 {
                     if let Some(long) = find_single(&exif.entries, rexif::ExifTag::GPSLongitude)
                     {
                         let lat_ref = find_single(&exif.entries, rexif::ExifTag::GPSLatitudeRef);
                         let long_ref = find_single(&exif.entries, rexif::ExifTag::GPSLongitudeRef);
-                        let alt = find_single(&exif.entries, rexif::ExifTag::GPSAltitude);
-                        let alt_ref = find_single(&exif.entries, rexif::ExifTag::GPSAltitudeRef);
-                        let dop = find_single(&exif.entries, rexif::ExifTag::GPSDOP);
 
                         if lat_ref.is_none()
                             || long_ref.is_none()
-                            || alt.is_none()
-                            || alt_ref.is_none()
-                            || dop.is_none()
                         {
                             return Err(ImgAnalysisError{
-                                msg: format!("Unsupported GPS format - missing info"),
+                                msg: format!("Unsupported GPS format - missing lat/long reference info"),
                                 debug_entries,
                             });
                         }
 
                         let lat_ref = lat_ref.unwrap();
                         let long_ref = long_ref.unwrap();
-                        let alt = alt.unwrap();
-                        let alt_ref = alt_ref.unwrap();
-                        let dop = dop.unwrap();
 
                         if (lat_ref.value_more_readable.eq("N") || lat_ref.value_more_readable.eq("S"))
                             && (long_ref.value_more_readable.eq("E") || long_ref.value_more_readable.eq("W"))
-                            && alt_ref.value_more_readable.eq("Above sea level")
-                            && alt.unit.eq("m")
                         {
-                            let alt = parse_urational(
-                                &alt,
-                                vec![1.0],
-                                format!("Unsupported GPS format - invalid alt"),
-                                &debug_entries)?;
-
                             let mut lat = parse_urational(
                                 &lat,
                                 vec![1.0, 1.0 / 60.0, 1.0 / 3600.0],
@@ -322,12 +335,6 @@ impl ImgAnalysis
                                 format!("Unsupported GPS format - invalid long"),
                                 &debug_entries)?;
 
-                            let dop = parse_urational(
-                                &dop,
-                                vec![1.0],
-                                format!("Unsupported GPS format - invalid DOP"),
-                                &debug_entries)?;
-
                             if lat_ref.value_more_readable.eq("S")
                             {
                                 lat = -1.0 * lat;
@@ -338,17 +345,71 @@ impl ImgAnalysis
                                 long = -1.0 * long;
                             }
 
-                            location = Some(Location{
-                                latitude: lat,
-                                longitude: long,
-                                altitude_meters: alt,
-                                dop: dop,
-                            });
+                            let mut alt = None;
+                            {
+                                let alt_entry = find_single(&exif.entries, rexif::ExifTag::GPSAltitude);
+                                let alt_ref = find_single(&exif.entries, rexif::ExifTag::GPSAltitudeRef);
+
+                                if let Some(alt_entry) = alt_entry
+                                {
+                                    if alt_entry.unit != "m"
+                                    {
+                                        return Err(ImgAnalysisError{
+                                            msg: format!("Unsupported GPS format - invalid alt units"),
+                                            debug_entries,
+                                        });
+                                    }
+                                    else
+                                    {
+                                        let mut alt_sign_num = 1.0;
+
+                                        if let Some(alt_ref) = alt_ref
+                                        {
+                                            if (alt_ref.value_more_readable != "Above sea level")
+                                                && (alt_ref.value_more_readable != "Below sea level")
+                                            {
+                                                return Err(ImgAnalysisError{
+                                                    msg: format!("Unsupported GPS format - invalid alt_ref units"),
+                                                    debug_entries,
+                                                });
+                                            }
+
+                                            if alt_ref.value_more_readable.eq("Below sea level")
+                                            {
+                                                alt_sign_num = -1.0;
+                                            }
+                                        }
+
+                                        let alt_val = parse_urational(
+                                            &alt_entry,
+                                            vec![1.0],
+                                            format!("Unsupported GPS format - invalid alt"),
+                                            &debug_entries)?;
+                                            
+                                        alt = Some(alt_val * alt_sign_num);
+                                    }
+                                }
+                            }
+
+                            location = Some(picvudb::data::Location::new(lat, long, alt));
+
+                            let dop = find_single(&exif.entries, rexif::ExifTag::GPSDOP);
+
+                            if let Some(dop) = dop
+                            {
+                                let dop = parse_urational(
+                                    &dop,
+                                    vec![1.0],
+                                    format!("Unsupported GPS format - invalid DOP"),
+                                    &debug_entries)?;
+
+                                location_dop = Some(dop);
+                            }
                         }
                         else
                         {
                             return Err(ImgAnalysisError{
-                                msg: format!("Unsupported GPS format - invalid units"),
+                                msg: format!("Unsupported GPS format - invalid lat/long units"),
                                 debug_entries,
                             });
                         }
@@ -357,18 +418,40 @@ impl ImgAnalysis
 
                 // Successful decode!
 
-                Ok(Some(ImgAnalysis
+                Ok(Some((ImgAnalysis
                 {
                     mime,
                     orientation,
                     original_datetime,
-                    exposure,
+                    make_model,
+                    camera_settings,
                     location,
-                }))
+                    location_dop,
+                },
+                exif_warnings)))
             },
-            Err(_) =>
+            Err(err) =>
             {
-                Ok(None)
+                match &err
+                {
+                    rexif::ExifError::FileTypeUnknown
+                        | rexif::ExifError::JpegWithoutExif(_)
+                        | rexif::ExifError::ExifIfdTruncated(_)
+                        | rexif::ExifError::ExifIfdEntryNotFound =>
+                    {
+                        // We'll just ignore these errors - they seem to
+                        // be normal for files types without EXIF (e.g. PNG or GIF)
+                        // or JPG files that just don't contain any
+
+                        return Ok(None);
+                    },
+                    _ => {},
+                }
+
+                return Err(ImgAnalysisError{
+                    msg: format!("EXIF parse error for file {}: {:?}", file_name, err),
+                    debug_entries: Vec::new(),
+                })
             }
         }
     }

@@ -8,12 +8,17 @@ table! {
 table! {
     objects (id) {
         id -> Text,
-        added_timestamp -> BigInt,
-        added_timestring -> Text,
-        changed_timestamp -> BigInt,
-        changed_timestring -> Text,
+        created_timestamp -> BigInt,
+        created_timestring -> Text,
+        modified_timestamp -> BigInt,
+        modified_timestring -> Text,
+        activity_timestamp -> BigInt,
+        activity_timestring -> Text,
         obj_type -> Text,
         title -> Nullable<Text>,
+        notes -> Nullable<Text>,
+        latitude -> Nullable<Double>,
+        longitude -> Nullable<Double>,
     }
 }
 

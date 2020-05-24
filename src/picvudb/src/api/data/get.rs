@@ -1,4 +1,4 @@
-use crate::api::data::{Date, ObjectId, ObjectType};
+use crate::api::data::{Date, Location, ObjectId, ObjectType};
 
 #[derive(Debug, Clone)]
 pub struct AttachmentMetadata
@@ -34,10 +34,13 @@ pub enum AdditionalMetadata
 pub struct ObjectMetadata
 {
     pub id: ObjectId,
-    pub added: Date,
-    pub changed: Date,
+    pub created_time: Date,
+    pub modified_time: Date,
+    pub activity_time: Date,
     pub obj_type: ObjectType,
     pub title: Option<String>,
+    pub notes: Option<String>,
+    pub location: Option<Location>,
     pub additional: AdditionalMetadata,
 }
 
@@ -59,6 +62,7 @@ pub struct PaginationResponse
 #[derive(Debug, Clone)]
 pub enum GetObjectsQuery
 {
+    ByActivityDesc,
     ByModifiedDesc,
     ByAttachmentSizeDesc,
     ByObjectId(ObjectId),

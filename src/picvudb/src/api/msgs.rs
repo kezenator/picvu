@@ -47,7 +47,8 @@ impl ApiMessage for GetObjectsRequest
 
         let num_objects = match self.query
         {
-            data::get::GetObjectsQuery::ByModifiedDesc => ops.get_num_objects()?,
+            data::get::GetObjectsQuery::ByActivityDesc 
+                | data::get::GetObjectsQuery::ByModifiedDesc => ops.get_num_objects()?,
             data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_num_objects_with_attachments()?,
             data::get::GetObjectsQuery::ByObjectId(_) => 1,
         };
@@ -69,6 +70,7 @@ impl ApiMessage for GetObjectsRequest
 
         let mut from_db = match &self.query
         {
+            data::get::GetObjectsQuery::ByActivityDesc => ops.get_objects_by_activity_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByModifiedDesc => ops.get_objects_by_modified_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_objects_by_attachment_size_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByObjectId(obj_id) => ops.get_object_by_id(obj_id.to_string())?.iter().map(|o| { o.clone() }).collect(),
@@ -134,13 +136,22 @@ impl ApiMessage for GetObjectsRequest
                 },
             };
 
+            let location = match (object.latitude, object.longitude)
+            {
+                (Some(latitude), Some(longitude)) => Some(data::Location::new(latitude, longitude, None)),
+                _ => None
+            };
+
             results.push(data::get::ObjectMetadata
             {
                 id: data::ObjectId::new(object.id),
-                added: data::Date::from_db_fields(object.added_timestamp, object.added_timestring),
-                changed: data::Date::from_db_fields(object.changed_timestamp, object.changed_timestring),
+                created_time: data::Date::from_db_fields(object.created_timestamp, object.created_timestring),
+                modified_time: data::Date::from_db_fields(object.modified_timestamp, object.modified_timestring),
+                activity_time: data::Date::from_db_fields(object.activity_timestamp, object.activity_timestring),
                 obj_type: obj_type,
                 title: object.title,
+                notes: object.notes,
+                location: location,
                 additional: additional,
             });
         }
@@ -187,7 +198,13 @@ impl ApiMessage for AddObjectRequest
             data::add::AdditionalData::Video{..} => data::ObjectType::Video,
         };
 
-        let object = ops.add_object(self.data.title.clone(), obj_type)?;
+        let object = ops.add_object(
+            obj_type,
+            self.data.created_time.clone(),
+            self.data.activity_time.clone(),
+            self.data.title.clone(),
+            self.data.notes.clone(),
+            self.data.location.clone())?;
 
         match &self.data.additional
         {
