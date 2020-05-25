@@ -88,7 +88,7 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path_str.clone();
-                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
+                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_string(bytes_read), format::bytes_to_string(len));
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes]);
 
@@ -146,7 +146,7 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
+                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_string(bytes_read), format::bytes_to_string(len));
                         let progress_files = format!("Found metadata for {} out of {} media files", path_to_metadata.len(), path_to_info.len());
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes, progress_files]);
@@ -214,7 +214,7 @@ impl BulkOperation for FolderImport
 
                         let percent = (bytes_read as f64) / (len as f64) * 100.0;
                         let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_str(bytes_read), format::bytes_to_str(len));
+                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_string(bytes_read), format::bytes_to_string(len));
                         let progress_files = format!("Processed {} of {} media files", summary_media_files, path_to_info.len());
 
                         sender.set(percent, vec![progress_cur_file, progress_bytes, progress_files]);
@@ -267,7 +267,7 @@ impl BulkOperation for FolderImport
 
                 let mut status = vec![
                     format!("Imported {} media files", summary_media_files),
-                    format!("Imported {} of media data", format::bytes_to_str(summary_media_bytes)),
+                    format!("Imported {} of media data", format::bytes_to_string(summary_media_bytes)),
                     format!("{} files had Google Photos Takeout metadata", summary_with_google_metadata),
                     format!("{} files had location data", summary_with_location),
                 ];

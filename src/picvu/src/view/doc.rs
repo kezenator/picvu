@@ -71,13 +71,12 @@ fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
             head
             {
                 meta(charset="utf-8");
+                link(rel="stylesheet", href="/assets/style.css");
 
                 title : page.title.as_str();
             }
             body
             {
-                h1 : page.title.as_str();
-                
                 : Raw(page.contents.as_str())
             }
         }

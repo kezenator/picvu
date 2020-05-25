@@ -1,5 +1,5 @@
 use horrorshow::prelude::*;
-use horrorshow::{html, owned_html, box_html};
+use horrorshow::{owned_html, box_html};
 
 use crate::analyse;
 use crate::bulk;
@@ -16,24 +16,53 @@ pub struct Page
 
 pub fn objects(resp: GetObjectsResponse) -> Page
 {
-    let contents = html!{
+    let title = format::query_to_string(&resp.query);
 
-        p
+    let mut cur_heading = String::new();
+
+    let contents = owned_html!{
+
+        div(class="header")
         {
-            a(href=(path::index())) : "All Objects";
-            : ", ";
-            a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc))) : "By Size";
+            h1: format::query_to_string(&resp.query);
+
+            div(class="header-links")
+            {
+                a(href=(path::index()))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByActivityDesc);
+                }
+                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByModifiedDesc)))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByModifiedDesc);
+                }
+                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc)))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
+                }
+            }
         }
 
         : (pagination(resp.query.clone(), resp.pagination_response.clone()));
 
-        div
+        div(class="object-listing")
         {
             @ for object in resp.objects.iter()
             {
-                span
+                @if let this_heading = get_heading(object, &resp.query)
                 {
-                    p
+                    @if this_heading != cur_heading
+                    {
+                        h2(class="object-listing-group")
+                        {
+                            : ({ cur_heading = this_heading; cur_heading.clone() });
+                        }
+                    }
+                }
+
+                div(class="object-listing-entry")
+                {
+                    div(class="object-listing-thumbnail")
                     {
                         @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
                         {
@@ -57,7 +86,10 @@ pub fn objects(resp: GetObjectsResponse) -> Page
                             }
                         }
                     }
-                    p: object.title.clone().unwrap_or(String::new());
+                    div(class="object-listing-title")
+                    {
+                        : format::insert_zero_width_spaces(object.title.clone().unwrap_or(String::new()));
+                    }
                 }
             }
         }
@@ -73,22 +105,45 @@ pub fn objects(resp: GetObjectsResponse) -> Page
             input(type="text", name="folder");
             input(type="submit");
         }
-    }.to_string();
+    }.into_string().unwrap();
 
     Page {
-        title: "All Objects".to_owned(),
-        contents: contents,
+        title,
+        contents,
     }
 }
 
 pub fn object_details(view: &derived::ViewObjectDetails) -> Page
 {
     let now = picvudb::data::Date::now();
-    let title = view.object.title.clone().unwrap_or(format!("Object {}", view.object.id.to_string()));
 
-    let contents = html!
+    let title = view.object.title.clone().unwrap_or(format!("Object {}", view.object.id.to_string()));
+    let title_for_heading = title.clone();
+
+    let contents = owned_html!
     {
-        table
+        div(class="header")
+        {
+            h1: title_for_heading;
+
+            div(class="header-links")
+            {
+                a(href=(path::index()))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByActivityDesc);
+                }
+                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByModifiedDesc)))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByModifiedDesc);
+                }
+                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc)))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
+                }
+            }
+        }
+
+        table(class="details-table")
         {
             @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &view.object.additional
             {
@@ -162,7 +217,7 @@ pub fn object_details(view: &derived::ViewObjectDetails) -> Page
 
             : exif_details(&view.image_analysis);
         }
-    }.to_string();
+    }.into_string().unwrap();
 
     Page
     {
@@ -218,11 +273,46 @@ pub fn bulk_progress(progress: bulk::progress::ProgressState) -> Page
             }
         }
         
-    }.to_string();
+    }.into_string().unwrap();
 
     Page {
         title: "Bulk Operations".to_owned(),
         contents: contents,
+    }
+}
+
+fn get_heading(object: &picvudb::data::get::ObjectMetadata, query: &picvudb::data::get::GetObjectsQuery) -> String
+{
+    match query
+    {
+        picvudb::data::get::GetObjectsQuery::ByObjectId(_) =>
+        {
+            object.id.to_string()
+        },
+        picvudb::data::get::GetObjectsQuery::ByModifiedDesc =>
+        {
+            format::date_to_date_only_string(&object.modified_time)
+        },
+        picvudb::data::get::GetObjectsQuery::ByActivityDesc =>
+        {
+            format::date_to_date_only_string(&object.activity_time)
+        },
+        picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc =>
+        {
+            let size = match &object.additional
+            {
+                picvudb::data::get::AdditionalMetadata::Photo(photo) =>
+                {
+                    photo.attachment.size
+                },
+                picvudb::data::get::AdditionalMetadata::Video(video) =>
+                {
+                    video.attachment.size
+                },
+            };
+
+            format::bytes_to_group_header(size)
+        },
     }
 }
 
@@ -384,7 +474,7 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
         tr
         {
             td: "Size";
-            td: format::bytes_to_str(size);
+            td: format::bytes_to_string(size);
         }
         tr
         {
@@ -460,25 +550,37 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, response: picvudb::dat
 
     box_html!
     {
-        p
+        div(class="pagination")
         {
             @for page in pages.iter()
             {
                 @if should_print_page(*page, cur_page, last_page)
                 {
                     : ({ done_elipsis = false; ""});
-                    a(href=path::objects_with_pagination(query.clone(), (*page - 1) * page_size, page_size)): (format!("{}, ", page));
+                    div(class="pagintation-link")
+                    {
+                        a(href=path::objects_with_pagination(query.clone(), (*page - 1) * page_size, page_size))
+                        {
+                            : (format!("{}, ", page));
+                        }
+                    }
                 }
                 else
                 {
                     @if !done_elipsis
                     {
-                        : ({ done_elipsis = true; " ... " });
+                        div(class="pagination-elipsis")
+                        {
+                            : ({ done_elipsis = true; "..." });
+                        }
                     }
                 }
             }
 
-            : (format!("Total: {} objects", total));
+            div(class="pagination-summary")
+            {
+                : (format!("Total: {} objects", total));
+            }
         }
     }
 }

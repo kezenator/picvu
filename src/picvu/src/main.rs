@@ -6,6 +6,7 @@ use actix_web::{web, App, HttpRequest, HttpServer, HttpResponse};
 use futures::{StreamExt, TryStreamExt};
 
 mod analyse;
+mod assets;
 mod bulk;
 mod db;
 mod format;
@@ -315,6 +316,7 @@ async fn main() -> std::io::Result<()>
         App::new()
             .data(state)
             .route("/", web::get().to(objects_by_activity_desc))
+            .route("/assets/{_:.*}", web::get().to(assets::handle_embedded_file))
             .route("/view/object/{obj_id}", web::get().to(object_details))
             .route("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
             .route("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
