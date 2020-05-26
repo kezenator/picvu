@@ -449,6 +449,7 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
 {
     let now = now.clone();
     let obj_id = obj_id.clone();
+    let file_name = attachment.filename.clone();
     let created = attachment.created.clone();
     let modified = attachment.modified.clone();
     let size = attachment.size.clone();
@@ -460,6 +461,11 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
         tr
         {
             th(colspan="2"): "Attachment";
+        }
+        tr
+        {
+            td: "File Name";
+            td: file_name;
         }
         tr
         {

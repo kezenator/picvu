@@ -1,15 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
-use actix_web::web;
-use std::fs::File;
-use std::io::Read;
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::convert::TryInto;
-use std::path::Path;
-use flate2::read::GzDecoder;
-use tar::Archive;
+use actix_web::web;
 
 use picvudb::StoreAccess;
 use picvudb::ApiMessage;
@@ -20,22 +12,23 @@ use crate::format;
 use crate::analyse;
 
 mod error;
+mod scan;
 
 use error::*;
 
 pub struct FolderImport
 {
-    tar_gz_file_path: String,
+    folder_path: String,
     db_uri: String,
 }
 
 impl FolderImport
 {
-    pub fn new(tar_gz_file_path: String, db_uri: String) -> Self
+    pub fn new(folder_path: String, db_uri: String) -> Self
     {
         FolderImport
         {
-            tar_gz_file_path,
+            folder_path,
             db_uri,
         }
     }
@@ -48,7 +41,7 @@ impl BulkOperation for FolderImport
 
     fn name(&self) -> String
     {
-        format!("Bulk Import: {}", self.tar_gz_file_path)
+        format!("Bulk Import: {}", self.folder_path)
     }
 
     fn start(self, sender: ProgressSender) -> Self::Future
@@ -58,52 +51,35 @@ impl BulkOperation for FolderImport
             web::block(move || -> Result<(), ImportError>
             {
                 sender.start_stage(
-                    "Scanning file".to_owned(),
-                    vec!["Loading Metadata".to_owned(), "Importing Media".to_owned(), "Summary".to_owned()]);
+                    "Finding files".to_owned(),
+                    vec!["Scanning files and archives".to_owned(), "Loading Metadata".to_owned(), "Importing Media".to_owned(), "Summary".to_owned()]);
 
-                let metadata = std::fs::metadata(self.tar_gz_file_path.clone())?;
-                let len = metadata.len();
+                let scanner = scan::Scanner::new(self.folder_path, sender.clone())?;
+
+                sender.start_stage(
+                    "Scanning files and archives".to_owned(),
+                    vec!["Loading Metadata".to_owned(), "Importing Media".to_owned(), "Summary".to_owned()]);
 
                 let mut path_to_info: HashMap<String, (String, mime::Mime)> = HashMap::new();
                 let mut is_google_photos_takeout_archive = false;
                 let mut warnings: Vec<String> = Vec::new();
 
                 {
-                    let tar_gz = File::open(self.tar_gz_file_path.clone())?;
-                    let (counted_reader, counted_get) = CountedRead::new(tar_gz);
-                    let tar = GzDecoder::new(counted_reader);
-                    let mut archive = Archive::new(tar);
-
-                    for entry in archive.entries()?
+                    for entry in scanner.clone_iter(|_| { false })
                     {
                         let entry = entry?;
 
-                        let path = entry.path()?;
-                        let path_str = path
-                            .to_str()
-                            .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Contained file name contains non-UTF-8 byte sequences"))?
-                            .to_owned();
+                        sender.set(entry.percent, vec![entry.display_path.clone(), entry.progress_bytes]);
 
-                        let bytes_read = counted_get.get();
-
-                        let percent = (bytes_read as f64) / (len as f64) * 100.0;
-                        let progress_cur_file = path_str.clone();
-                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_string(bytes_read), format::bytes_to_string(len));
-
-                        sender.set(percent, vec![progress_cur_file, progress_bytes]);
-
-                        let filename = Path::new(&path_str).file_name().unwrap_or_default().to_str().unwrap().to_owned();
-                        let ext = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap().to_owned().to_ascii_lowercase();
-
-                        if let Some(mime) = analyse::import::guess_mime_type_from_filename(&filename)
+                        if let Some(mime) = analyse::import::guess_mime_type_from_filename(&entry.file_name)
                         {
-                            path_to_info.insert(path_str.clone(), (filename, mime));
+                            path_to_info.insert(entry.archive_path.clone(), (entry.file_name, mime));
                         }
-                        else if ext == "json"
+                        else if entry.ext == "json"
                         {
                             // Ignore JSON metadata files
                         }
-                        else if path_str == "Takeout/archive_browser.html"
+                        else if entry.archive_path == "Takeout/archive_browser.html"
                         {
                             // If it has the Google Photos Takout browser file, then
                             // assume it's an archive from this service.
@@ -114,7 +90,7 @@ impl BulkOperation for FolderImport
                         {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
-                                format!("Unsupported file: {}", path_str)).into());
+                                format!("Unsupported file: {}", entry.display_path)).into());
                         }
                     }
                 }
@@ -127,40 +103,21 @@ impl BulkOperation for FolderImport
 
                 if is_google_photos_takeout_archive
                 {
-                    let tar_gz = File::open(self.tar_gz_file_path.clone())?;
-                    let (counted_reader, counted_get) = CountedRead::new(tar_gz);
-                    let tar = GzDecoder::new(counted_reader);
-                    let mut archive = Archive::new(tar);
-
-                    for entry in archive.entries()?
+                    for entry in scanner.clone_iter(|file_name| { file_name.ends_with(".json") })
                     {
-                        let mut entry = entry?;
+                        let entry = entry?;
 
-                        let path = entry.path()?;
-                        let path_str = path
-                            .to_str()
-                            .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Contained file name contains non-UTF-8 byte sequences"))?
-                            .to_owned();
-
-                        let bytes_read = counted_get.get();
-
-                        let percent = (bytes_read as f64) / (len as f64) * 100.0;
-                        let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_string(bytes_read), format::bytes_to_string(len));
                         let progress_files = format!("Found metadata for {} out of {} media files", path_to_metadata.len(), path_to_info.len());
 
-                        sender.set(percent, vec![progress_cur_file, progress_bytes, progress_files]);
+                        sender.set(entry.percent, vec![entry.display_path.clone(), entry.progress_bytes, progress_files]);
 
-                        if path_str.ends_with(".json")
+                        if entry.archive_path.ends_with(".json")
                         {
-                            let media_name = path_str[0..(path_str.len()-5)].to_owned();
+                            let media_name = entry.archive_path[0..(entry.archive_path.len()-5)].to_owned();
 
                             if path_to_info.contains_key(&media_name)
                             {
-                                let mut json_bytes = Vec::new();
-                                entry.read_to_end(&mut json_bytes)?;
-
-                                let metadata = analyse::takeout::parse_google_photos_takeout_metadata(json_bytes, &path_str)?;
+                                let metadata = analyse::takeout::parse_google_photos_takeout_metadata(entry.bytes, &entry.display_path)?;
 
                                 path_to_metadata.insert(media_name, metadata);
                             }
@@ -187,6 +144,8 @@ impl BulkOperation for FolderImport
                     "Importing Media".to_owned(),
                     vec!["Summary".to_owned()]);
 
+                let num_found_metadata_files = path_to_metadata.len();
+
                 let mut summary_media_files: usize = 0;
                 let mut summary_media_bytes: u64 = 0;
                 let mut summary_with_google_metadata: usize = 0;
@@ -195,45 +154,25 @@ impl BulkOperation for FolderImport
                 let store = picvudb::Store::new(&self.db_uri)?;
 
                 {
-                    let tar_gz = File::open(self.tar_gz_file_path.clone())?;
-                    let (counted_reader, counted_get) = CountedRead::new(tar_gz);
-                    let tar = GzDecoder::new(counted_reader);
-                    let mut archive = Archive::new(tar);
-
-                    for entry in archive.entries()?
+                    for entry in scanner.iter(|_| { true })
                     {
-                        let mut entry = entry?;
+                        let entry = entry?;
 
-                        let path = entry.path()?;
-                        let path_str = path
-                            .to_str()
-                            .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Contained file name contains non-UTF-8 byte sequences"))?
-                            .to_owned();
-
-                        let bytes_read = counted_get.get();
-
-                        let percent = (bytes_read as f64) / (len as f64) * 100.0;
-                        let progress_cur_file = path.display().to_string();
-                        let progress_bytes = format!("Processed {} of {}", format::bytes_to_string(bytes_read), format::bytes_to_string(len));
                         let progress_files = format!("Processed {} of {} media files", summary_media_files, path_to_info.len());
+                        let progress_media_bytes = format!("Imported {} of media data", format::bytes_to_string(summary_media_bytes));
+                        let progress_metadata = format!("Processed {} of {} metadata files", summary_with_google_metadata, num_found_metadata_files);
+                        let progress_location = format!("Processed {} files with location data", summary_with_location);
 
-                        sender.set(percent, vec![progress_cur_file, progress_bytes, progress_files]);
+                        sender.set(entry.percent, vec![entry.display_path, entry.progress_bytes,
+                            progress_files, progress_media_bytes,
+                            progress_metadata, progress_location]);
 
-                        if let Some((file_name, _mime)) = path_to_info.get(&path_str)
+                        if let Some((_file_name, _mime)) = path_to_info.get(&entry.archive_path)
                         {
-                            let file_size: usize = entry.header().size()?
-                                .try_into()
-                                .map_err(|_| {std::io::Error::new(std::io::ErrorKind::InvalidData, format!("File {} is too large", path_str))})?;
-
-                            let mut bytes = Vec::new();
-                            bytes.reserve(file_size);
-
-                            entry.read_to_end(&mut bytes)?;
-
                             summary_media_files += 1;
-                            summary_media_bytes += bytes.len() as u64;
+                            summary_media_bytes += entry.bytes.len() as u64;
 
-                            let google_metadata = path_to_metadata.remove(&path_str);
+                            let google_metadata = path_to_metadata.remove(&entry.archive_path);
 
                             if google_metadata.is_some()
                             {
@@ -241,8 +180,8 @@ impl BulkOperation for FolderImport
                             }
                             
                             let add_msg = analyse::import::create_add_object_for_import(
-                                bytes,
-                                file_name,
+                                entry.bytes,
+                                &entry.file_name,
                                 None,
                                 None,
                                 google_metadata,
@@ -285,51 +224,5 @@ impl BulkOperation for FolderImport
 
             Ok(())
         })
-    }
-}
-
-struct CountedGet
-{
-    count: Rc<RefCell<u64>>,
-}
-
-impl CountedGet
-{
-    pub fn get(&self) -> u64
-    {
-        *self.count.borrow()
-    }
-}
-
-struct CountedRead<SubReader>
-    where SubReader: Read
-{
-    sub_reader: SubReader,
-    count: Rc<RefCell<u64>>,
-}
-
-impl<SubReader> CountedRead<SubReader>
-    where SubReader: Read
-{
-    pub fn new(sub_reader: SubReader) -> (Self, CountedGet)
-    {
-        let count = Rc::new(RefCell::new(0));
-        (CountedRead{ sub_reader, count: count.clone() }, CountedGet{ count: count.clone() })
-    }
-}
-
-impl<SubReader> Read for CountedRead<SubReader>
-    where SubReader: Read
-{
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize>
-    {
-        let result = self.sub_reader.read(buf);
-
-        if let Ok(count) = result
-        {
-            *self.count.borrow_mut() += count as u64;
-        }
-
-        return result;
     }
 }

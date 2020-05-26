@@ -62,7 +62,14 @@ impl ApiMessage for GetObjectsRequest
             }
             if pagination.offset >= num_objects
             {
-                pagination.offset = num_objects - 1;
+                if num_objects == 0
+                {
+                    pagination.offset = 0;
+                }
+                else
+                {
+                    pagination.offset = num_objects - 1;
+                }
             }
             pagination.offset /= pagination.page_size;
             pagination.offset *= pagination.page_size;

@@ -282,7 +282,7 @@ async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::
 async fn main() -> std::io::Result<()>
 {
 
-    let db_uri = "test.db";
+    let db_uri = "E:\\test.db";
 
     // TODO - better file handling
     //let _remove_err = std::fs::remove_file(db_uri);

@@ -17,9 +17,17 @@ pub fn guess_mime_type_from_filename(filename: &String) -> Option<mime::Mime>
     {
         Some(mime::IMAGE_GIF)
     }
+    else if ext == "webp"
+    {
+        Some("image/webp".parse().unwrap())
+    }
     else if ext == "mp4"
     {
         Some(format!("{}/{}", mime::VIDEO.as_str(), mime::MP4.as_str()).parse().unwrap())
+    }
+    else if ext == "mkv"
+    {
+        Some("video/x-matroska".parse().unwrap())
     }
     else
     {
