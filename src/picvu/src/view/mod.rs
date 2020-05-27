@@ -1,8 +1,9 @@
 use std::fmt::Debug;
 use actix_web::HttpResponse;
+use actix_web::http::StatusCode;
 use actix_web::dev::HttpResponseBuilder;
+use actix_web::ResponseError;
 
-use picvudb::msgs::GetObjectsResponse;
 use picvudb::msgs::GetAttachmentDataResponse;
 use picvudb::msgs::AddObjectResponse;
 
@@ -15,16 +16,112 @@ mod page;
 
 pub use doc::redirect;
 
+#[derive(Debug)]
+pub enum ErrorResponder
+{
+    ActixMailboxError(actix::MailboxError),
+    PicvudbError(picvudb::Error),
+    MultipartError(actix_multipart::MultipartError),
+    StdIoError(std::io::Error),
+    BlockingOperationCanceled,
+    ImageError(image::error::ImageError),
+}
+
+impl std::fmt::Display for ErrorResponder
+{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>
+    {
+        write!(fmt, "{:?}", self)
+    }
+}
+
+impl From<actix::MailboxError> for ErrorResponder
+{
+    fn from(error: actix::MailboxError) -> Self
+    {
+        ErrorResponder::ActixMailboxError(error)
+    }
+}
+
+impl From<picvudb::Error> for ErrorResponder
+{
+    fn from(error: picvudb::Error) -> Self
+    {
+        ErrorResponder::PicvudbError(error)
+    }
+}
+
+impl From<actix_multipart::MultipartError> for ErrorResponder
+{
+    fn from(error: actix_multipart::MultipartError) -> Self
+    {
+        ErrorResponder::MultipartError(error)
+    }
+}
+
+impl From<std::io::Error> for ErrorResponder
+{
+    fn from(error: std::io::Error) -> Self
+    {
+        ErrorResponder::StdIoError(error)
+    }
+}
+
+impl<T> From<actix_web::error::BlockingError<T>> for ErrorResponder
+    where T: Into<ErrorResponder> + Debug
+{
+    fn from(error: actix_web::error::BlockingError<T>) -> Self
+    {
+        match error
+        {
+            actix_web::error::BlockingError::Canceled => ErrorResponder::BlockingOperationCanceled,
+            actix_web::error::BlockingError::Error(e) => e.into(),
+        }
+    }
+}
+
+impl From<image::error::ImageError> for ErrorResponder
+{
+    fn from(error: image::error::ImageError) -> Self
+    {
+        ErrorResponder::ImageError(error)
+    }
+}
+
+impl ResponseError for ErrorResponder
+{
+    fn error_response(&self) -> HttpResponse
+    {
+        let builder = HttpResponseBuilder::new(self.status_code());
+        let contents = format!("{:#?}", self);
+
+        doc::err(builder, contents)
+    }
+
+    fn status_code(&self) -> StatusCode
+    {
+        match self
+        {
+            Self::ActixMailboxError(_)
+                | Self::PicvudbError(_)
+                | Self::StdIoError(_) 
+                | Self::BlockingOperationCanceled
+                | Self::ImageError(_) =>
+            {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
+            Self::MultipartError(_) =>
+            {
+                StatusCode::BAD_REQUEST
+            }
+        }
+    }
+}
+
 pub fn generate_response<T>(data: T) -> HttpResponse
     where T: Viewable
 {
     data.generate()
-}
-
-pub fn generate_error_response<T>(builder: HttpResponseBuilder, data: T) -> HttpResponse
-    where T: Debug
-{
-    doc::err(builder, data)
 }
 
 pub trait Viewable
@@ -32,48 +129,38 @@ pub trait Viewable
     fn generate(self) -> HttpResponse;
 }
 
-impl Viewable for derived::ViewObjectDetails
+impl Viewable for derived::ViewObjectsList
 {
     fn generate(self) -> HttpResponse
     {
-        doc::ok(page::object_details(&self))
-    }
-}
-
-impl Viewable for GetObjectsResponse
-{
-    fn generate(self) -> HttpResponse
-    {
-        if self.pagination_request.offset != self.pagination_response.offset
-            || self.pagination_request.page_size != self.pagination_response.page_size
+        if self.response.pagination_request.offset != self.response.pagination_response.offset
+            || self.response.pagination_request.page_size != self.response.pagination_response.page_size
         {
             // Redirect to the index with the correct pagesize
             doc::redirect(path::objects_with_pagination(
-                self.query,
-                self.pagination_response.offset,
-                self.pagination_request.page_size))
-        }
-        else if let picvudb::data::get::GetObjectsQuery::ByObjectId(_) = &self.query
-        {
-            if self.objects.len() == 1
-            {
-                let derived_view = derived::ViewObjectDetails
-                {
-                    object: self.objects.iter().nth(0).unwrap().clone(),
-                    image_analysis: Ok(None),
-                };
-
-                doc::ok(page::object_details(&derived_view))
-            }
-            else
-            {
-                doc::err(HttpResponse::NotFound(), "Not Found")
-            }
+                self.response.query,
+                self.response.pagination_response.offset,
+                self.response.pagination_request.page_size))
         }
         else
         {
-            doc::ok(page::objects(self))
+            match self.view_type
+            {
+                derived::ViewObjectsListType::ThumbnailsGrid =>
+                    doc::ok(page::objects_thumbnails(self.response)),
+
+                derived::ViewObjectsListType::DetailsTable =>
+                    doc::ok(page::objects_details(self.response))
+            }
         }
+    }
+}
+
+impl Viewable for derived::ViewSingleObject
+{
+    fn generate(self) -> HttpResponse
+    {
+        doc::ok(page::object_details(self.object, self.image_analysis))
     }
 }
 
@@ -112,19 +199,5 @@ impl Viewable for bulk::progress::ProgressState
     fn generate(self) -> HttpResponse
     {
         doc::ok(page::bulk_progress(self))
-    }
-}
-
-impl<R, E> Viewable for Result<R, E>
-    where R: Viewable,
-        E: Debug
-{
-    fn generate(self) -> HttpResponse
-    {
-        match self
-        {
-            Ok(r) => r.generate(),
-            Err(e) => doc::err(HttpResponse::InternalServerError(), e),
-        }
     }
 }

@@ -7,6 +7,11 @@ pub fn image_thumbnail(object_id: &picvudb::data::ObjectId, hash: &String, size:
 
 pub fn object_details(object_id: &picvudb::data::ObjectId) -> String { format!("/view/object/{}", object_id.to_string()) }
 
+pub fn objects_details_list() -> String
+{
+    "/view/objects/details_list".to_owned()
+}
+
 pub fn objects(query: picvudb::data::get::GetObjectsQuery) -> String
 {
     match query

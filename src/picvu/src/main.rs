@@ -20,7 +20,7 @@ struct State {
     db_uri: String,
 }
 
-async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, query: picvudb::data::get::GetObjectsQuery) -> HttpResponse
+async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, query: picvudb::data::get::GetObjectsQuery, view_type: view::derived::ViewObjectsListType) -> Result<HttpResponse, view::ErrorResponder>
 {
     // TODO - this should be put into a middle-ware
     // that wraps all user-interface pages
@@ -29,7 +29,7 @@ async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, q
 
         if let Some(progress) = bulk_queue.get_current_progress()
         {
-            return view::generate_response(progress);
+            return Ok(view::generate_response(progress));
         }
     }
 
@@ -45,75 +45,79 @@ async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, q
         pagination,
     };
 
-    let response = state.db.send(msg).await;
+    let response = state.db.send(msg).await??;
 
     // If we asked for one object, and it's a photo,
     // see if we can also get the attachment data
     // so that we can print out the EXIF data
 
-    if let Ok(Ok(get_obj_response)) = &response
+    if let picvudb::data::get::GetObjectsQuery::ByObjectId(_) = &response.query
     {
-        if let picvudb::data::get::GetObjectsQuery::ByObjectId(_) = &get_obj_response.query
+        if let Some(object) = response.objects.first().clone()
         {
-            if let Some(object) = get_obj_response.objects.first().clone()
-            {
-                let get_attachment_data_msg = picvudb::msgs::GetAttachmentDataRequest{
-                    object_id: object.id.clone(),
-                    specific_hash: None,
-                };
+            let get_attachment_data_msg = picvudb::msgs::GetAttachmentDataRequest{
+                object_id: object.id.clone(),
+                specific_hash: None,
+            };
 
-                let attachment_response = state.db.send(get_attachment_data_msg).await;
-                
-                if let Ok(Ok(picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes})) = attachment_response
-                {
-                    return view::generate_response(view::derived::ViewObjectDetails {
-                        object: object.clone(),
-                        image_analysis: analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename),
-                    });
-                }
+            let attachment_response = state.db.send(get_attachment_data_msg).await;
+            
+            if let Ok(Ok(picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes})) = attachment_response
+            {
+                return Ok(view::generate_response(view::derived::ViewSingleObject {
+                    object: object.clone(),
+                    image_analysis: analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename),
+                }));
             }
         }
     }
 
     // Otherwise, just generate the general listing response
 
-    view::generate_response(response)
+    Ok(view::generate_response(
+        view::derived::ViewObjectsList { response, view_type }))
 }
 
-async fn objects_by_activity_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
+async fn objects_by_activity_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByActivityDesc).await
+    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByActivityDesc, view::derived::ViewObjectsListType::ThumbnailsGrid).await
 }
 
-async fn objects_by_modified_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
+async fn objects_by_modified_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
+    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc, view::derived::ViewObjectsListType::ThumbnailsGrid).await
 }
 
-async fn objects_by_size_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> HttpResponse
+async fn objects_by_size_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc).await
+    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc, view::derived::ViewObjectsListType::ThumbnailsGrid).await
 }
 
-async fn object_details(state: web::Data<State>, object_id: web::Path<String>) -> HttpResponse
+async fn objects_details_list(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
+{
+    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByActivityDesc, view::derived::ViewObjectsListType::DetailsTable).await
+}
+
+async fn object_details(state: web::Data<State>, object_id: web::Path<String>) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
     let pagination = forms::Pagination{ offset: None, page_size: None };
 
-    object_query(state, &pagination, picvudb::data::get::GetObjectsQuery::ByObjectId(object_id)).await
+    object_query(state, &pagination, picvudb::data::get::GetObjectsQuery::ByObjectId(object_id), view::derived::ViewObjectsListType::ThumbnailsGrid).await
 }
 
-async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> HttpResponse
+async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let mut file: Option<(String, Vec<u8>)> = None;
 
     loop
     {
-        match payload.try_next().await
+        let section = payload.try_next().await?;
+
+        match section
         {
-            Err(err) => return view::generate_error_response(HttpResponse::BadRequest(), err),
-            Ok(None) => break,
-            Ok(Some(mut field)) =>
+            None => break,
+            Some(mut field) =>
             {
                 if let Some(content_type) = field.content_disposition()
                 {
@@ -123,14 +127,9 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
 
                         while let Some(chunk) = field.next().await
                         {
-                            match chunk
-                            {
-                                Err(err) =>return view::generate_error_response(HttpResponse::BadRequest(), err),
-                                Ok(chunk) =>
-                                {
-                                    bytes.extend_from_slice(&chunk);
-                                }
-                            }
+                            let chunk = chunk?;
+
+                            bytes.extend_from_slice(&chunk);
                         }
 
                         file = Some((filename.to_owned(), bytes));
@@ -140,11 +139,11 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
         }
     }
 
-    if file.is_none()
-    {
-        return view::generate_error_response(HttpResponse::BadRequest(), "no file provided");
-    }
-    let (file_name, bytes) = file.unwrap();
+    let multipart_err = actix_multipart::MultipartError::Payload(actix_http::error::PayloadError::Incomplete(Some(
+        std::io::Error::new(std::io::ErrorKind::InvalidData, "Request is missing a file")
+    )));
+
+    let (file_name, bytes) = file.ok_or(multipart_err)?;
 
     // We ignore warnings here
 
@@ -156,23 +155,13 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
         None,
         None,
         None,
-        &mut warnings);
+        &mut warnings)?;
 
-    match add_msg
-    {
-        Err(e) =>
-        {
-            view::generate_response::<Result<picvudb::msgs::AddObjectResponse, _>>(Err(e))
-        },
-        Ok(add_msg) =>
-        {
-            let response = state.db.send(add_msg).await;
-            view::generate_response(response)
-        }
-    }
+    let response = state.db.send(add_msg).await??;
+    Ok(view::generate_response(response))
 }
 
-async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkImport>, _req: HttpRequest) -> HttpResponse
+async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkImport>, _req: HttpRequest) ->HttpResponse
 {
     {
         let mut bulk_queue = state.bulk_queue.lock().unwrap();
@@ -194,43 +183,31 @@ async fn form_bulk_acknowledge(state: web::Data<State>, _req: HttpRequest) -> Ht
     view::redirect(path::index())
 }
 
-async fn attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::Attachment>, _req: HttpRequest) -> HttpResponse
+async fn attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::Attachment>, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
 
     let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
-    let response = state.db.send(msg).await;
-    view::generate_response(response)
+    let response = state.db.send(msg).await??;
+    Ok(view::generate_response(response))
 }
 
-async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<forms::Thumbnail>, _req: HttpRequest) -> HttpResponse
+async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<forms::Thumbnail>, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(path.to_string());
 
     let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
-    let response = state.db.send(msg).await;
-
-    if response.is_err()
-    {
-        return view::generate_response(response);
-    }
-    let response = response.unwrap();
-
-    if response.is_err()
-    {
-        return view::generate_response(response);
-    }
-    let response = response.unwrap();
+    let response = state.db.send(msg).await??;
 
     let response = match response
     {
         picvudb::msgs::GetAttachmentDataResponse::ObjectNotFound =>
         {
-            Ok(picvudb::msgs::GetAttachmentDataResponse::ObjectNotFound)
+            picvudb::msgs::GetAttachmentDataResponse::ObjectNotFound
         },
         picvudb::msgs::GetAttachmentDataResponse::HashNotFound =>
         {
-            Ok(picvudb::msgs::GetAttachmentDataResponse::HashNotFound)
+            picvudb::msgs::GetAttachmentDataResponse::HashNotFound
         },
         picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes} =>
         {
@@ -271,11 +248,11 @@ async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::
                 image.write_to(&mut bytes, image::ImageOutputFormat::Jpeg(100))?;
 
                 Ok(picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes})
-            }).await
+            }).await?
         },
     };
 
-    view::generate_response(response)
+    Ok(view::generate_response(response))
 }
 
 #[actix_rt::main]
@@ -321,6 +298,7 @@ async fn main() -> std::io::Result<()>
             .route("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
             .route("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
             .route("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
+            .route("/view/objects/details_list", web::get().to(objects_details_list))
             .route("/form/add_object", web::post().to(form_add_object))
             .route("/form/bulk_import", web::post().to(form_bulk_import))
             .route("/form/bulk_acknowledge", web::post().to(form_bulk_acknowledge))

@@ -5,7 +5,6 @@ use crate::analyse;
 use crate::bulk;
 use crate::format;
 use crate::path;
-use crate::view::derived;
 use picvudb::msgs::*;
 
 pub struct Page
@@ -14,7 +13,7 @@ pub struct Page
     pub contents: String,
 }
 
-pub fn objects(resp: GetObjectsResponse) -> Page
+pub fn objects_thumbnails(resp: GetObjectsResponse) -> Page
 {
     let title = format::query_to_string(&resp.query);
 
@@ -40,6 +39,10 @@ pub fn objects(resp: GetObjectsResponse) -> Page
                 {
                     : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
                 }
+                a(href=(path::objects_details_list()))
+                {
+                    : "Detailed Listing";
+                }
             }
         }
 
@@ -47,7 +50,7 @@ pub fn objects(resp: GetObjectsResponse) -> Page
 
         div(class="object-listing")
         {
-            @ for object in resp.objects.iter()
+            @for object in resp.objects.iter()
             {
                 @if let this_heading = get_heading(object, &resp.query)
                 {
@@ -113,11 +116,99 @@ pub fn objects(resp: GetObjectsResponse) -> Page
     }
 }
 
-pub fn object_details(view: &derived::ViewObjectDetails) -> Page
+pub fn objects_details(resp: GetObjectsResponse) -> Page
 {
     let now = picvudb::data::Date::now();
 
-    let title = view.object.title.clone().unwrap_or(format!("Object {}", view.object.id.to_string()));
+    let title = format::query_to_string(&resp.query);
+
+    let contents = owned_html!{
+
+        div(class="header")
+        {
+            h1: format::query_to_string(&resp.query);
+
+            div(class="header-links")
+            {
+                a(href=(path::index()))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByActivityDesc);
+                }
+                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByModifiedDesc)))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByModifiedDesc);
+                }
+                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc)))
+                {
+                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
+                }
+                a(href=(path::objects_details_list()))
+                {
+                    : "Detailed Listing";
+                }
+            }
+        }
+
+        : (pagination(resp.query.clone(), resp.pagination_response.clone()));
+
+        table(class="details-table")
+        {
+            tr
+            {
+                th: "ID";
+                th: "Title";
+                th: "Activity";
+                th: "Size";
+                th: "Mime";
+            }
+
+            @for object in resp.objects.iter()
+            {
+                tr
+                {
+                    td
+                    {
+                        a(href=path::object_details(&object.id))
+                        {
+                            : object.id.to_string();
+                        }
+                    }
+
+                    td: object.title.clone().unwrap_or_default();
+                    td: format::date_to_str(&object.activity_time, &now);
+
+                    @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
+                    {
+                        td: format::bytes_to_string(photo.attachment.size);
+                        td: photo.attachment.mime.to_string();
+                    }
+                    else if let picvudb::data::get::AdditionalMetadata::Video(video) = &object.additional
+                    {
+                        td: format::bytes_to_string(video.attachment.size);
+                        td: video.attachment.mime.to_string();
+                    }
+                    else
+                    {
+                        td: "N/A";
+                        td: "N/A";
+                    }
+                }
+            }
+        }
+
+    }.into_string().unwrap();
+
+    Page {
+        title,
+        contents,
+    }
+}
+
+pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>) -> Page
+{
+    let now = picvudb::data::Date::now();
+
+    let title = object.title.clone().unwrap_or(format!("Object {}", object.id.to_string()));
     let title_for_heading = title.clone();
 
     let contents = owned_html!
@@ -140,12 +231,16 @@ pub fn object_details(view: &derived::ViewObjectDetails) -> Page
                 {
                     : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
                 }
+                a(href=(path::objects_details_list()))
+                {
+                    : "Detailed Listing";
+                }
             }
         }
 
         table(class="details-table")
         {
-            @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &view.object.additional
+            @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
             {
                 tr
                 {
@@ -155,9 +250,9 @@ pub fn object_details(view: &derived::ViewObjectDetails) -> Page
                 {
                     td(colspan="2")
                     {
-                        a(href=path::attachment_data(&view.object.id, &photo.attachment.hash))
+                        a(href=path::attachment_data(&object.id, &photo.attachment.hash))
                         {
-                            img(src=path::image_thumbnail(&view.object.id, &photo.attachment.hash, 512))
+                            img(src=path::image_thumbnail(&object.id, &photo.attachment.hash, 512))
                         }
                     }
                 }
@@ -170,52 +265,52 @@ pub fn object_details(view: &derived::ViewObjectDetails) -> Page
             tr
             {
                 td: "Created";
-                td: format::date_to_str(&view.object.created_time, &now);
+                td: format::date_to_str(&object.created_time, &now);
             }
             tr
             {
                 td: "Modified";
-                td: format::date_to_str(&view.object.modified_time, &now);
+                td: format::date_to_str(&object.modified_time, &now);
             }
             tr
             {
                 td: "Activity";
-                td: format::date_to_str(&view.object.activity_time, &now);
+                td: format::date_to_str(&object.activity_time, &now);
             }
             tr
             {
                 td: "Type";
-                td: view.object.obj_type.to_string();
+                td: object.obj_type.to_string();
             }
-            @if view.object.title.is_some()
+            @if object.title.is_some()
             {
                 tr
                 {
                     td: "Title";
-                    td: view.object.title.clone().unwrap_or(String::new());
+                    td: object.title.clone().unwrap_or(String::new());
                 }
             }
-            @if view.object.notes.is_some()
+            @if object.notes.is_some()
             {
                 tr
                 {
                     td: "Notes";
-                    td: view.object.notes.clone().unwrap_or(String::new());
+                    td: object.notes.clone().unwrap_or(String::new());
                 }
             }
 
-            : location_details(&view.object.location);
+            : location_details(&object.location);
 
-            @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &view.object.additional
+            @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
             {
-                : attachment_details(&view.object.id, &photo.attachment, &now);
+                : attachment_details(&object.id, &photo.attachment, &now);
             }
-            else if let picvudb::data::get::AdditionalMetadata::Video(video) = &view.object.additional
+            else if let picvudb::data::get::AdditionalMetadata::Video(video) = &object.additional
             {
-                : attachment_details(&view.object.id, &video.attachment, &now);
+                : attachment_details(&object.id, &video.attachment, &now);
             }
 
-            : exif_details(&view.image_analysis);
+            : exif_details(&image_analysis);
         }
     }.into_string().unwrap();
 
