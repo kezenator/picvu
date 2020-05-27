@@ -14,6 +14,13 @@ pub struct Thumbnail
 }
 
 #[derive(Deserialize)]
+pub struct MvImg
+{
+    pub hash: String,
+    pub mp4_offset: usize,
+}
+
+#[derive(Deserialize)]
 pub struct BulkImport
 {
     pub folder: String,

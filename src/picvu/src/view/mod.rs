@@ -160,7 +160,7 @@ impl Viewable for derived::ViewSingleObject
 {
     fn generate(self) -> HttpResponse
     {
-        doc::ok(page::object_details(self.object, self.image_analysis))
+        doc::ok(page::object_details(self.object, self.image_analysis, self.mvimg_split))
     }
 }
 

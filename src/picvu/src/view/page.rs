@@ -204,7 +204,7 @@ pub fn objects_details(resp: GetObjectsResponse) -> Page
     }
 }
 
-pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>) -> Page
+pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>, mvimg_split: analyse::img::MvImgSplit) -> Page
 {
     let now = picvudb::data::Date::now();
 
@@ -303,11 +303,11 @@ pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis
 
             @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
             {
-                : attachment_details(&object.id, &photo.attachment, &now);
+                : attachment_details(&object.id, &photo.attachment, &mvimg_split, &now);
             }
             else if let picvudb::data::get::AdditionalMetadata::Video(video) = &object.additional
             {
-                : attachment_details(&object.id, &video.attachment, &now);
+                : attachment_details(&object.id, &video.attachment, &mvimg_split, &now);
             }
 
             : exif_details(&image_analysis);
@@ -540,7 +540,7 @@ fn location_details(location: &Option<picvudb::data::Location>) -> Box<dyn Rende
     }
 }
 
-fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::data::get::AttachmentMetadata, now: &picvudb::data::Date) -> Box<dyn RenderBox>
+fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::data::get::AttachmentMetadata, mvimg_split: &analyse::img::MvImgSplit, now: &picvudb::data::Date) -> Box<dyn RenderBox>
 {
     let now = now.clone();
     let obj_id = obj_id.clone();
@@ -550,6 +550,7 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
     let size = attachment.size.clone();
     let mime = attachment.mime.clone();
     let hash = attachment.hash.clone();
+    let mvimg_split = mvimg_split.clone();
 
     box_html!
     {
@@ -592,7 +593,33 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
             td: "Link";
             td
             {
-                a(href=path::attachment_data(&obj_id, &hash)): "View";
+                p
+                {
+                    a(href=path::attachment_data(&obj_id, &hash)): "View";
+                }
+
+                @if let analyse::img::MvImgSplit::Mp4Only = mvimg_split
+                {
+                    p
+                    {
+                        a(href=path::attachment_as_mp4(&obj_id, &hash, 0))
+                        {
+                            : "This file is actually a MP4 movie, not a JPEG image.";
+                        }
+                    }
+                }
+                else if let analyse::img::MvImgSplit::Both{mp4_offset} = mvimg_split
+                {
+                    p
+                    {
+                        a(href=path::attachment_as_mp4(&obj_id, &hash, mp4_offset))
+                        {
+                            : format!("This file contains a {} JPEG image then a {} MP4 movie",
+                                format::bytes_to_string(mp4_offset as u64),
+                                format::bytes_to_string(size - (mp4_offset as u64)));
+                        }
+                    }
+                }
             }
         }
     }

@@ -4,6 +4,7 @@ pub fn form_bulk_import() -> String { "/form/bulk_import".to_owned() }
 pub fn form_bulk_acknowledge() -> String { "/form/bulk_acknowledge".to_owned() }
 pub fn attachment_data(object_id: &picvudb::data::ObjectId, hash: &String) -> String { format!("/attachments/{}?hash={}", object_id.to_string(), hash) }
 pub fn image_thumbnail(object_id: &picvudb::data::ObjectId, hash: &String, size: u32) -> String { format!("/thumbnails/{}?hash={}&size={}", object_id.to_string(), hash, size) }
+pub fn attachment_as_mp4(object_id: &picvudb::data::ObjectId, hash: &String, mp4_offset: usize) -> String { format!("/mvimgs/{}?hash={}&mp4_offset={}", object_id.to_string(), hash, mp4_offset) }
 
 pub fn object_details(object_id: &picvudb::data::ObjectId) -> String { format!("/view/object/{}", object_id.to_string()) }
 

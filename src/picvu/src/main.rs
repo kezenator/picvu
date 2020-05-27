@@ -67,6 +67,7 @@ async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, q
                 return Ok(view::generate_response(view::derived::ViewSingleObject {
                     object: object.clone(),
                     image_analysis: analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename),
+                    mvimg_split: analyse::img::parse_mvimg_split(&bytes, &metadata.filename),
                 }));
             }
         }
@@ -255,6 +256,25 @@ async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::
     Ok(view::generate_response(response))
 }
 
+async fn mvimg(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::MvImg>, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+{
+    let object_id = picvudb::data::ObjectId::new(object_id.to_string());
+
+    let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
+    let mut response = state.db.send(msg).await??;
+
+    if let picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes} = &response
+    {
+        let bytes = bytes[form.mp4_offset..].to_vec();
+        let mut metadata = metadata.clone();
+        metadata.mime = "video/mp4".parse::<mime::Mime>().unwrap();
+
+        response = picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes};
+    }
+
+    Ok(view::generate_response(response))
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()>
 {
@@ -304,6 +324,7 @@ async fn main() -> std::io::Result<()>
             .route("/form/bulk_acknowledge", web::post().to(form_bulk_acknowledge))
             .route("/attachments/{object_id}", web::get().to(attachment))
             .route("/thumbnails/{object_id}", web::get().to(thumbnail))
+            .route("/mvimgs/{object_id}", web::get().to(mvimg))
     })
     .bind("127.0.0.1:8080")?
     .run()

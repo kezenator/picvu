@@ -2,6 +2,15 @@ use std::convert::TryInto;
 use chrono::offset::TimeZone;
 
 #[derive(Debug, Clone)]
+pub enum MvImgSplit
+{
+    Neither,
+    JpegOnly,
+    Mp4Only,
+    Both{mp4_offset: usize},
+}
+
+#[derive(Debug, Clone)]
 pub enum Orientation
 {
     Straight,
@@ -455,4 +464,30 @@ impl ImgAnalysis
             }
         }
     }
+}
+
+pub fn parse_mvimg_split(data: &Vec<u8>, file_name: &String) -> MvImgSplit
+{
+    let mut result = MvImgSplit::Neither;
+
+    if file_name.ends_with(".jpg")
+    {
+        result = MvImgSplit::JpegOnly;
+
+        let mp4_header = b"ftypmp4";
+
+        if let Some(pos) = data.windows(mp4_header.len()).position(|window| window == mp4_header)
+        {
+            if pos == 4
+            {
+                result = MvImgSplit::Mp4Only;
+            }
+            else if pos > 4
+            {
+                result = MvImgSplit::Both{ mp4_offset: pos - 4 };
+            }
+        }
+    }
+
+    result
 }
