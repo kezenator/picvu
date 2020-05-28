@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use chrono::offset::TimeZone;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MvImgSplit
 {
     Neither,
@@ -86,7 +86,10 @@ pub struct ImgAnalysis
 {
     pub mime: mime::Mime,
     pub orientation: Option<Orientation>,
-    pub original_datetime: Option<picvudb::data::Date>,
+    pub orig_taken_naive: Option<chrono::NaiveDateTime>,
+    pub orig_digitized_naive: Option<chrono::NaiveDateTime>,
+    pub gps_timestamp: Option<chrono::DateTime<chrono::Utc>>,
+    pub orig_taken: Option<picvudb::data::Date>,
     pub make_model: Option<MakeModel>,
     pub camera_settings: Option<CameraSettings>,
     pub location: Option<picvudb::data::Location>,
@@ -212,60 +215,69 @@ impl ImgAnalysis
                     }
                 }
 
-                // Original Date/Time
+                // Original Date/Time, Naive
 
-                let mut original_datetime = None;
+                let mut orig_taken_naive = None;
+                {
+                    if let Some(datetime_entry) = find_single(&exif.entries, rexif::ExifTag::DateTimeOriginal)
+                    {
+                        let datetime_string = datetime_entry.value_more_readable;
+
+                        let datetime_naive = chrono::naive::NaiveDateTime::parse_from_str(
+                            &datetime_string,
+                            "%Y:%m:%d %H:%M:%S")
+                            .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode DateTimeOriginal \"{}\": {:?}", datetime_string, e), debug_entries: debug_entries.clone() }})?;
+
+                            orig_taken_naive = Some(datetime_naive);
+                    }
+                }
+
+                // Originally Digitized Date/Time, Naive
+
+                let mut orig_digitized_naive = None;
+                {
+                    if let Some(datetime_entry) = find_single(&exif.entries, rexif::ExifTag::DateTimeDigitized)
+                    {
+                        let datetime_string = datetime_entry.value_more_readable;
+
+                        let datetime_naive = chrono::naive::NaiveDateTime::parse_from_str(
+                            &datetime_string,
+                            "%Y:%m:%d %H:%M:%S")
+                            .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode DateTimeDigitized \"{}\": {:?}", datetime_string, e), debug_entries: debug_entries.clone() }})?;
+
+                            orig_digitized_naive = Some(datetime_naive);
+                    }
+                }
+
+                // GPS Timestamp
+                let mut gps_timestamp = None;
                 {
                     if let Some(gps_date_entry) = find_single(&exif.entries, rexif::ExifTag::GPSDateStamp)
                     {
                         if let Some(gps_time_entry) = find_single(&exif.entries, rexif::ExifTag::GPSTimeStamp)
                         {
-                            if let Some(local_original) = find_single(&exif.entries, rexif::ExifTag::DateTimeOriginal)
-                            {
-                                let gps_datetime = chrono::naive::NaiveDateTime::parse_from_str(
-                                    &format!("{} {}", gps_date_entry.value_more_readable, gps_time_entry.value_more_readable),
-                                    "%Y:%m:%d %H:%M:%S%.f UTC")
-                                    .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode GPS datetime: {:?}", e), debug_entries: debug_entries.clone() }})?;
+                            let formatted_gps_datetime_string = format!("{} {}", gps_date_entry.value_more_readable, gps_time_entry.value_more_readable);
 
-                                let local_datetime = chrono::naive::NaiveDateTime::parse_from_str(
-                                    &local_original.value_more_readable,
-                                    "%Y:%m:%d %H:%M:%S")
-                                    .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode local datetime: {:?}", e), debug_entries: debug_entries.clone() }})?;
+                            let gps_naive = chrono::naive::NaiveDateTime::parse_from_str(
+                                &formatted_gps_datetime_string, "%Y:%m:%d %H:%M:%S%.f UTC")
+                                .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode GPSDateStamp/GPSTimeStamp \"{}\": {:?}", formatted_gps_datetime_string, e), debug_entries: debug_entries.clone() }})?;
 
-                                let difference = local_datetime.signed_duration_since(gps_datetime);
+                            gps_timestamp = Some(chrono::Utc.from_utc_datetime(&gps_naive));
+                        }
+                    }
+                }
+            
 
-                                // Accept up to a couple of seconds difference between the two times.
-                                // Find an adjustment that makes the difference a while number of minutes.
+                // Original Date/Time, Local
 
-                                let fixedup_diff = (-120..120)
-                                    .map(|fixup| {difference.checked_add(&chrono::Duration::seconds(fixup))})
-                                    .filter(|diff| diff.is_some())
-                                    .map(|diff| diff.unwrap())
-                                    .filter(|diff| *diff == chrono::Duration::minutes(diff.num_minutes()))
-                                    .nth(0)
-                                    .ok_or(ImgAnalysisError{
-                                        msg: format!("GPS/Local difference {:?} ({:?} - {:?}) is not a whole number of minutes", difference, local_datetime, gps_datetime),
-                                        debug_entries: debug_entries.clone()
-                                    })?;
-
-                                // Now, convert it into a local time using the
-                                // differece as the local offset
-
-                                let offset_seconds: i32 = fixedup_diff.num_seconds().try_into().map_err(|_| {ImgAnalysisError{
-                                    msg: format!("GPS/Local difference {:?} ({:?} - {:?}) is out of range", fixedup_diff, local_datetime, gps_datetime),
-                                    debug_entries: debug_entries.clone()
-                                }})?;
-
-                                let fixed_offset = chrono::FixedOffset::east_opt(offset_seconds)
-                                    .ok_or(ImgAnalysisError{
-                                        msg: format!("GPS/Local difference {:?} ({:?} - {:?}) is out of range", fixedup_diff, local_datetime, gps_datetime),
-                                        debug_entries: debug_entries.clone()
-                                    })?;
-
-                                let final_local = fixed_offset.from_utc_datetime(&gps_datetime);
-
-                                original_datetime = Some(picvudb::data::Date::from_chrono_datetime(final_local));
-                            }
+                let mut orig_taken = None;
+                {
+                    if let Some(ref_orig_taken_naive) = orig_taken_naive
+                    {
+                        if let Some(ref_gps) = gps_timestamp
+                        {
+                            orig_taken = Some(calc_timezone_from_taken_and_gps(&ref_orig_taken_naive, &ref_gps)
+                                .map_err(|e| ImgAnalysisError { msg: format!("Can't decode timezone from orig taken {} and GPS timestamp {}: {}", ref_orig_taken_naive, ref_gps, e), debug_entries: debug_entries.clone() })?);
                         }
                     }
                 }
@@ -431,7 +443,10 @@ impl ImgAnalysis
                 {
                     mime,
                     orientation,
-                    original_datetime,
+                    orig_taken_naive,
+                    orig_digitized_naive,
+                    gps_timestamp,
+                    orig_taken,
                     make_model,
                     camera_settings,
                     location,
@@ -490,4 +505,108 @@ pub fn parse_mvimg_split(data: &Vec<u8>, file_name: &String) -> MvImgSplit
     }
 
     result
+}
+
+fn calc_timezone_from_taken_and_gps(orig_taken_naive: &chrono::NaiveDateTime, gps_timestamp: &chrono::DateTime<chrono::Utc>) -> Result<picvudb::data::Date, String>
+{
+    let difference = orig_taken_naive.signed_duration_since(gps_timestamp.naive_utc());
+    let signed_seconds = difference.num_seconds();
+    let abs_seconds = signed_seconds.abs();
+    let signum_seconds = signed_seconds.signum();
+
+    // Now, we want to force the seconds to the nearest 15 minute interval
+
+    let seconds_in_15_minutes = 15 * 60;
+
+    let forced_seconds = ((abs_seconds + (seconds_in_15_minutes / 2)) / seconds_in_15_minutes) * seconds_in_15_minutes;
+
+    // Now, we want to ensure that we are within 5 minutes of the difference.
+    // E.g. we will accept differences 09:55:00 to 10:05:00 as being 10:00:00.
+
+    {
+        let forced_difference = abs_seconds - forced_seconds;
+
+        if (forced_difference > 5*60)
+            || (forced_difference < -5*60)
+        {
+            return Err("Local/UTC timestamps are not withing 5 minutes of a 15 minute interval from each other".to_owned());
+        }
+    }
+
+    // Add the sign back to the difference and
+    // construct a fixed offset timezone
+
+    let offset_seconds = forced_seconds * signum_seconds;
+
+    let offset_seconds: i32 = offset_seconds
+        .try_into()
+        .map_err(|_| { format!("Offset {} seconds is too large", offset_seconds) })?;
+
+    let offset = chrono::FixedOffset::east_opt(offset_seconds)
+        .ok_or(format!("Offset {} seconds is not a valid timezone", offset_seconds))?;
+
+    // Return the converted local time
+
+    match offset.from_local_datetime(orig_taken_naive)
+    {
+        chrono::LocalResult::None =>
+        {
+            Err("Local time conversion returned no results".to_owned())
+        },
+        chrono::LocalResult::Single(t) =>
+        {
+            Ok(picvudb::data::Date::from_chrono_datetime(t))
+        },
+        chrono::LocalResult::Ambiguous(_, _) =>
+        {
+            Err("Local time conversion returned ambiguous results".to_owned())
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests
+{
+    use super::*;
+
+    fn test_time(local: &str, gps: &str, expected: Option<&str>)
+    {
+        let local = chrono::naive::NaiveDateTime::parse_from_str(local, "%Y:%m:%d %H:%M:%S");
+        assert!(local.is_ok());
+        let local = local.unwrap();
+
+        let gps =  chrono::naive::NaiveDateTime::parse_from_str(gps, "%Y:%m:%d %H:%M:%S%.f UTC");
+        assert!(gps.is_ok());
+        let gps = gps.unwrap();
+        let gps = chrono::Utc.from_utc_datetime(&gps);
+
+        let result = calc_timezone_from_taken_and_gps(&local, &gps)
+            .ok()
+            .map(|t| { t.to_chrono_fixed_offset().format("%Y:%m:%d %H:%M:%S %:z").to_string() });
+
+        assert_eq!(result, expected.map(|s| { s.to_owned() }));
+    }
+
+    #[test]
+    fn test_calc_timezone_from_taken_and_gps()
+    {
+        // Check positive timezones work - with 5 minute errors allowed
+
+        test_time("2018:03:02 19:20:09", "2018:03:02 09:15:45.0 UTC", Some("2018:03:02 19:20:09 +10:00"));
+        test_time("2018:03:02 19:20:09", "2018:03:02 09:20:00.0 UTC", Some("2018:03:02 19:20:09 +10:00"));
+        test_time("2018:03:02 19:20:09", "2018:03:02 09:20:09.0 UTC", Some("2018:03:02 19:20:09 +10:00"));
+        test_time("2018:03:02 19:20:09", "2018:03:02 09:24:50.0 UTC", Some("2018:03:02 19:20:09 +10:00"));
+
+        // Check negative timezones work - with 5 minute errors allowed
+
+        test_time("2018:03:02 19:20:09", "2018:03:02 20:15:45.0 UTC", Some("2018:03:02 19:20:09 -01:00"));
+        test_time("2018:03:02 19:20:09", "2018:03:02 20:20:00.0 UTC", Some("2018:03:02 19:20:09 -01:00"));
+        test_time("2018:03:02 19:20:09", "2018:03:02 20:20:09.0 UTC", Some("2018:03:02 19:20:09 -01:00"));
+        test_time("2018:03:02 19:20:09", "2018:03:02 20:24:50.0 UTC", Some("2018:03:02 19:20:09 -01:00"));
+
+        // Check that it doesn't work if they are 8 minutes out
+
+        test_time("2018:03:02 19:20:09", "2018:03:02 09:28:09.0 UTC", None);
+        test_time("2018:03:02 19:20:09", "2018:03:02 09:12:09.0 UTC", None);
+    }
 }

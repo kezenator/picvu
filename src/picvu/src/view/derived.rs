@@ -1,5 +1,7 @@
+use serde::Deserialize;
 use crate::analyse;
 
+#[derive(Copy, Clone, Debug, Deserialize)]
 pub enum ViewObjectsListType
 {
     ThumbnailsGrid,
@@ -9,7 +11,7 @@ pub enum ViewObjectsListType
 pub struct ViewObjectsList
 {
     pub response: picvudb::msgs::GetObjectsResponse,
-    pub view_type: ViewObjectsListType,
+    pub list_type: ViewObjectsListType,
 }
 
 pub struct ViewSingleObject

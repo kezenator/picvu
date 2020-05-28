@@ -144,9 +144,9 @@ pub fn create_add_object_for_import(
                     warnings.push(format!("{}: EXIF Warning: {}", file_name, w));
                 }
 
-                if analysis.original_datetime.is_some()
+                if analysis.orig_taken.is_some()
                 {
-                    obj_activity_time = analysis.original_datetime;
+                    obj_activity_time = analysis.orig_taken;
                 }
 
                 if analysis.location.is_some()

@@ -137,14 +137,15 @@ impl Viewable for derived::ViewObjectsList
             || self.response.pagination_request.page_size != self.response.pagination_response.page_size
         {
             // Redirect to the index with the correct pagesize
-            doc::redirect(path::objects_with_pagination(
+            doc::redirect(path::objects_with_options(
                 self.response.query,
+                self.list_type,
                 self.response.pagination_response.offset,
                 self.response.pagination_request.page_size))
         }
         else
         {
-            match self.view_type
+            match self.list_type
             {
                 derived::ViewObjectsListType::ThumbnailsGrid =>
                     doc::ok(page::objects_thumbnails(self.response)),

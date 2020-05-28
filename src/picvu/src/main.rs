@@ -20,7 +20,7 @@ struct State {
     db_uri: String,
 }
 
-async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, query: picvudb::data::get::GetObjectsQuery, view_type: view::derived::ViewObjectsListType) -> Result<HttpResponse, view::ErrorResponder>
+async fn object_query(state: web::Data<State>, options: &forms::ListViewOptions, query: picvudb::data::get::GetObjectsQuery) -> Result<HttpResponse, view::ErrorResponder>
 {
     // TODO - this should be put into a middle-ware
     // that wraps all user-interface pages
@@ -35,8 +35,8 @@ async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, q
 
     let pagination = picvudb::data::get::PaginationRequest
     {
-        offset: pagination.offset.unwrap_or(0),
-        page_size: pagination.page_size.unwrap_or(25),
+        offset: options.offset.unwrap_or(0),
+        page_size: options.page_size.unwrap_or(25),
     };
 
     let msg = picvudb::msgs::GetObjectsRequest
@@ -75,36 +75,34 @@ async fn object_query(state: web::Data<State>, pagination: &forms::Pagination, q
 
     // Otherwise, just generate the general listing response
 
-    Ok(view::generate_response(
-        view::derived::ViewObjectsList { response, view_type }))
+    Ok(view::generate_response(view::derived::ViewObjectsList
+    {
+        response: response,
+        list_type: options.list_type.unwrap_or(view::derived::ViewObjectsListType::ThumbnailsGrid),
+    }))
 }
 
-async fn objects_by_activity_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
+async fn objects_by_activity_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByActivityDesc, view::derived::ViewObjectsListType::ThumbnailsGrid).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByActivityDesc).await
 }
 
-async fn objects_by_modified_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
+async fn objects_by_modified_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByModifiedDesc, view::derived::ViewObjectsListType::ThumbnailsGrid).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
 }
 
-async fn objects_by_size_desc(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
+async fn objects_by_size_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc, view::derived::ViewObjectsListType::ThumbnailsGrid).await
-}
-
-async fn objects_details_list(state: web::Data<State>, pagination_query: web::Query<forms::Pagination>) -> Result<HttpResponse, view::ErrorResponder>
-{
-    object_query(state, &pagination_query, picvudb::data::get::GetObjectsQuery::ByActivityDesc, view::derived::ViewObjectsListType::DetailsTable).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc).await
 }
 
 async fn object_details(state: web::Data<State>, object_id: web::Path<String>) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
-    let pagination = forms::Pagination{ offset: None, page_size: None };
+    let options = forms::ListViewOptions{ list_type: None, offset: None, page_size: None };
 
-    object_query(state, &pagination, picvudb::data::get::GetObjectsQuery::ByObjectId(object_id), view::derived::ViewObjectsListType::ThumbnailsGrid).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByObjectId(object_id)).await
 }
 
 async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
@@ -318,7 +316,6 @@ async fn main() -> std::io::Result<()>
             .route("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
             .route("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
             .route("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
-            .route("/view/objects/details_list", web::get().to(objects_details_list))
             .route("/form/add_object", web::post().to(form_add_object))
             .route("/form/bulk_import", web::post().to(form_bulk_import))
             .route("/form/bulk_acknowledge", web::post().to(form_bulk_acknowledge))

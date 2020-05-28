@@ -5,6 +5,7 @@ use crate::analyse;
 use crate::bulk;
 use crate::format;
 use crate::path;
+use crate::view;
 use picvudb::msgs::*;
 
 pub struct Page
@@ -39,14 +40,14 @@ pub fn objects_thumbnails(resp: GetObjectsResponse) -> Page
                 {
                     : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
                 }
-                a(href=(path::objects_details_list()))
+                a(href=(path::objects_with_options(resp.query.clone(), view::derived::ViewObjectsListType::DetailsTable, resp.pagination_response.offset, resp.pagination_response.page_size)))
                 {
-                    : "Detailed Listing";
+                    : "[As Details]"
                 }
             }
         }
 
-        : (pagination(resp.query.clone(), resp.pagination_response.clone()));
+        : (pagination(resp.query.clone(), view::derived::ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone()));
 
         div(class="object-listing")
         {
@@ -142,14 +143,14 @@ pub fn objects_details(resp: GetObjectsResponse) -> Page
                 {
                     : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
                 }
-                a(href=(path::objects_details_list()))
+                a(href=(path::objects_with_options(resp.query.clone(), view::derived::ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.offset, resp.pagination_response.page_size)))
                 {
-                    : "Detailed Listing";
+                    : "[As Thumbnails]"
                 }
             }
         }
 
-        : (pagination(resp.query.clone(), resp.pagination_response.clone()));
+        : (pagination(resp.query.clone(), view::derived::ViewObjectsListType::DetailsTable, resp.pagination_response.clone()));
 
         table(class="details-table")
         {
@@ -230,10 +231,6 @@ pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis
                 a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc)))
                 {
                     : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
-                }
-                a(href=(path::objects_details_list()))
-                {
-                    : "Detailed Listing";
                 }
             }
         }
@@ -445,12 +442,37 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
                     }
                 }
 
-                @if let Some(original_datetime) = image_analysis.original_datetime
+                @if let Some(orig_taken) = image_analysis.orig_taken
                 {
                     tr
                     {
                         td: "Taken";
-                        td: format::date_to_str(&original_datetime, &now);
+                        td: format::date_to_str(&orig_taken, &now);
+                    }
+                }
+
+                @if image_analysis.orig_taken_naive.is_some()
+                    || image_analysis.orig_digitized_naive.is_some()
+                    || image_analysis.gps_timestamp.is_some()
+                {
+                    tr
+                    {
+                        td: "Timestamps";
+                        td
+                        {
+                            @if let Some(taken) = image_analysis.orig_taken_naive
+                            {
+                                p: format!("Orig Taken: {:?}", taken);
+                            }
+                            @if let Some(digitized) = image_analysis.orig_digitized_naive
+                            {
+                                p: format!("Digitized: {:?}", digitized);
+                            }
+                            @if let Some(gps) = image_analysis.gps_timestamp
+                            {
+                                p: format!("GPS: {:?}", gps);
+                            }
+                        }
                     }
                 }
 
@@ -651,7 +673,7 @@ fn should_print_page(page: u64, cur_page: u64, last_page: u64) -> bool
     }
 }
 
-fn pagination(query: picvudb::data::get::GetObjectsQuery, response: picvudb::data::get::PaginationResponse) -> Box<dyn RenderBox>
+fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: view::derived::ViewObjectsListType, response: picvudb::data::get::PaginationResponse) -> Raw<String>
 {
     let page_size = response.page_size;
     let total = response.total;
@@ -676,7 +698,7 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, response: picvudb::dat
     let cur_page = (response.offset / response.page_size) + 1;
     let last_page = *pages.last().unwrap();
 
-    box_html!
+    let result: String = owned_html!
     {
         div(class="pagination")
         {
@@ -687,7 +709,7 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, response: picvudb::dat
                     : ({ done_elipsis = false; ""});
                     div(class="pagintation-link")
                     {
-                        a(href=path::objects_with_pagination(query.clone(), (*page - 1) * page_size, page_size))
+                        a(href=path::objects_with_options(query.clone(), list_type, (*page - 1) * page_size, page_size))
                         {
                             : (format!("{}, ", page));
                         }
@@ -710,5 +732,7 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, response: picvudb::dat
                 : (format!("Total: {} objects", total));
             }
         }
-    }
+    }.into_string().unwrap();
+
+    Raw(result)
 }

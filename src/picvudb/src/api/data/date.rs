@@ -58,4 +58,9 @@ impl Date
     {
         self.timestring.clone()
     }
+
+    pub fn to_chrono_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset>
+    {
+        self.timestring.parse().unwrap()
+    }
 }

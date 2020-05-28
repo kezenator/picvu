@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use crate::view;
 
 #[derive(Deserialize)]
 pub struct Attachment
@@ -27,8 +28,9 @@ pub struct BulkImport
 }
 
 #[derive(Deserialize)]
-pub struct Pagination
+pub struct ListViewOptions
 {
+    pub list_type: Option<view::derived::ViewObjectsListType>,
     pub offset: Option<u64>,
     pub page_size: Option<u64>,
 }

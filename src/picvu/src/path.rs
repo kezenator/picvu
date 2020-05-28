@@ -1,3 +1,5 @@
+use crate::view;
+
 pub fn index() -> String { "/".to_owned() }
 pub fn form_add_object() -> String { "/form/add_object".to_owned() }
 pub fn form_bulk_import() -> String { "/form/bulk_import".to_owned() }
@@ -7,11 +9,6 @@ pub fn image_thumbnail(object_id: &picvudb::data::ObjectId, hash: &String, size:
 pub fn attachment_as_mp4(object_id: &picvudb::data::ObjectId, hash: &String, mp4_offset: usize) -> String { format!("/mvimgs/{}?hash={}&mp4_offset={}", object_id.to_string(), hash, mp4_offset) }
 
 pub fn object_details(object_id: &picvudb::data::ObjectId) -> String { format!("/view/object/{}", object_id.to_string()) }
-
-pub fn objects_details_list() -> String
-{
-    "/view/objects/details_list".to_owned()
-}
 
 pub fn objects(query: picvudb::data::get::GetObjectsQuery) -> String
 {
@@ -24,7 +21,7 @@ pub fn objects(query: picvudb::data::get::GetObjectsQuery) -> String
     }
 }
 
-pub fn objects_with_pagination(query: picvudb::data::get::GetObjectsQuery, offset: u64, page_size: u64) -> String
+pub fn objects_with_options(query: picvudb::data::get::GetObjectsQuery, list_type: view::derived::ViewObjectsListType, offset: u64, page_size: u64) -> String
 {
-    format!("{}?offset={}&page_size={}", objects(query), offset, page_size)
+    format!("{}?list_type={:?}&offset={}&page_size={}", objects(query), list_type, offset, page_size)
 }

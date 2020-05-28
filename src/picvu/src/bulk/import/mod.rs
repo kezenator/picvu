@@ -16,6 +16,12 @@ mod scan;
 
 use error::*;
 
+struct FoundMediaFileInfo
+{
+    file_name: String,
+    size: u64,
+}
+
 pub struct FolderImport
 {
     folder_path: String,
@@ -60,7 +66,7 @@ impl BulkOperation for FolderImport
                     "Scanning files and archives".to_owned(),
                     vec!["Loading Metadata".to_owned(), "Importing Media".to_owned(), "Summary".to_owned()]);
 
-                let mut path_to_info: HashMap<String, (String, mime::Mime)> = HashMap::new();
+                let mut path_to_info: HashMap<String, FoundMediaFileInfo> = HashMap::new();
                 let mut is_google_photos_takeout_archive = false;
                 let mut warnings: Vec<String> = Vec::new();
 
@@ -71,9 +77,15 @@ impl BulkOperation for FolderImport
 
                         sender.set(entry.percent, vec![entry.display_path.clone(), entry.progress_bytes]);
 
-                        if let Some(mime) = analyse::import::guess_mime_type_from_filename(&entry.file_name)
+                        if let Some(_mime_type) = analyse::import::guess_mime_type_from_filename(&entry.file_name)
                         {
-                            path_to_info.insert(entry.archive_path.clone(), (entry.file_name, mime));
+                            let info = FoundMediaFileInfo
+                            {
+                                file_name: entry.file_name,
+                                size: entry.size,
+                            };
+
+                            path_to_info.insert(entry.archive_path.clone(), info);
                         }
                         else if entry.ext == "json"
                         {
@@ -146,10 +158,11 @@ impl BulkOperation for FolderImport
 
                 let num_found_metadata_files = path_to_metadata.len();
 
-                let mut summary_media_files: usize = 0;
-                let mut summary_media_bytes: u64 = 0;
+                let mut summary_imported_media_files: usize = 0;
+                let mut summary_imported_media_bytes: u64 = 0;
                 let mut summary_with_google_metadata: usize = 0;
                 let mut summary_with_location: usize = 0;
+                let mut summary_skipped_media_files: usize = 0;
 
                 let store = picvudb::Store::new(&self.db_uri)?;
 
@@ -158,44 +171,95 @@ impl BulkOperation for FolderImport
                     {
                         let entry = entry?;
 
-                        let progress_files = format!("Processed {} of {} media files", summary_media_files, path_to_info.len());
-                        let progress_media_bytes = format!("Imported {} of media data", format::bytes_to_string(summary_media_bytes));
+                        let progress_files = format!("Processed {} of {} media files", (summary_imported_media_files + summary_skipped_media_files), path_to_info.len());
+                        let progress_imported_files = format!("Imported {} media files", summary_imported_media_files);
+                        let progress_imported_bytes = format!("Imported {} of media data", format::bytes_to_string(summary_imported_media_bytes));
                         let progress_metadata = format!("Processed {} of {} metadata files", summary_with_google_metadata, num_found_metadata_files);
                         let progress_location = format!("Processed {} files with location data", summary_with_location);
+                        let progress_skipped_files = format!("Skipped {} media files", summary_skipped_media_files);
 
                         sender.set(entry.percent, vec![entry.display_path, entry.progress_bytes,
-                            progress_files, progress_media_bytes,
-                            progress_metadata, progress_location]);
+                            progress_files, progress_imported_files, progress_imported_bytes,
+                            progress_metadata, progress_location, progress_skipped_files]);
 
-                        if let Some((_file_name, _mime)) = path_to_info.get(&entry.archive_path)
+                        if let Some(found_info) = path_to_info.get(&entry.archive_path)
                         {
-                            summary_media_files += 1;
-                            summary_media_bytes += entry.bytes.len() as u64;
-
-                            let google_metadata = path_to_metadata.remove(&entry.archive_path);
+                            let google_metadata = path_to_metadata.get(&entry.archive_path).cloned();
 
                             if google_metadata.is_some()
                             {
                                 summary_with_google_metadata += 1;                                
                             }
-                            
-                            let add_msg = analyse::import::create_add_object_for_import(
-                                entry.bytes,
-                                &entry.file_name,
-                                None,
-                                None,
-                                google_metadata,
-                                &mut warnings)?;
 
-                            if add_msg.data.location.is_some()
+                            let mut skip = false;
+
+                            if is_google_photos_takeout_archive
+                                && google_metadata.is_none()
                             {
-                                summary_with_location += 1;
+                                if found_info.file_name.starts_with("MVIMG")
+                                    && found_info.file_name.ends_with("(1).jpg")
+                                    && (analyse::img::MvImgSplit::Mp4Only == analyse::img::parse_mvimg_split(&entry.bytes, &found_info.file_name))
+                                {
+                                    let archive_path_len = entry.archive_path.len();
+                                    let other_path = format!("{}.jpg", &entry.archive_path[0..(archive_path_len - 7)]);
+
+                                    if let Some(other_info) = path_to_info.get(&other_path)
+                                    {
+                                        if let Some(_other_metadata) = path_to_metadata.get(&other_path)
+                                        {
+                                            if other_info.size > found_info.size
+                                            {
+                                                // This file is a "MVIMG....(1).jpg" file, has no metadata,
+                                                // is MP4 only (with no JPEG component), but a file
+                                                // without the "(1)" suffix exists with metadata, and it's
+                                                // size is larger than our size.
+                                                //
+                                                // Google seems to extract moving images and creates a second
+                                                // file with the movie part - but it's already contained in the
+                                                // other file.
+                                                //
+                                                // We should just skip these files
+
+                                                skip = true;
+                                                warnings.push(format!("{} was skipped - it's the MP4 part of a moving image", found_info.file_name));
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if !skip
+                                {
+                                    warnings.push(format!("{} has no metadata", found_info.file_name));
+                                }
                             }
 
-                            store.write_transaction(|ops|
+                            if skip
                             {
-                                add_msg.execute(ops)
-                            })?;
+                                summary_skipped_media_files += 1;
+                            }
+                            else
+                            {
+                                summary_imported_media_files += 1;
+                                summary_imported_media_bytes += entry.bytes.len() as u64;
+
+                                let add_msg = analyse::import::create_add_object_for_import(
+                                    entry.bytes,
+                                    &entry.file_name,
+                                    None,
+                                    None,
+                                    google_metadata,
+                                    &mut warnings)?;
+
+                                if add_msg.data.location.is_some()
+                                {
+                                    summary_with_location += 1;
+                                }
+
+                                store.write_transaction(|ops|
+                                {
+                                    add_msg.execute(ops)
+                                })?;
+                            }
                         }
                     }
                 }
@@ -205,10 +269,11 @@ impl BulkOperation for FolderImport
                     vec![]);
 
                 let mut status = vec![
-                    format!("Imported {} media files", summary_media_files),
-                    format!("Imported {} of media data", format::bytes_to_string(summary_media_bytes)),
+                    format!("Imported {} media files", summary_imported_media_files),
+                    format!("Imported {} of media data", format::bytes_to_string(summary_imported_media_bytes)),
                     format!("{} files had Google Photos Takeout metadata", summary_with_google_metadata),
                     format!("{} files had location data", summary_with_location),
+                    format!("Skipped {} media files", summary_skipped_media_files),
                 ];
 
                 if !warnings.is_empty()
