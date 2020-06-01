@@ -1,11 +1,14 @@
 use horrorshow::prelude::*;
-use horrorshow::{owned_html, box_html};
+use horrorshow::{owned_html, box_html, Raw};
+use actix_web::HttpRequest;
 
 use crate::analyse;
 use crate::bulk;
 use crate::format;
 use crate::path;
 use crate::view;
+use crate::pages::HeaderLinkCollection;
+
 use picvudb::msgs::*;
 
 pub struct Page
@@ -14,7 +17,42 @@ pub struct Page
     pub contents: String,
 }
 
-pub fn objects_thumbnails(resp: GetObjectsResponse) -> Page
+pub fn header(title: String, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
+{
+    let html = owned_html!{
+
+        div(class="header")
+        {
+            h1: title;
+
+            div(class="header-links")
+            {
+                @for header in header_links.by_order()
+                {
+                    @if header.path == req.path()
+                    {
+                        a(href=(header.path))
+                        {
+                            : format!("[[ {} ]]", header.label)
+                        }
+                    }
+                    else
+                    {
+                        a(href=(header.path))
+                        {
+                            : header.label
+                        }
+                    }
+                }
+            }
+        }
+
+    }.into_string().unwrap();
+
+    Raw(html)
+}
+
+pub fn objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Page
 {
     let title = format::query_to_string(&resp.query);
 
@@ -22,30 +60,7 @@ pub fn objects_thumbnails(resp: GetObjectsResponse) -> Page
 
     let contents = owned_html!{
 
-        div(class="header")
-        {
-            h1: format::query_to_string(&resp.query);
-
-            div(class="header-links")
-            {
-                a(href=(path::index()))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByActivityDesc);
-                }
-                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByModifiedDesc)))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByModifiedDesc);
-                }
-                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc)))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
-                }
-                a(href=(path::objects_with_options(resp.query.clone(), view::derived::ViewObjectsListType::DetailsTable, resp.pagination_response.offset, resp.pagination_response.page_size)))
-                {
-                    : "[As Details]"
-                }
-            }
-        }
+        : header(format::query_to_string(&resp.query), req, header_links);
 
         : (pagination(resp.query.clone(), view::derived::ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone()));
 
@@ -117,7 +132,7 @@ pub fn objects_thumbnails(resp: GetObjectsResponse) -> Page
     }
 }
 
-pub fn objects_details(resp: GetObjectsResponse) -> Page
+pub fn objects_details(resp: GetObjectsResponse, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Page
 {
     let now = picvudb::data::Date::now();
 
@@ -125,30 +140,7 @@ pub fn objects_details(resp: GetObjectsResponse) -> Page
 
     let contents = owned_html!{
 
-        div(class="header")
-        {
-            h1: format::query_to_string(&resp.query);
-
-            div(class="header-links")
-            {
-                a(href=(path::index()))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByActivityDesc);
-                }
-                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByModifiedDesc)))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByModifiedDesc);
-                }
-                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc)))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
-                }
-                a(href=(path::objects_with_options(resp.query.clone(), view::derived::ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.offset, resp.pagination_response.page_size)))
-                {
-                    : "[As Thumbnails]"
-                }
-            }
-        }
+        : header(format::query_to_string(&resp.query), req, header_links);
 
         : (pagination(resp.query.clone(), view::derived::ViewObjectsListType::DetailsTable, resp.pagination_response.clone()));
 
@@ -205,7 +197,7 @@ pub fn objects_details(resp: GetObjectsResponse) -> Page
     }
 }
 
-pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>, mvimg_split: analyse::img::MvImgSplit) -> Page
+pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>, mvimg_split: analyse::img::MvImgSplit, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Page
 {
     let now = picvudb::data::Date::now();
 
@@ -214,26 +206,7 @@ pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis
 
     let contents = owned_html!
     {
-        div(class="header")
-        {
-            h1: title_for_heading;
-
-            div(class="header-links")
-            {
-                a(href=(path::index()))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByActivityDesc);
-                }
-                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByModifiedDesc)))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByModifiedDesc);
-                }
-                a(href=(path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc)))
-                {
-                    : format::query_to_string(&picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc);
-                }
-            }
-        }
+        : header(title_for_heading, req, header_links);
 
         table(class="details-table")
         {
@@ -675,6 +648,7 @@ fn should_print_page(page: u64, cur_page: u64, last_page: u64) -> bool
 
 fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: view::derived::ViewObjectsListType, response: picvudb::data::get::PaginationResponse) -> Raw<String>
 {
+    let this_page_offset = response.offset;
     let page_size = response.page_size;
     let total = response.total;
 
@@ -729,7 +703,31 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: view::deriv
 
             div(class="pagination-summary")
             {
-                : (format!("Total: {} objects", total));
+                : (format!("Total: {} objects ", total));
+
+                a(href=path::objects_with_options(query.clone(), view::derived::ViewObjectsListType::ThumbnailsGrid, this_page_offset, page_size))
+                {
+                    @if list_type == view::derived::ViewObjectsListType::ThumbnailsGrid
+                    {
+                        : " [[ Thumbnails ]] ";
+                    }
+                    else
+                    {
+                        : " Thumbnails ";
+                    }
+                }
+
+                a(href=path::objects_with_options(query.clone(), view::derived::ViewObjectsListType::DetailsTable, this_page_offset, page_size))
+                {
+                    @if list_type == view::derived::ViewObjectsListType::DetailsTable
+                    {
+                        : "[[ Details ]]";
+                    }
+                    else
+                    {
+                        : " Details ";
+                    }
+                }
             }
         }
     }.into_string().unwrap();

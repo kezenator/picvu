@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 picvudb = { path = "../picvudb" }
+googlephotos = { path = "../googlephotos" }
 actix="0.9.0"
 actix-http="1.0.1"
 actix-multipart="0.2.0"

@@ -163,6 +163,33 @@ impl<'a> ReadOps for Transaction<'a>
 
 impl<'a> WriteOps for Transaction<'a>
 {
+    fn set_properties(&self, properties: &HashMap<String, String>) -> Result<(), Error>
+    {
+        let existing_properties = self.get_properties()?;
+
+        for (new_name, new_value) in properties
+        {
+            if existing_properties.contains_key(new_name)
+            {
+                use schema::db_properties::dsl::*;
+
+                let target = db_properties.filter(name.eq(new_name));
+
+                diesel::update(target)
+                    .set(value.eq(new_value))
+                    .execute(self.connection)?;
+            }
+            else // insert new property
+            {
+                diesel::insert_into(schema::db_properties::table)
+                    .values(&DbProperty{name: new_name.clone(), value: new_value.clone()})
+                    .execute(self.connection)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn add_object(&self, obj_type: data::ObjectType, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, location: Option<data::Location>) -> Result<Object, Error>
     {
         let modified_time = data::Date::now();

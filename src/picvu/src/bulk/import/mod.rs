@@ -135,21 +135,6 @@ impl BulkOperation for FolderImport
                             }
                         }
                     }
-
-                    // Check that every media file has associated metadata
-
-                    // TODO - add back in when we support scanning all
-                    // archives of the Takeout.
-
-                    // for media_path in path_to_info.keys()
-                    // {
-                    //     if !path_to_metadata.contains_key(media_path)
-                    //     {
-                    //         return Err(std::io::Error::new(
-                    //             std::io::ErrorKind::InvalidData,
-                    //             format!("File {} doesn't contain Google Photos Takeout metadata", media_path)).into());
-                    //     }
-                    // }
                 }
 
                 sender.start_stage(

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use crate::analyse;
 
-#[derive(Copy, Clone, Debug, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize)]
 pub enum ViewObjectsListType
 {
     ThumbnailsGrid,

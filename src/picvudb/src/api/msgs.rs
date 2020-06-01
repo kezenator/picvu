@@ -30,6 +30,30 @@ pub struct GetPropertiesResponse
 }
 
 #[derive(Debug)]
+pub struct SetPropertiesRequest
+{
+    pub properties: HashMap<String, String>,
+}
+
+impl ApiMessage for SetPropertiesRequest
+{
+    type Response = SetPropertiesResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        ops.set_properties(&self.properties)?;
+
+        Ok(SetPropertiesResponse{})
+    }
+}
+
+#[derive(Debug)]
+pub struct SetPropertiesResponse
+{
+}
+
+#[derive(Debug)]
 pub struct GetObjectsRequest
 {
     pub query: data::get::GetObjectsQuery,

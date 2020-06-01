@@ -1,14 +1,16 @@
 use std::fmt::Debug;
-use actix_web::HttpResponse;
+use actix_web::{HttpRequest, HttpResponse};
 use actix_web::http::StatusCode;
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::ResponseError;
+use horrorshow::{owned_html, Raw, Template};
 
 use picvudb::msgs::GetAttachmentDataResponse;
 use picvudb::msgs::AddObjectResponse;
 
 use crate::path;
 use crate::bulk;
+use crate::pages::HeaderLinkCollection;
 
 pub mod derived;
 mod doc;
@@ -25,6 +27,7 @@ pub enum ErrorResponder
     StdIoError(std::io::Error),
     BlockingOperationCanceled,
     ImageError(image::error::ImageError),
+    GoogleAuthError(googlephotos::auth::GoogleAuthError),
 }
 
 impl std::fmt::Display for ErrorResponder
@@ -88,6 +91,14 @@ impl From<image::error::ImageError> for ErrorResponder
     }
 }
 
+impl From<googlephotos::auth::GoogleAuthError> for ErrorResponder
+{
+    fn from(error: googlephotos::auth::GoogleAuthError) -> Self
+    {
+        ErrorResponder::GoogleAuthError(error)
+    }
+}
+
 impl ResponseError for ErrorResponder
 {
     fn error_response(&self) -> HttpResponse
@@ -106,7 +117,8 @@ impl ResponseError for ErrorResponder
                 | Self::PicvudbError(_)
                 | Self::StdIoError(_) 
                 | Self::BlockingOperationCanceled
-                | Self::ImageError(_) =>
+                | Self::ImageError(_) 
+                | Self::GoogleAuthError(_) =>
             {
                 StatusCode::INTERNAL_SERVER_ERROR
             },
@@ -118,20 +130,38 @@ impl ResponseError for ErrorResponder
     }
 }
 
-pub fn generate_response<T>(data: T) -> HttpResponse
+pub fn wrap_html_content(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, content: String) -> HttpResponse
+{
+    let contents = owned_html!
+    {
+        : page::header(title.to_owned(), req, header_links);
+        : Raw(content);
+
+    }.into_string().unwrap();
+
+    let page = page::Page
+    {
+        title: title.to_owned(),
+        contents: contents,
+    };
+
+    doc::ok(page)
+}
+
+pub fn generate_response<T>(data: T, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
     where T: Viewable
 {
-    data.generate()
+    data.generate(req, header_links)
 }
 
 pub trait Viewable
 {
-    fn generate(self) -> HttpResponse;
+    fn generate(self, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse;
 }
 
 impl Viewable for derived::ViewObjectsList
 {
-    fn generate(self) -> HttpResponse
+    fn generate(self, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
     {
         if self.response.pagination_request.offset != self.response.pagination_response.offset
             || self.response.pagination_request.page_size != self.response.pagination_response.page_size
@@ -148,10 +178,10 @@ impl Viewable for derived::ViewObjectsList
             match self.list_type
             {
                 derived::ViewObjectsListType::ThumbnailsGrid =>
-                    doc::ok(page::objects_thumbnails(self.response)),
+                    doc::ok(page::objects_thumbnails(self.response, req, header_links)),
 
                 derived::ViewObjectsListType::DetailsTable =>
-                    doc::ok(page::objects_details(self.response))
+                    doc::ok(page::objects_details(self.response, req, header_links))
             }
         }
     }
@@ -159,15 +189,15 @@ impl Viewable for derived::ViewObjectsList
 
 impl Viewable for derived::ViewSingleObject
 {
-    fn generate(self) -> HttpResponse
+    fn generate(self, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
     {
-        doc::ok(page::object_details(self.object, self.image_analysis, self.mvimg_split))
+        doc::ok(page::object_details(self.object, self.image_analysis, self.mvimg_split, req, header_links))
     }
 }
 
 impl Viewable for GetAttachmentDataResponse
 {
-    fn generate(self) -> HttpResponse
+    fn generate(self, _req: &HttpRequest, _header_links: &HeaderLinkCollection) -> HttpResponse
     {
         match self
         {
@@ -189,7 +219,7 @@ impl Viewable for GetAttachmentDataResponse
 
 impl Viewable for AddObjectResponse
 {
-    fn generate(self) -> HttpResponse
+    fn generate(self, _req: &HttpRequest, _header_links: &HeaderLinkCollection) -> HttpResponse
     {
         doc::redirect(path::index())
     }
@@ -197,7 +227,7 @@ impl Viewable for AddObjectResponse
 
 impl Viewable for bulk::progress::ProgressState
 {
-    fn generate(self) -> HttpResponse
+    fn generate(self, _req: &HttpRequest, _header_links: &HeaderLinkCollection) -> HttpResponse
     {
         doc::ok(page::bulk_progress(self))
     }

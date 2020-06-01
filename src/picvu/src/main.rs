@@ -4,6 +4,7 @@ use actix::SyncArbiter;
 use actix_multipart::Multipart;
 use actix_web::{web, App, HttpRequest, HttpServer, HttpResponse};
 use futures::{StreamExt, TryStreamExt};
+use googlephotos::auth::GoogleAuthClient;
 
 mod analyse;
 mod assets;
@@ -12,15 +13,21 @@ mod db;
 mod format;
 mod forms;
 mod path;
+mod pages;
 mod view;
 
-struct State {
+use pages::PageResources;
+
+pub struct State {
+    host_base: String,
     bulk_queue: Arc<Mutex<bulk::BulkQueue>>,
     db: db::DbAddr,
     db_uri: String,
+    google_auth_client: Arc<Mutex<GoogleAuthClient>>,
+    header_links: pages::HeaderLinkCollection,
 }
 
-async fn object_query(state: web::Data<State>, options: &forms::ListViewOptions, query: picvudb::data::get::GetObjectsQuery) -> Result<HttpResponse, view::ErrorResponder>
+async fn object_query(state: web::Data<State>, options: &forms::ListViewOptions, query: picvudb::data::get::GetObjectsQuery, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     // TODO - this should be put into a middle-ware
     // that wraps all user-interface pages
@@ -29,7 +36,7 @@ async fn object_query(state: web::Data<State>, options: &forms::ListViewOptions,
 
         if let Some(progress) = bulk_queue.get_current_progress()
         {
-            return Ok(view::generate_response(progress));
+            return Ok(view::generate_response(progress, &req, &state.header_links));
         }
     }
 
@@ -68,7 +75,9 @@ async fn object_query(state: web::Data<State>, options: &forms::ListViewOptions,
                     object: object.clone(),
                     image_analysis: analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename),
                     mvimg_split: analyse::img::parse_mvimg_split(&bytes, &metadata.filename),
-                }));
+                },
+                &req,
+                &state.header_links));
             }
         }
     }
@@ -79,33 +88,35 @@ async fn object_query(state: web::Data<State>, options: &forms::ListViewOptions,
     {
         response: response,
         list_type: options.list_type.unwrap_or(view::derived::ViewObjectsListType::ThumbnailsGrid),
-    }))
+    },
+    &req,
+    &state.header_links))
 }
 
-async fn objects_by_activity_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>) -> Result<HttpResponse, view::ErrorResponder>
+async fn objects_by_activity_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByActivityDesc).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByActivityDesc, req).await
 }
 
-async fn objects_by_modified_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>) -> Result<HttpResponse, view::ErrorResponder>
+async fn objects_by_modified_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByModifiedDesc).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByModifiedDesc, req).await
 }
 
-async fn objects_by_size_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>) -> Result<HttpResponse, view::ErrorResponder>
+async fn objects_by_size_desc(state: web::Data<State>, options: web::Query<forms::ListViewOptions>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
-    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc, req).await
 }
 
-async fn object_details(state: web::Data<State>, object_id: web::Path<String>) -> Result<HttpResponse, view::ErrorResponder>
+async fn object_details(state: web::Data<State>, object_id: web::Path<String>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
     let options = forms::ListViewOptions{ list_type: None, offset: None, page_size: None };
 
-    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByObjectId(object_id)).await
+    object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByObjectId(object_id), req).await
 }
 
-async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+async fn form_add_object(state: web::Data<State>, mut payload: Multipart, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let mut file: Option<(String, Vec<u8>)> = None;
 
@@ -157,10 +168,10 @@ async fn form_add_object(state: web::Data<State>, mut payload: Multipart, _req: 
         &mut warnings)?;
 
     let response = state.db.send(add_msg).await??;
-    Ok(view::generate_response(response))
+    Ok(view::generate_response(response, &req, &state.header_links))
 }
 
-async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkImport>, _req: HttpRequest) ->HttpResponse
+async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkImport>) ->HttpResponse
 {
     {
         let mut bulk_queue = state.bulk_queue.lock().unwrap();
@@ -171,7 +182,7 @@ async fn form_bulk_import(state: web::Data<State>, form: web::Form<forms::BulkIm
     view::redirect(path::index())
 }
 
-async fn form_bulk_acknowledge(state: web::Data<State>, _req: HttpRequest) -> HttpResponse
+async fn form_bulk_acknowledge(state: web::Data<State>) -> HttpResponse
 {
     {
         let bulk_queue = state.bulk_queue.lock().unwrap();
@@ -182,16 +193,16 @@ async fn form_bulk_acknowledge(state: web::Data<State>, _req: HttpRequest) -> Ht
     view::redirect(path::index())
 }
 
-async fn attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::Attachment>, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+async fn attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::Attachment>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
 
     let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
     let response = state.db.send(msg).await??;
-    Ok(view::generate_response(response))
+    Ok(view::generate_response(response, &req, &state.header_links))
 }
 
-async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<forms::Thumbnail>, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<forms::Thumbnail>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(path.to_string());
 
@@ -251,10 +262,10 @@ async fn thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::
         },
     };
 
-    Ok(view::generate_response(response))
+    Ok(view::generate_response(response, &req, &state.header_links))
 }
 
-async fn mvimg(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::MvImg>, _req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+async fn mvimg(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<forms::MvImg>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
 
@@ -270,7 +281,7 @@ async fn mvimg(state: web::Data<State>, object_id: web::Path<String>, form: web:
         response = picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes};
     }
 
-    Ok(view::generate_response(response))
+    Ok(view::generate_response(response, &req, &state.header_links))
 }
 
 #[actix_rt::main]
@@ -298,17 +309,39 @@ async fn main() -> std::io::Result<()>
 
     let addr = rx.recv().unwrap();
     let bulk_queue = Arc::new(Mutex::new(bulk::BulkQueue::new()));
+    let google_auth_client = Arc::new(Mutex::new(GoogleAuthClient::new()));
 
     HttpServer::new(move ||
     {
+        let mut page_builder = pages::PageResourcesBuilder::new();
+
+        page_builder.add_header_link(
+            &path::objects(picvudb::data::get::GetObjectsQuery::ByActivityDesc),
+            "Calendar",
+            0);
+        page_builder.add_header_link(
+            &path::objects(picvudb::data::get::GetObjectsQuery::ByModifiedDesc),
+            "Recently Modified",
+            1);
+        page_builder.add_header_link(
+            &path::objects(picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc),
+            "Largest Attachments",
+            2);
+
+        pages::setup::SetupPage::page_resources(&mut page_builder);
+        pages::auth::AuthPage::page_resources(&mut page_builder);
+
         let state = State
         {
+            host_base: "http://localhost:8080".to_owned(),
             bulk_queue: bulk_queue.clone(),
             db: db::DbAddr::new(addr.clone()),
             db_uri: db_uri.to_owned(),
+            google_auth_client: google_auth_client.clone(),
+            header_links: page_builder.header_links,
         };
 
-        App::new()
+        let mut app = App::new()
             .data(state)
             .route("/", web::get().to(objects_by_activity_desc))
             .route("/assets/{_:.*}", web::get().to(assets::handle_embedded_file))
@@ -321,9 +354,21 @@ async fn main() -> std::io::Result<()>
             .route("/form/bulk_acknowledge", web::post().to(form_bulk_acknowledge))
             .route("/attachments/{object_id}", web::get().to(attachment))
             .route("/thumbnails/{object_id}", web::get().to(thumbnail))
-            .route("/mvimgs/{object_id}", web::get().to(mvimg))
+            .route("/mvimgs/{object_id}", web::get().to(mvimg));
+        
+        for resource in page_builder.view_resources
+        {
+            app = app.service(resource);
+        }
+
+        for resource in page_builder.other_resources
+        {
+            app = app.service(resource);
+        }
+
+        app
     })
-    .bind("127.0.0.1:8080")?
+    .bind("localhost:8080")?
     .run()
     .await
 }

@@ -22,6 +22,7 @@ pub trait ReadOps
 
 pub trait WriteOps: ReadOps
 {
+    fn set_properties(&self, properties: &HashMap<String, String>) -> Result<(), Error>;
     fn add_object(&self, obj_type: data::ObjectType, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, location: Option<data::Location>) -> Result<Object, Error>;
     fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, bytes: Vec<u8>) -> Result<(), Error>;
 }

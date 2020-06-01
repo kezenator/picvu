@@ -3,4 +3,5 @@
 members = [
     "picvu",
     "picvudb",
+    "googlephotos",
 ]
