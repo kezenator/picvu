@@ -92,8 +92,6 @@ impl BulkOperation for GooglePhotosSync
                         {
                             break;
                         }
-                        // TODO - remove
-                        break;
                     }
 
                     sender.set(0.0, vec![format!("Loaded {} media items", gp_id_to_media_item.len())]);
@@ -147,19 +145,19 @@ impl BulkOperation for GooglePhotosSync
                     {
                         sender.set(0.0, warnings.clone());
 
-                        let filename = match object.additional
+                        let (filename, attachment_created, attachment_modified) = match object.additional
                         {
                             picvudb::data::get::AdditionalMetadata::Photo(photo) =>
                             {
-                                photo.attachment.filename.clone()
+                                (photo.attachment.filename.clone(), photo.attachment.created.clone(), photo.attachment.modified.clone())
                             },
                             picvudb::data::get::AdditionalMetadata::Video(video) =>
                             {
-                                video.attachment.filename.clone()
+                                (video.attachment.filename.clone(), video.attachment.created.clone(), video.attachment.modified.clone())
                             },
                         };
 
-                        //let mut id = None;
+                        let mut found_id = None;
 
                         if let Some(id_list) = gp_filename_to_id_list.get(&filename)
                         {
@@ -167,10 +165,51 @@ impl BulkOperation for GooglePhotosSync
                             {
                                 if let Some(gp_media_item) = gp_id_to_media_item.get(id)
                                 {
-                                    warnings.push(format!("{} obj {} activity {} id {} created {}",
-                                        filename, object.id.to_string(), object.activity_time.to_rfc3339(), id, gp_media_item.media_metadata.creation_time));
+                                    if are_times_close(&object.activity_time, &gp_media_item.media_metadata.creation_time)
+                                        || are_times_close(&attachment_created, &gp_media_item.media_metadata.creation_time)
+                                    {
+                                        if found_id.is_some()
+                                        {
+                                            warnings.push(format!("Duplicate IDs for filename {} obj {} activity {} id {} created {}",
+                                                filename, object.id.to_string(), object.activity_time.to_rfc3339(), id, gp_media_item.media_metadata.creation_time));
+                                        }
+                                        else
+                                        {
+                                            found_id = Some(id);
+                                        }
+                                    }
                                 }
                             }
+                        }
+
+                        match found_id
+                        {
+                            Some(_id) =>
+                            {
+                            },
+                            None =>
+                            {
+                                let mut found_times = Vec::new();
+
+                                if let Some(id_list) = gp_filename_to_id_list.get(&filename)
+                                {
+                                    for id in id_list.iter()
+                                    {
+                                        if let Some(gp_media_item) = gp_id_to_media_item.get(id)
+                                        {
+                                            found_times.push(gp_media_item.media_metadata.creation_time.clone());
+                                        }
+                                    }
+                                }
+
+                                warnings.push(format!("No matched media_item for filename {} object {} activity {} created {} modified {}, options were {:?}",
+                                    filename,
+                                    object.id.to_string(),
+                                    object.activity_time.to_rfc3339(),
+                                    attachment_created.to_rfc3339(),
+                                    attachment_modified.to_rfc3339(),
+                                    found_times));
+                            },
                         }
                     }
                 }
@@ -182,4 +221,23 @@ impl BulkOperation for GooglePhotosSync
             Ok(())
         })
     }
+}
+
+fn are_times_close(t1: &picvudb::data::Date, t2: &String) -> bool
+{
+    let t1 = t1.to_chrono_utc();
+    let t2 = match t2.parse::<chrono::DateTime<chrono::Utc>>()
+    {
+        Ok(t) => t,
+        Err(_) => return false,
+    };
+
+    let t1 = t1.timestamp();
+    let t2 = t2.timestamp();
+
+    // Some photos have time zone issues, or may
+    // have been delayed in uploading, so
+    // accept up to 30 hours difference
+    
+    return (t2 - t1).abs() < (30 * 3600);
 }

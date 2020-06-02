@@ -63,4 +63,9 @@ impl Date
     {
         self.timestring.parse().unwrap()
     }
+
+    pub fn to_chrono_utc(&self) -> chrono::DateTime<chrono::Utc>
+    {
+        self.to_chrono_fixed_offset().with_timezone(&chrono::Utc)
+    }
 }
