@@ -54,6 +54,30 @@ pub struct SetPropertiesResponse
 }
 
 #[derive(Debug)]
+pub struct GetStatisticsRequest
+{
+}
+
+impl ApiMessage for GetStatisticsRequest
+{
+    type Response = GetStatisticsResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        let num_objects = ops.get_num_objects()?;
+
+        Ok(GetStatisticsResponse{ num_objects })
+    }
+}
+
+#[derive(Debug)]
+pub struct GetStatisticsResponse
+{
+    pub num_objects: u64,
+}
+
+#[derive(Debug)]
 pub struct GetObjectsRequest
 {
     pub query: data::get::GetObjectsQuery,

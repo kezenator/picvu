@@ -11,6 +11,14 @@ pub struct AuthPage
 {
 }
 
+impl AuthPage
+{
+    pub fn path() -> String
+    {
+        "/auth/google/login".to_owned()
+    }
+}
+
 impl PageResources for AuthPage
 {
     fn page_resources(builder: &mut PageResourcesBuilder)
@@ -82,7 +90,11 @@ async fn get_auth_token(state: web::Data<State>) -> Result<HttpResponse, view::E
         operation.blocking_execute()
     }).await?;
 
-    println!("Token: {:#?}", token);
+    {
+        let mut google_auth_client = state.google_auth_client.lock().unwrap();
+
+        google_auth_client.save_token(token);
+    };
 
     Ok(view::redirect("/".to_owned()))
 }

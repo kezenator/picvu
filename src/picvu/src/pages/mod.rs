@@ -1,8 +1,9 @@
 use actix_web::{web, Resource};
 use std::collections::BTreeMap;
 
-pub mod setup;
 pub mod auth;
+pub mod setup;
+pub mod sync;
 
 pub struct HeaderLink
 {

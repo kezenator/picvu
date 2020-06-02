@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 pub mod import;
 pub mod progress;
+pub mod sync;
 
 pub trait BulkOperation
 {

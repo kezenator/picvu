@@ -1,7 +1,7 @@
 use oauth2::prelude::*;
 use oauth2::{AuthorizationCode, AuthUrl, ClientId, ClientSecret, CsrfToken,
     RedirectUrl, RequestTokenError, ResponseType,
-    Scope, StandardTokenResponse, TokenUrl};
+    Scope, StandardTokenResponse, TokenResponse, TokenUrl};
 use oauth2::basic::BasicClient;
 use url::Url;
 
@@ -18,6 +18,7 @@ enum ClientState
     StartedNew{client: BasicClient, csrf_token: CsrfToken},
     GotCallback{client: BasicClient, code: AuthorizationCode},
     Error{err: String},
+    Done{access_token: AccessToken},
 }
 
 pub struct GoogleAuthClient
@@ -32,6 +33,18 @@ impl GoogleAuthClient
         GoogleAuthClient
         {
             state: ClientState::None,
+        }
+    }
+
+    pub fn access_token(&self) -> Option<AccessToken>
+    {
+        if let ClientState::Done{access_token} = &self.state
+        {
+            Some(access_token.clone())
+        }
+        else
+        {
+            None
         }
     }
 
@@ -101,6 +114,11 @@ impl GoogleAuthClient
             return ExchangeOperation::error("Invalid progression - try again".to_owned());
         }
     }
+
+    pub fn save_token(&mut self, response: GoogleAuthTokenReponse)
+    {
+        self.state = ClientState::Done{ access_token: AccessToken{ token: response.response.access_token().secret().clone() }};
+    }
 }
 
 pub enum ExchangeOperation
@@ -150,4 +168,18 @@ pub enum GoogleAuthError
 pub struct GoogleAuthTokenReponse
 {
     response: StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>,
+}
+
+#[derive(Clone)]
+pub struct AccessToken
+{
+    token: String,
+}
+
+impl AccessToken
+{
+    pub(crate) fn secret(&self) -> String
+    {
+        self.token.clone()
+    }
 }

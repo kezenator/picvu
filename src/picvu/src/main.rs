@@ -330,6 +330,7 @@ async fn main() -> std::io::Result<()>
 
         pages::setup::SetupPage::page_resources(&mut page_builder);
         pages::auth::AuthPage::page_resources(&mut page_builder);
+        pages::sync::SyncPage::page_resources(&mut page_builder);
 
         let state = State
         {
