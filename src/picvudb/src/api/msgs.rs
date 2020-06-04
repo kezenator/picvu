@@ -148,10 +148,12 @@ impl ApiMessage for GetObjectsRequest
                             attachment: data::get::AttachmentMetadata
                             {
                                 filename: attachment.filename,
-                                created: data::Date::from_db_timestamp(attachment.created),
-                                modified: data::Date::from_db_timestamp(attachment.modified),
+                                created: data::Date::from_db_fields(attachment.created_timestamp, attachment.created_offset)?,
+                                modified: data::Date::from_db_fields(attachment.modified_timestamp, attachment.modified_offset)?,
                                 mime: attachment.mime.parse::<mime::Mime>()?,
                                 size: attachment.size as u64,
+                                dimensions: data::Dimensions::from_db_fields(attachment.width, attachment.height),
+                                duration: data::Duration::from_db_field(attachment.duration),
                                 hash: attachment.hash,
                             },
                         })
@@ -173,10 +175,12 @@ impl ApiMessage for GetObjectsRequest
                             attachment: data::get::AttachmentMetadata
                             {
                                 filename: attachment.filename,
-                                created: data::Date::from_db_timestamp(attachment.created),
-                                modified: data::Date::from_db_timestamp(attachment.modified),
+                                created: data::Date::from_db_fields(attachment.created_timestamp, attachment.created_offset)?,
+                                modified: data::Date::from_db_fields(attachment.modified_timestamp, attachment.modified_offset)?,
                                 mime: attachment.mime.parse::<mime::Mime>()?,
                                 size: attachment.size as u64,
+                                dimensions: data::Dimensions::from_db_fields(attachment.width, attachment.height),
+                                duration: data::Duration::from_db_field(attachment.duration),
                                 hash: attachment.hash,
                             },
                         })
@@ -191,6 +195,12 @@ impl ApiMessage for GetObjectsRequest
                 },
             };
 
+            let rating = match object.rating
+            {
+                Some(num) => Some(data::Rating::from_db_field(num)?),
+                None => None,
+            };
+
             let location = match (object.latitude, object.longitude)
             {
                 (Some(latitude), Some(longitude)) => Some(data::Location::new(latitude, longitude, None)),
@@ -200,12 +210,14 @@ impl ApiMessage for GetObjectsRequest
             results.push(data::get::ObjectMetadata
             {
                 id: data::ObjectId::new(object.id),
-                created_time: data::Date::from_db_fields(object.created_timestamp, object.created_timestring),
-                modified_time: data::Date::from_db_fields(object.modified_timestamp, object.modified_timestring),
-                activity_time: data::Date::from_db_fields(object.activity_timestamp, object.activity_timestring),
+                created_time: data::Date::from_db_fields(object.created_timestamp, object.created_offset)?,
+                modified_time: data::Date::from_db_fields(object.modified_timestamp, object.modified_offset)?,
+                activity_time: data::Date::from_db_fields(object.activity_timestamp, object.activity_offset)?,
                 obj_type: obj_type,
                 title: object.title,
                 notes: object.notes,
+                rating: rating,
+                censor: data::Censor::from_db_field(object.censor)?,
                 location: location,
                 additional: additional,
             });
@@ -259,6 +271,8 @@ impl ApiMessage for AddObjectRequest
             self.data.activity_time.clone(),
             self.data.title.clone(),
             self.data.notes.clone(),
+            self.data.rating.clone(),
+            self.data.censor.clone(),
             self.data.location.clone())?;
 
         match &self.data.additional
@@ -271,6 +285,8 @@ impl ApiMessage for AddObjectRequest
                     attachment.created.clone(),
                     attachment.modified.clone(),
                     attachment.mime.to_string(),
+                    attachment.dimensions.clone(),
+                    attachment.duration.clone(),
                     attachment.bytes.clone())?;
             },
             data::add::AdditionalData::Video{attachment} =>
@@ -281,6 +297,8 @@ impl ApiMessage for AddObjectRequest
                     attachment.created.clone(),
                     attachment.modified.clone(),
                     attachment.mime.to_string(),
+                    attachment.dimensions.clone(),
+                    attachment.duration.clone(),
                     attachment.bytes.clone())?;
             },
         };
@@ -309,7 +327,7 @@ impl ApiMessage for GetAttachmentDataRequest
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
-        let metadata = ops.get_attachment_metadata(&self.object_id.0)?;
+        let metadata = ops.get_attachment_metadata(&self.object_id.to_db_field())?;
         match metadata
         {
             None => Ok(GetAttachmentDataResponse::ObjectNotFound),
@@ -318,18 +336,20 @@ impl ApiMessage for GetAttachmentDataRequest
                 let metadata = data::get::AttachmentMetadata
                 {
                     filename: metadata.filename,
-                    created: data::Date::from_db_timestamp(metadata.created),
-                    modified: data::Date::from_db_timestamp(metadata.modified),
+                    created: data::Date::from_db_fields(metadata.created_timestamp, metadata.created_offset)?,
+                    modified: data::Date::from_db_fields(metadata.modified_timestamp, metadata.modified_offset)?,
                     mime: metadata.mime.parse::<mime::Mime>()?,
                     size: metadata.size as u64,
+                    dimensions: data::Dimensions::from_db_fields(metadata.width, metadata.height),
+                    duration: data::Duration::from_db_field(metadata.duration),
                     hash: metadata.hash,
                 };
 
                 if self.specific_hash.is_none()
                     || (*self.specific_hash.as_ref().unwrap() == metadata.hash)
                 {
-                    let bytes = ops.get_attachment_data(&self.object_id.0)?
-                        .ok_or(Error::DatabaseConsistencyError{ msg: format!("Object {} contains attachment metadata but no attachment data", self.object_id.0) })?;
+                    let bytes = ops.get_attachment_data(&self.object_id.to_db_field())?
+                        .ok_or(Error::DatabaseConsistencyError{ msg: format!("Object {} contains attachment metadata but no attachment data", self.object_id.to_db_field()) })?;
                     
                     Ok(GetAttachmentDataResponse::Found{metadata, bytes})
                 }

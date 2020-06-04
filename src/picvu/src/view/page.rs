@@ -269,6 +269,18 @@ pub fn object_details(object: picvudb::data::get::ObjectMetadata, image_analysis
                 }
             }
 
+            tr
+            {
+                td: "Rating";
+                td: object.rating.clone().map_or("None".to_owned(), |r| { r.to_string() });
+            }
+
+            tr
+            {
+                td: "Censor";
+                td: object.censor.to_string();
+            }
+
             : location_details(&object.location);
 
             @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
@@ -544,6 +556,8 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
     let modified = attachment.modified.clone();
     let size = attachment.size.clone();
     let mime = attachment.mime.clone();
+    let dimensions = attachment.dimensions.clone();
+    let duration = attachment.duration.clone();
     let hash = attachment.hash.clone();
     let mvimg_split = mvimg_split.clone();
 
@@ -577,6 +591,22 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
         {
             td: "Mime Type";
             td: mime.to_string();
+        }
+        @if let Some(dimensions) = dimensions
+        {
+            tr
+            {
+                td: "Dimensions";
+                td: dimensions.to_string();
+            }
+        }
+        @if let Some(duration) = duration
+        {
+            tr
+            {
+                td: "Duration";
+                td: duration.to_string();
+            }
         }
         tr
         {

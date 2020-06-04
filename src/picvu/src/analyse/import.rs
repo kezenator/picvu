@@ -1,5 +1,7 @@
-use crate::analyse::takeout;
 use std::path::Path;
+use image::GenericImageView;
+
+use crate::analyse;
 
 pub fn guess_mime_type_from_filename(filename: &String) -> Option<mime::Mime>
 {
@@ -40,7 +42,7 @@ pub fn create_add_object_for_import(
     file_name: &String,
     opt_file_created_time: Option<picvudb::data::Date>,
     opt_file_modified_time: Option<picvudb::data::Date>,
-    opt_google_photos_takeout_metadata: Option<takeout::Metadata>,
+    opt_google_photos_takeout_metadata: Option<analyse::takeout::Metadata>,
     warnings: &mut Vec<String>) -> Result<picvudb::msgs::AddObjectRequest, std::io::Error>
 {
     let now = picvudb::data::Date::now();
@@ -54,10 +56,14 @@ pub fn create_add_object_for_import(
     let mut location = None;
     let mut attachment_created_time = opt_file_created_time.unwrap_or(now.clone());
     let mut attachment_modified_time = opt_file_modified_time.unwrap_or(now.clone());
+    let mut dimensions = None;
+    let mut duration = None;
+
+    let mut got_better_activity_time = false;
 
     // Try and guess the MIME type
 
-    let mime = guess_mime_type_from_filename(file_name)
+    let mut mime = guess_mime_type_from_filename(file_name)
         .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Cannot guess MIME type for file {}", file_name)))?;
 
 
@@ -88,7 +94,7 @@ pub fn create_add_object_for_import(
                     chrono::Utc)
                 .with_timezone(&chrono::Local);
 
-            attachment_created_time = picvudb::data::Date::from_chrono_datetime(local_date_time);
+            attachment_created_time = picvudb::data::Date::from_chrono(&local_date_time);
             obj_created_time = Some(attachment_created_time.clone());
         }
 
@@ -99,7 +105,7 @@ pub fn create_add_object_for_import(
                     chrono::Utc)
                 .with_timezone(&chrono::Local);
 
-            attachment_modified_time = picvudb::data::Date::from_chrono_datetime(local_date_time);
+            attachment_modified_time = picvudb::data::Date::from_chrono(&local_date_time);
         }
 
         if let Ok(md_photo_taken_timestamp) = metadata.photo_taken_time.timestamp.parse::<i64>()
@@ -109,7 +115,8 @@ pub fn create_add_object_for_import(
                     chrono::Utc)
                 .with_timezone(&chrono::Local);
 
-            obj_activity_time = Some(picvudb::data::Date::from_chrono_datetime(local_date_time));
+            obj_activity_time = Some(picvudb::data::Date::from_chrono(&local_date_time));
+            got_better_activity_time = true;
         }
 
         if let Some(md_location) = metadata.geo_data
@@ -135,7 +142,7 @@ pub fn create_add_object_for_import(
 
     if mime.type_() == mime::IMAGE
     {
-        match crate::analyse::img::ImgAnalysis::decode(&bytes, &file_name)
+        match analyse::img::ImgAnalysis::decode(&bytes, &file_name)
         {
             Ok(Some((analysis, exif_warnings))) =>
             {
@@ -147,6 +154,7 @@ pub fn create_add_object_for_import(
                 if analysis.orig_taken.is_some()
                 {
                     obj_activity_time = analysis.orig_taken;
+                    got_better_activity_time = true;
                 }
 
                 if analysis.location.is_some()
@@ -163,6 +171,99 @@ pub fn create_add_object_for_import(
             },
         }
     }
+
+    // See if we can process image dimensions
+
+    if mime.type_() == mime::IMAGE
+    {
+        let image = image::load_from_memory(&bytes);
+        if let Ok(image) = image
+        {
+            dimensions = Some(picvudb::data::Dimensions::new(image.width(), image.height()));
+        }
+    }
+
+    // See if the image also contains a MP4 moving image
+
+    if mime == mime::IMAGE_JPEG
+    {
+        match analyse::img::parse_mvimg_split(&bytes, file_name)
+        {
+            analyse::img::MvImgSplit::Neither
+                | analyse::img::MvImgSplit::JpegOnly =>
+            {
+                // It's just an image file - nothing more do to
+            },
+            analyse::img::MvImgSplit::Both{mp4_offset} =>
+            {
+                // It's a JPEG with an MP4 attached - analyse the
+                // MP4 to collect a duration
+
+                match analyse::video::analyse_video(&bytes[mp4_offset..])
+                {
+                    Err(err) =>
+                    {
+                        warnings.push(format!("{}: MVIMG Video analysis error: {:?}", file_name, err));
+                    },
+                    Ok(info) =>
+                    {
+                        duration = info.duration;
+                    }
+                }        
+            },
+            analyse::img::MvImgSplit::Mp4Only =>
+            {
+                // Google photos sometimes generates ".jpg" files that
+                // don't contain an image and are only a MP4 movie.
+                // Just change the MIME type and continue processing it
+                // as a movie (below).
+
+                if let Ok(new_mime) = "video/mp4".parse::<mime::Mime>()
+                {
+                    mime = new_mime;
+                }
+            },
+        }
+    }
+
+    // See if we can obtain any video analysis information
+
+    if mime.type_() == mime::VIDEO
+    {
+        match analyse::video::analyse_video(&bytes)
+        {
+            Err(err) =>
+            {
+                warnings.push(format!("{}: Video analysis error: {:?}", file_name, err));
+            },
+            Ok(info) =>
+            {
+                if !got_better_activity_time
+                {
+                    if let Some(date) = info.date
+                    {
+                        obj_activity_time = Some(date);
+                        got_better_activity_time = true;
+                    }                    
+                }
+
+                if location.is_none()
+                {
+                    location = info.location;
+                }
+
+                if dimensions.is_none()
+                {
+                    dimensions = info.dimensions
+                }
+
+                if duration.is_none()
+                {
+                    duration = info.duration
+                }
+            },
+        }
+    }
     
     // Construct the Add Object request
 
@@ -172,6 +273,8 @@ pub fn create_add_object_for_import(
         created: attachment_created_time,
         modified: attachment_modified_time,
         mime: mime.clone(),
+        dimensions: dimensions,
+        duration: duration,
         bytes: bytes,
     };
 
@@ -201,6 +304,8 @@ pub fn create_add_object_for_import(
     {
         title: Some(title),
         notes: notes,
+        rating: None,
+        censor: picvudb::data::Censor::FamilyFriendly,
         created_time: obj_created_time,
         activity_time: obj_activity_time,
         location: location,

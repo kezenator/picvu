@@ -6,14 +6,16 @@ CREATE TABLE db_properties (
 CREATE TABLE objects (
   id TEXT NOT NULL PRIMARY KEY,
   created_timestamp INTEGER NOT NULL,
-  created_timestring TEXT NOT NULL,
+  created_offset INTEGER NOT NULL,
   modified_timestamp INTEGER NOT NULL,
-  modified_timestring TEXT NOT NULL,
+  modified_offset INTEGER NOT NULL,
   activity_timestamp INTEGER NOT NULL,
-  activity_timestring TEXT NOT NULL,
+  activity_offset INTEGER NOT NULL,
   obj_type TEXT NOT NULL,
   title TEXT,
   notes TEXT,
+  rating INTEGER,
+  censor INTEGER NOT NULL,
   latitude REAL,
   longitude REAL
 );
@@ -27,10 +29,15 @@ CREATE INDEX objects_by_activity_timestamp
 CREATE TABLE attachments_metadata (
   obj_id TEXT NOT NULL PRIMARY KEY,
   filename TEXT NOT NULL,
-  created INTEGER NOT NULL,
-  modified INTEGER NOT NULL,
+  created_timestamp INTEGER NOT NULL,
+  created_offset INTEGER NOT NULL,
+  modified_timestamp INTEGER NOT NULL,
+  modified_offset INTEGER NOT NULL,
   mime TEXT NOT NULL,
   size INTEGER NOT NULL,
+  width INTEGER,
+  height INTEGER,
+  duration INTEGER,
   hash TEXT NOT NULL
 );
 

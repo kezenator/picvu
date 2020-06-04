@@ -555,7 +555,7 @@ fn calc_timezone_from_taken_and_gps(orig_taken_naive: &chrono::NaiveDateTime, gp
         },
         chrono::LocalResult::Single(t) =>
         {
-            Ok(picvudb::data::Date::from_chrono_datetime(t))
+            Ok(picvudb::data::Date::from_chrono(&t))
         },
         chrono::LocalResult::Ambiguous(_, _) =>
         {

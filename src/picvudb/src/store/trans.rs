@@ -190,7 +190,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn add_object(&self, obj_type: data::ObjectType, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, location: Option<data::Location>) -> Result<Object, Error>
+    fn add_object(&self, obj_type: data::ObjectType, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<Object, Error>
     {
         let modified_time = data::Date::now();
         let created_time = created_time.unwrap_or(modified_time.clone());
@@ -205,14 +205,16 @@ impl<'a> WriteOps for Transaction<'a>
         {
             id: id.clone(),
             created_timestamp: created_time.to_db_timestamp(),
-            created_timestring: created_time.to_db_timestring().clone(),
+            created_offset: created_time.to_db_offset(),
             modified_timestamp: modified_time.to_db_timestamp(),
-            modified_timestring: modified_time.to_db_timestring().clone(),
+            modified_offset: modified_time.to_db_offset(),
             activity_timestamp: activity_time.to_db_timestamp(),
-            activity_timestring: activity_time.to_db_timestring().clone(),
+            activity_offset: activity_time.to_db_offset(),
             obj_type: obj_type.to_db_string(),
             title: title,
             notes: notes,
+            rating: rating.map(|r| { r.to_db_field() }),
+            censor: censor.to_db_field(),
             latitude: latitude,
             longitude: longitude,
         };
@@ -224,7 +226,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(model_object)
     }
 
-    fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, bytes: Vec<u8>) -> Result<(), Error>
+    fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>
     {
         if bytes.is_empty()
         {
@@ -244,10 +246,15 @@ impl<'a> WriteOps for Transaction<'a>
         {
             obj_id: obj_id.clone(),
             filename: filename,
-            created: created.to_db_timestamp(),
-            modified: modified.to_db_timestamp(),
+            created_timestamp: created.to_db_timestamp(),
+            created_offset: created.to_db_offset(),
+            modified_timestamp: modified.to_db_timestamp(),
+            modified_offset: modified.to_db_offset(),
             mime: mime,
             size: bytes.len() as i64,
+            width: dimensions.clone().map(|d| d.to_db_field_width()),
+            height: dimensions.clone().map(|d| d.to_db_field_height()),
+            duration: duration.map(|d| d.to_db_field()),
             hash: hash,
         };
 

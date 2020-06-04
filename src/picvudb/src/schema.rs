@@ -9,14 +9,16 @@ table! {
     objects (id) {
         id -> Text,
         created_timestamp -> BigInt,
-        created_timestring -> Text,
+        created_offset -> Integer,
         modified_timestamp -> BigInt,
-        modified_timestring -> Text,
+        modified_offset -> Integer,
         activity_timestamp -> BigInt,
-        activity_timestring -> Text,
+        activity_offset -> Integer,
         obj_type -> Text,
         title -> Nullable<Text>,
         notes -> Nullable<Text>,
+        rating -> Nullable<Integer>,
+        censor -> Integer,
         latitude -> Nullable<Double>,
         longitude -> Nullable<Double>,
     }
@@ -26,10 +28,15 @@ table! {
     attachments_metadata (obj_id) {
         obj_id -> Text,
         filename -> Text,
-        created -> BigInt,
-        modified -> BigInt,
+        created_timestamp -> BigInt,
+        created_offset -> Integer,
+        modified_timestamp -> BigInt,
+        modified_offset -> Integer,
         mime -> Text,
         size -> BigInt,
+        width -> Nullable<Integer>,
+        height -> Nullable<Integer>,
+        duration -> Nullable<Integer>,
         hash -> Text,
     }
 }

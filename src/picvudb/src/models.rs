@@ -17,14 +17,16 @@ pub struct Object
 {
     pub id: String,
     pub created_timestamp: i64,
-    pub created_timestring: String,
+    pub created_offset: i32,
     pub modified_timestamp: i64,
-    pub modified_timestring: String,
+    pub modified_offset: i32,
     pub activity_timestamp: i64,
-    pub activity_timestring: String,
+    pub activity_offset: i32,
     pub obj_type: String,
     pub title: Option<String>,
     pub notes: Option<String>,
+    pub rating: Option<i32>,
+    pub censor: i32,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
 }
@@ -36,10 +38,15 @@ pub struct AttachmentMetadata
 {
     pub obj_id: String,
     pub filename: String,
-    pub created: i64,
-    pub modified: i64,
+    pub created_timestamp: i64,
+    pub created_offset: i32,
+    pub modified_timestamp: i64,
+    pub modified_offset: i32,
     pub mime: String,
     pub size: i64,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub duration: Option<i32>,
     pub hash: String,
 }
 
