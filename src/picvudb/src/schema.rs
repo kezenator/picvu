@@ -34,6 +34,7 @@ table! {
         modified_offset -> Integer,
         mime -> Text,
         size -> BigInt,
+        orientation -> Nullable<Integer>,
         width -> Nullable<Integer>,
         height -> Nullable<Integer>,
         duration -> Nullable<Integer>,

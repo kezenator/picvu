@@ -5,6 +5,7 @@ mod duration;
 mod location;
 mod objectid;
 mod objecttype;
+mod orientation;
 mod rating;
 
 pub use censor::Censor;
@@ -14,6 +15,7 @@ pub use duration::Duration;
 pub use location::Location;
 pub use objectid::ObjectId;
 pub use objecttype::ObjectType;
+pub use orientation::Orientation;
 pub use rating::Rating;
 
 pub mod add;

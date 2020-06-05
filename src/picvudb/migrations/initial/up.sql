@@ -35,6 +35,7 @@ CREATE TABLE attachments_metadata (
   modified_offset INTEGER NOT NULL,
   mime TEXT NOT NULL,
   size INTEGER NOT NULL,
+  orientation INTEGER,
   width INTEGER,
   height INTEGER,
   duration INTEGER,

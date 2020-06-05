@@ -556,6 +556,7 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
     let modified = attachment.modified.clone();
     let size = attachment.size.clone();
     let mime = attachment.mime.clone();
+    let orientation = attachment.orientation.clone();
     let dimensions = attachment.dimensions.clone();
     let duration = attachment.duration.clone();
     let hash = attachment.hash.clone();
@@ -591,6 +592,14 @@ fn attachment_details(obj_id: &picvudb::data::ObjectId, attachment: &picvudb::da
         {
             td: "Mime Type";
             td: mime.to_string();
+        }
+        @if let Some(orientation) = orientation
+        {
+            tr
+            {
+                td: "Orientation";
+                td: orientation.to_string();
+            }
         }
         @if let Some(dimensions) = dimensions
         {

@@ -56,6 +56,7 @@ pub fn create_add_object_for_import(
     let mut location = None;
     let mut attachment_created_time = opt_file_created_time.unwrap_or(now.clone());
     let mut attachment_modified_time = opt_file_modified_time.unwrap_or(now.clone());
+    let mut orientation = None;
     let mut dimensions = None;
     let mut duration = None;
 
@@ -65,7 +66,6 @@ pub fn create_add_object_for_import(
 
     let mut mime = guess_mime_type_from_filename(file_name)
         .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Cannot guess MIME type for file {}", file_name)))?;
-
 
     // Process the Google Photos Takeout Metadata if provided
 
@@ -161,6 +161,11 @@ pub fn create_add_object_for_import(
                 {
                     location = analysis.location;
                 }
+
+                if analysis.orientation.is_some()
+                {
+                    orientation = analysis.orientation;
+                }
             },
             Ok(None) =>
             {
@@ -238,6 +243,8 @@ pub fn create_add_object_for_import(
             },
             Ok(info) =>
             {
+                println!("Video analysis: {:?}", info);
+
                 if !got_better_activity_time
                 {
                     if let Some(date) = info.date
@@ -252,17 +259,30 @@ pub fn create_add_object_for_import(
                     location = info.location;
                 }
 
+                if orientation.is_none()
+                {
+                    orientation = info.orientation;
+                }
+
                 if dimensions.is_none()
                 {
-                    dimensions = info.dimensions
+                    dimensions = info.dimensions;
                 }
 
                 if duration.is_none()
                 {
-                    duration = info.duration
+                    duration = info.duration;
                 }
             },
         }
+    }
+
+    // Adjust the dimensions for any orienatation
+    // that will be applied to the raw image
+
+    if let Some(dim) = dimensions
+    {
+        dimensions = Some(dim.adjust_for_orientation(&orientation));
     }
     
     // Construct the Add Object request
@@ -273,6 +293,7 @@ pub fn create_add_object_for_import(
         created: attachment_created_time,
         modified: attachment_modified_time,
         mime: mime.clone(),
+        orientation: orientation,
         dimensions: dimensions,
         duration: duration,
         bytes: bytes,

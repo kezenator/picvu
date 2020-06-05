@@ -44,6 +44,7 @@ pub struct AttachmentMetadata
     pub modified_offset: i32,
     pub mime: String,
     pub size: i64,
+    pub orientation: Option<i32>,
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub duration: Option<i32>,

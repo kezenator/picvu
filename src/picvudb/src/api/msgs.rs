@@ -152,8 +152,9 @@ impl ApiMessage for GetObjectsRequest
                                 modified: data::Date::from_db_fields(attachment.modified_timestamp, attachment.modified_offset)?,
                                 mime: attachment.mime.parse::<mime::Mime>()?,
                                 size: attachment.size as u64,
+                                orientation: data::Orientation::from_db_field(attachment.orientation)?,
                                 dimensions: data::Dimensions::from_db_fields(attachment.width, attachment.height),
-                                duration: data::Duration::from_db_field(attachment.duration),
+                                duration: data::Duration::from_db_field(attachment.duration)?,
                                 hash: attachment.hash,
                             },
                         })
@@ -179,8 +180,9 @@ impl ApiMessage for GetObjectsRequest
                                 modified: data::Date::from_db_fields(attachment.modified_timestamp, attachment.modified_offset)?,
                                 mime: attachment.mime.parse::<mime::Mime>()?,
                                 size: attachment.size as u64,
+                                orientation: data::Orientation::from_db_field(attachment.orientation)?,
                                 dimensions: data::Dimensions::from_db_fields(attachment.width, attachment.height),
-                                duration: data::Duration::from_db_field(attachment.duration),
+                                duration: data::Duration::from_db_field(attachment.duration)?,
                                 hash: attachment.hash,
                             },
                         })
@@ -285,6 +287,7 @@ impl ApiMessage for AddObjectRequest
                     attachment.created.clone(),
                     attachment.modified.clone(),
                     attachment.mime.to_string(),
+                    attachment.orientation.clone(),
                     attachment.dimensions.clone(),
                     attachment.duration.clone(),
                     attachment.bytes.clone())?;
@@ -297,6 +300,7 @@ impl ApiMessage for AddObjectRequest
                     attachment.created.clone(),
                     attachment.modified.clone(),
                     attachment.mime.to_string(),
+                    attachment.orientation.clone(),
                     attachment.dimensions.clone(),
                     attachment.duration.clone(),
                     attachment.bytes.clone())?;
@@ -340,8 +344,9 @@ impl ApiMessage for GetAttachmentDataRequest
                     modified: data::Date::from_db_fields(metadata.modified_timestamp, metadata.modified_offset)?,
                     mime: metadata.mime.parse::<mime::Mime>()?,
                     size: metadata.size as u64,
+                    orientation: data::Orientation::from_db_field(metadata.orientation)?,
                     dimensions: data::Dimensions::from_db_fields(metadata.width, metadata.height),
-                    duration: data::Duration::from_db_field(metadata.duration),
+                    duration: data::Duration::from_db_field(metadata.duration)?,
                     hash: metadata.hash,
                 };
 

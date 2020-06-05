@@ -1,4 +1,4 @@
-use crate::api::data::{Censor, Date, Dimensions, Duration, Location, ObjectId, ObjectType, Rating};
+use crate::api::data::{Censor, Date, Dimensions, Duration, Location, ObjectId, ObjectType, Orientation, Rating};
 
 #[derive(Debug, Clone)]
 pub struct AttachmentMetadata
@@ -8,6 +8,7 @@ pub struct AttachmentMetadata
     pub modified: Date,
     pub mime: mime::Mime,
     pub size: u64,
+    pub orientation: Option<Orientation>,
     pub dimensions: Option<Dimensions>,
     pub duration: Option<Duration>,
     pub hash: String,

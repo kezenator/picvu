@@ -1,4 +1,4 @@
-use crate::api::data::{Censor, Date, Dimensions, Duration, Location, Rating};
+use crate::api::data::{Censor, Date, Dimensions, Duration, Location, Orientation, Rating};
 
 #[derive(Debug)]
 pub struct Attachment
@@ -7,6 +7,7 @@ pub struct Attachment
     pub created: Date,
     pub modified: Date,
     pub mime: mime::Mime,
+    pub orientation: Option<Orientation>,
     pub dimensions: Option<Dimensions>,
     pub duration: Option<Duration>,
     pub bytes: Vec<u8>,

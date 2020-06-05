@@ -1,3 +1,5 @@
+use crate::data::Orientation;
+
 #[derive(Clone, Debug)]
 pub struct Dimensions
 {
@@ -10,6 +12,22 @@ impl Dimensions
     pub fn new(width: u32, height: u32) -> Self
     {
         Dimensions{ width, height }
+    }
+
+    pub fn adjust_for_orientation(&self, orientation: &Option<Orientation>) -> Self
+    {
+        if let Some(Orientation::RotatedLeft) = orientation
+        {
+            Dimensions{ width: self.height, height: self.width }
+        }
+        else if let Some(Orientation::RotatedRight) = orientation
+        {
+            Dimensions{ width: self.height, height: self.width }
+        }
+        else
+        {
+            self.clone()
+        }
     }
 
     pub(crate) fn to_db_field_width(&self) -> i32

@@ -1,18 +1,22 @@
 use std::io::Write;
 
+use picvudb::data::{Date, Dimensions, Duration, Location, Orientation};
+
 #[derive(Debug)]
 pub struct VideoAnalysisResults
 {
-    pub date: Option<picvudb::data::Date>,
-    pub location: Option<picvudb::data::Location>,
-    pub dimensions: Option<picvudb::data::Dimensions>,
-    pub duration: Option<picvudb::data::Duration>,
+    pub date: Option<Date>,
+    pub location: Option<Location>,
+    pub orientation: Option<Orientation>,
+    pub dimensions: Option<Dimensions>,
+    pub duration: Option<Duration>,
 }
 
 pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Error>
 {
     let mut date = None;
     let mut location = None;
+    let mut orientation = None;
     let mut dimensions = None;
     let mut duration = None;
 
@@ -21,6 +25,8 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
 
     let output = std::process::Command::new("ffprobe").arg(video_file.path()).output()?;
     let output = String::from_utf8(output.stderr).map_err(|e| { std::io::Error::new(std::io::ErrorKind::InvalidData, format!("ffprobe output is no UTF-8: {:?}", e)) })?;
+
+    println!("ffprobe output: {}", output);
 
     for line in output.split('\n')
     {
@@ -37,7 +43,7 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
                     {
                         if let Ok(decoded) = value.parse::<chrono::DateTime<chrono::Utc>>()
                         {
-                            date = Some(picvudb::data::Date::from_chrono(&decoded));
+                            date = Some(Date::from_chrono(&decoded));
                         }
                     }
                 },
@@ -50,9 +56,28 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
                         {
                             if let Ok(long) = value[(offset + 1)..].parse::<f64>()
                             {
-                                location = Some(picvudb::data::Location::new(lat, long, None));
+                                location = Some(Location::new(lat, long, None));
                             }
                         }
+                    }
+                },
+                "rotate" =>
+                {
+                    if value == "0"
+                    {
+                        orientation = Some(Orientation::Straight);
+                    }
+                    else if value == "90"
+                    {
+                        orientation = Some(Orientation::RotatedLeft);
+                    }
+                    else if value == "180"
+                    {
+                        orientation = Some(Orientation::UpsideDown);
+                    }
+                    else if value == "270"
+                    {
+                        orientation = Some(Orientation::RotatedRight);
                     }
                 },
                 "Duration" =>
@@ -71,7 +96,7 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
                                     {
                                         let seconds = s + (60 * m) + (3600 * h);
 
-                                        duration = Some(picvudb::data::Duration::from_seconds(seconds));
+                                        duration = Some(Duration::from_seconds(seconds));
                                     }
                                 }
                             }
@@ -96,7 +121,7 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
                                         {
                                             if dimensions.is_none()
                                             {
-                                                dimensions = Some(picvudb::data::Dimensions::new(w, h));
+                                                dimensions = Some(Dimensions::new(w, h));
                                             }
                                         }
                                     }
@@ -109,5 +134,5 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
         }
     }
 
-    Ok(VideoAnalysisResults { date, location, dimensions, duration })
+    Ok(VideoAnalysisResults { date, location, orientation, dimensions, duration })
 }

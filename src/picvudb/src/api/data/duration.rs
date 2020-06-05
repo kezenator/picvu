@@ -1,21 +1,37 @@
+use crate::Error;
+
 #[derive(Clone)]
-pub struct Duration(i32);
+pub struct Duration(u32);
 
 impl Duration
 {
     pub fn from_seconds(seconds: u32) -> Self
     {
-        Duration(seconds as i32)
+        Duration(seconds)
     }
 
     pub(crate) fn to_db_field(&self) -> i32
     {
-        self.0
+        self.0 as i32
     }
 
-    pub(crate) fn from_db_field(val: Option<i32>) -> Option<Self>
+    pub(crate) fn from_db_field(val: Option<i32>) -> Result<Option<Self>, Error>
     {
-        val.map(|v| Duration(v))
+        match val
+        {
+            None => Ok(None),
+            Some(val) =>
+            {
+                if val >= 0
+                {
+                    Ok(Some(Duration(val as u32)))
+                }
+                else
+                {
+                    Err(Error::DatabaseConsistencyError{ msg: format!("Invalid Duration: {}", val) })
+                }
+            },
+        }
     }
 }
 

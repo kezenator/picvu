@@ -1,6 +1,8 @@
 use std::convert::TryInto;
 use chrono::offset::TimeZone;
 
+pub use picvudb::data::Orientation;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MvImgSplit
 {
@@ -10,40 +12,20 @@ pub enum MvImgSplit
     Both{mp4_offset: usize},
 }
 
-#[derive(Debug, Clone)]
-pub enum Orientation
+fn orientation_from_rexif_str(s: &str) -> Result<Option<Orientation>, ImgAnalysisError>
 {
-    Straight,
-    RotatedRight,
-    UpsideDown,
-    RotatedLeft,
-}
-
-impl Orientation
-{
-    fn from_rexif_str(s: &str) -> Result<Option<Self>, ImgAnalysisError>
+    match s
     {
-        match s
-        {
-            "Straight" => Ok(Some(Orientation::Straight)),
-            "Upside down" => Ok(Some(Orientation::UpsideDown)),
-            "Rotated to left" => Ok(Some(Orientation::RotatedLeft)),
-            "Rotated to right" => Ok(Some(Orientation::RotatedRight)),
-            "Undefined" 
-                | "Unknown (0)" => Ok(None),
-            _ => Err(ImgAnalysisError{
-                msg: format!("Unknown Orientation {:?}", s),
-                debug_entries: Vec::new(),
-            }),
-        }
-    }
-}
-
-impl std::fmt::Display for Orientation
-{
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>
-    {
-        write!(fmt, "{:?}", self)
+        "Straight" => Ok(Some(Orientation::Straight)),
+        "Upside down" => Ok(Some(Orientation::UpsideDown)),
+        "Rotated to left" => Ok(Some(Orientation::RotatedLeft)),
+        "Rotated to right" => Ok(Some(Orientation::RotatedRight)),
+        "Undefined" 
+            | "Unknown (0)" => Ok(None),
+        _ => Err(ImgAnalysisError{
+            msg: format!("Unknown Orientation {:?}", s),
+            debug_entries: Vec::new(),
+        }),
     }
 }
 
@@ -196,7 +178,7 @@ impl ImgAnalysis
                 let mut orientation = None;
                 if let Some(entry) = find_single(&exif.entries, rexif::ExifTag::Orientation)
                 {
-                    orientation = Orientation::from_rexif_str(&entry.value_more_readable)?;
+                    orientation = orientation_from_rexif_str(&entry.value_more_readable)?;
                 }
 
                 // Make/Model

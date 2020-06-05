@@ -226,7 +226,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(model_object)
     }
 
-    fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>
+    fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, orientation: Option<data::Orientation>, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>
     {
         if bytes.is_empty()
         {
@@ -252,6 +252,7 @@ impl<'a> WriteOps for Transaction<'a>
             modified_offset: modified.to_db_offset(),
             mime: mime,
             size: bytes.len() as i64,
+            orientation: orientation.map(|o| o.to_db_field()),
             width: dimensions.clone().map(|d| d.to_db_field_width()),
             height: dimensions.clone().map(|d| d.to_db_field_height()),
             duration: duration.map(|d| d.to_db_field()),
