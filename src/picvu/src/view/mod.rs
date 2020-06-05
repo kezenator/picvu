@@ -1,22 +1,15 @@
 use std::fmt::Debug;
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::HttpResponse;
 use actix_web::http::StatusCode;
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::ResponseError;
-use horrorshow::{owned_html, Raw, Template};
 
-use picvudb::msgs::GetAttachmentDataResponse;
-use picvudb::msgs::AddObjectResponse;
-
-use crate::path;
-use crate::bulk;
-use crate::pages::HeaderLinkCollection;
-
-pub mod derived;
 mod doc;
-mod page;
 
 pub use doc::redirect;
+pub use doc::err;
+pub use doc::html_page;
+pub use doc::binary;
 
 #[derive(Debug)]
 pub enum ErrorResponder
@@ -127,108 +120,5 @@ impl ResponseError for ErrorResponder
                 StatusCode::BAD_REQUEST
             }
         }
-    }
-}
-
-pub fn wrap_html_content(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, content: String) -> HttpResponse
-{
-    let contents = owned_html!
-    {
-        : page::header(title.to_owned(), req, header_links);
-        : Raw(content);
-
-    }.into_string().unwrap();
-
-    let page = page::Page
-    {
-        title: title.to_owned(),
-        contents: contents,
-    };
-
-    doc::ok(page)
-}
-
-pub fn generate_response<T>(data: T, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
-    where T: Viewable
-{
-    data.generate(req, header_links)
-}
-
-pub trait Viewable
-{
-    fn generate(self, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse;
-}
-
-impl Viewable for derived::ViewObjectsList
-{
-    fn generate(self, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
-    {
-        if self.response.pagination_request.offset != self.response.pagination_response.offset
-            || self.response.pagination_request.page_size != self.response.pagination_response.page_size
-        {
-            // Redirect to the index with the correct pagesize
-            doc::redirect(path::objects_with_options(
-                self.response.query,
-                self.list_type,
-                self.response.pagination_response.offset,
-                self.response.pagination_request.page_size))
-        }
-        else
-        {
-            match self.list_type
-            {
-                derived::ViewObjectsListType::ThumbnailsGrid =>
-                    doc::ok(page::objects_thumbnails(self.response, req, header_links)),
-
-                derived::ViewObjectsListType::DetailsTable =>
-                    doc::ok(page::objects_details(self.response, req, header_links))
-            }
-        }
-    }
-}
-
-impl Viewable for derived::ViewSingleObject
-{
-    fn generate(self, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
-    {
-        doc::ok(page::object_details(self.object, self.image_analysis, self.mvimg_split, req, header_links))
-    }
-}
-
-impl Viewable for GetAttachmentDataResponse
-{
-    fn generate(self, _req: &HttpRequest, _header_links: &HeaderLinkCollection) -> HttpResponse
-    {
-        match self
-        {
-            GetAttachmentDataResponse::ObjectNotFound =>
-            {
-                doc::err(HttpResponse::NotFound(), "Object not found")
-            },
-            GetAttachmentDataResponse::HashNotFound =>
-            {
-                doc::err(HttpResponse::NotFound(), "Object not found")
-            },
-            GetAttachmentDataResponse::Found{metadata, bytes} =>
-            {
-                doc::binary(bytes, metadata.filename, metadata.mime, metadata.hash)
-            },
-        }
-    }
-}
-
-impl Viewable for AddObjectResponse
-{
-    fn generate(self, _req: &HttpRequest, _header_links: &HeaderLinkCollection) -> HttpResponse
-    {
-        doc::redirect(path::index())
-    }
-}
-
-impl Viewable for bulk::progress::ProgressState
-{
-    fn generate(self, _req: &HttpRequest, _header_links: &HeaderLinkCollection) -> HttpResponse
-    {
-        doc::ok(page::bulk_progress(self))
     }
 }

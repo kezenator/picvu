@@ -76,7 +76,6 @@ pub fn query_to_string(query: &picvudb::data::get::GetObjectsQuery) -> String
         picvudb::data::get::GetObjectsQuery::ByActivityDesc => "Calendar".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByModifiedDesc => "Recently Modified".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => "Largest Attachments".to_owned(),
-
     }
 }
 

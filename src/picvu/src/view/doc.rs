@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use actix_web::HttpResponse;
+use actix_web::{HttpRequest, HttpResponse};
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::http::header::{
         CacheControl, CacheDirective,
@@ -9,25 +9,22 @@ use actix_web::http::header::{
         ExtendedValue,
         EntityTag, ETag};
 
-use horrorshow::{html, Raw};
+use horrorshow::{owned_html, Raw, Template};
 
-use crate::view::page::Page;
-
-pub fn ok(page: Page) -> HttpResponse
-{
-    html_response(HttpResponse::Ok(), page)
-}
+use crate::pages::HeaderLinkCollection;
 
 pub fn err<T>(builder: HttpResponseBuilder, err: T) -> HttpResponse
     where T: Debug
 {
-    let page = Page
-    {
-        title: "Error".to_owned(),
-        contents: html!{ pre : format!("{:?}", err) }.to_string(),
-    };
+    let body = owned_html!{
+        h1: "Error";
+        pre
+        {
+            : format!("{:?}", err);
+        }
+    }.into_string().unwrap();
 
-    html_response(builder, page)
+    html_response(builder, "Error", &body)
 }
 
 pub fn redirect(path: String) -> HttpResponse
@@ -58,13 +55,13 @@ pub fn binary(bytes: Vec<u8>, filename: String, mime: mime::Mime, etag: String) 
     .body(bytes)
 }
 
-fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
+pub fn html_response(builder: HttpResponseBuilder, title: &str, body: &str) -> HttpResponse
 {
     let mut builder = builder;
 
-    let body = html!
+    let body = owned_html!
     {
-        : horrorshow::Raw("<!DOCTYPE html>");
+        : Raw("<!DOCTYPE html>");
 
         html(lang="en")
         {
@@ -73,14 +70,14 @@ fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
                 meta(charset="utf-8");
                 link(rel="stylesheet", href="/assets/style.css");
 
-                title : page.title.as_str();
+                title : title
             }
             body
             {
-                : Raw(page.contents.as_str())
+                : Raw(body)
             }
         }
-    };
+    }.into_string().unwrap();
 
     builder
         .set(ContentType::html())
@@ -88,4 +85,49 @@ fn html_response(builder: HttpResponseBuilder, page: Page) -> HttpResponse
             CacheDirective::NoStore,
         ]))
         .body(body.to_string())
+}
+
+pub fn html_page(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, content: &str) -> HttpResponse
+{
+    let body = owned_html!{
+        : header(title, req, header_links);
+        : Raw(content)
+    }.into_string().unwrap();
+
+    html_response(HttpResponse::Ok(), title, &body)
+}
+
+pub fn header(title: &str, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
+{
+    let html = owned_html!{
+
+        div(class="header")
+        {
+            h1: title;
+
+            div(class="header-links")
+            {
+                @for header in header_links.by_order()
+                {
+                    @if header.path == req.path()
+                    {
+                        a(href=(header.path))
+                        {
+                            : format!("[[ {} ]]", header.label)
+                        }
+                    }
+                    else
+                    {
+                        a(href=(header.path))
+                        {
+                            : header.label
+                        }
+                    }
+                }
+            }
+        }
+
+    }.into_string().unwrap();
+
+    Raw(html)
 }

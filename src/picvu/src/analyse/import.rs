@@ -243,14 +243,12 @@ pub fn create_add_object_for_import(
             },
             Ok(info) =>
             {
-                println!("Video analysis: {:?}", info);
-
                 if !got_better_activity_time
                 {
                     if let Some(date) = info.date
                     {
                         obj_activity_time = Some(date);
-                        got_better_activity_time = true;
+                        //got_better_activity_time = true;
                     }                    
                 }
 

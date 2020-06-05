@@ -1,7 +1,12 @@
 use actix_web::{web, Resource};
 use std::collections::BTreeMap;
 
+pub mod add_object;
+pub mod attachments;
 pub mod auth;
+pub mod bulk;
+pub mod object_details;
+pub mod object_listing;
 pub mod setup;
 pub mod sync;
 

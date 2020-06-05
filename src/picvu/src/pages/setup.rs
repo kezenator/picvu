@@ -66,7 +66,7 @@ async fn get_setup_form(state: web::Data<State>, req: HttpRequest) -> Result<Htt
         }
     }.into_string().unwrap();
 
-    Ok(view::wrap_html_content(&req, &state.header_links, "Setup", contents))
+    Ok(view::html_page(&req, &state.header_links, "Setup", &contents))
 }
 
 const PROP_NAME_CLIENT_ID: &'static str = "client_id.auth.google.com";

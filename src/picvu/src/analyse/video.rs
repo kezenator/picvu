@@ -26,8 +26,6 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
     let output = std::process::Command::new("ffprobe").arg(video_file.path()).output()?;
     let output = String::from_utf8(output.stderr).map_err(|e| { std::io::Error::new(std::io::ErrorKind::InvalidData, format!("ffprobe output is no UTF-8: {:?}", e)) })?;
 
-    println!("ffprobe output: {}", output);
-
     for line in output.split('\n')
     {
         if let Some(offset) = line.find(':')
