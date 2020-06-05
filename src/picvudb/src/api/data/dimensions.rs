@@ -1,6 +1,6 @@
 use crate::data::Orientation;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Dimensions
 {
     pub width: u32,
@@ -27,6 +27,28 @@ impl Dimensions
         else
         {
             self.clone()
+        }
+    }
+
+    pub fn resize_to_max_dimension(&self, max: u32) -> Self
+    {
+        if self.width <= max && self.height <= max
+        {
+            self.clone()
+        }
+        else if self.width == self.height
+        {
+            Dimensions::new(max, max)
+        }
+        else if self.width > self.height
+        {
+            let new_height = ((((self.height as u64) * (max as u64)) + ((self.width as u64) / 2)) / (self.width as u64)) as u32;
+            Dimensions::new(max, new_height)
+        }
+        else // height is bigger
+        {
+            let new_width = ((((self.width as u64) * (max as u64)) + ((self.height as u64) / 2)) / (self.height as u64)) as u32;
+            Dimensions::new(new_width, max)
         }
     }
 
@@ -61,5 +83,23 @@ impl ToString for Dimensions
     fn to_string(&self) -> String
     {
         format!("{} x {}", self.width, self.height)
+    }
+}
+
+#[cfg(test)]
+mod tests
+{
+    use super::Dimensions;
+
+    #[test]
+    fn test_dimensions_resize()
+    {
+        assert_eq!(Dimensions::new(512, 512).resize_to_max_dimension(1024), Dimensions::new(512, 512));
+
+        assert_eq!(Dimensions::new(1024, 512).resize_to_max_dimension(1024), Dimensions::new(1024, 512));
+        assert_eq!(Dimensions::new(512, 1024).resize_to_max_dimension(1024), Dimensions::new(512, 1024));
+
+        assert_eq!(Dimensions::new(512, 1024).resize_to_max_dimension(256), Dimensions::new(128, 256));
+        assert_eq!(Dimensions::new(1024, 512).resize_to_max_dimension(256), Dimensions::new(256, 128));
     }
 }

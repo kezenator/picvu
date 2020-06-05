@@ -204,7 +204,7 @@ pub fn create_add_object_for_import(
                 // It's a JPEG with an MP4 attached - analyse the
                 // MP4 to collect a duration
 
-                match analyse::video::analyse_video(&bytes[mp4_offset..])
+                match analyse::video::analyse_video(&bytes[mp4_offset..], file_name, 128)
                 {
                     Err(err) =>
                     {
@@ -235,7 +235,7 @@ pub fn create_add_object_for_import(
 
     if mime.type_() == mime::VIDEO
     {
-        match analyse::video::analyse_video(&bytes)
+        match analyse::video::analyse_video(&bytes, file_name, 128)
         {
             Err(err) =>
             {
@@ -297,28 +297,6 @@ pub fn create_add_object_for_import(
         bytes: bytes,
     };
 
-    let additional = if mime.type_() == mime::IMAGE
-    {
-        picvudb::data::add::AdditionalData::Photo
-        {
-            attachment
-        }
-    }
-    else if mime.type_() == mime::VIDEO
-    {
-        picvudb::data::add::AdditionalData::Video
-        {
-            attachment
-        }
-    }
-    else
-    {
-        return Err(
-            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Unsupported MIME {}", mime))
-            .into()
-        );
-    };
-
     let data = picvudb::data::add::ObjectData
     {
         title: Some(title),
@@ -328,7 +306,7 @@ pub fn create_add_object_for_import(
         created_time: obj_created_time,
         activity_time: obj_activity_time,
         location: location,
-        additional,                            
+        attachment: attachment,
     };
 
     let msg = picvudb::msgs::AddObjectRequest{ data };

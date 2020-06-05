@@ -190,7 +190,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn add_object(&self, obj_type: data::ObjectType, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<Object, Error>
+    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<Object, Error>
     {
         let modified_time = data::Date::now();
         let created_time = created_time.unwrap_or(modified_time.clone());
@@ -210,7 +210,6 @@ impl<'a> WriteOps for Transaction<'a>
             modified_offset: modified_time.to_db_offset(),
             activity_timestamp: activity_time.to_db_timestamp(),
             activity_offset: activity_time.to_db_offset(),
-            obj_type: obj_type.to_db_string(),
             title: title,
             notes: notes,
             rating: rating.map(|r| { r.to_db_field() }),

@@ -22,7 +22,6 @@ pub struct Object
     pub modified_offset: i32,
     pub activity_timestamp: i64,
     pub activity_offset: i32,
-    pub obj_type: String,
     pub title: Option<String>,
     pub notes: Option<String>,
     pub rating: Option<i32>,

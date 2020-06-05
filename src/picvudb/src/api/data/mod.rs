@@ -4,7 +4,6 @@ mod dimensions;
 mod duration;
 mod location;
 mod objectid;
-mod objecttype;
 mod orientation;
 mod rating;
 
@@ -14,7 +13,6 @@ pub use dimensions::Dimensions;
 pub use duration::Duration;
 pub use location::Location;
 pub use objectid::ObjectId;
-pub use objecttype::ObjectType;
 pub use orientation::Orientation;
 pub use rating::Rating;
 

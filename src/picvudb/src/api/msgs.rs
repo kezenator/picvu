@@ -135,66 +135,30 @@ impl ApiMessage for GetObjectsRequest
 
         for object in from_db.drain(..)
         {
-            let obj_type = data::ObjectType::from_db_string(&object.obj_type)?;
-
-            let additional = match obj_type
+            let attachment = 
             {
-                data::ObjectType::Photo =>
+                if let Some(attachment) = ops.get_attachment_metadata(&object.id)?
                 {
-                    if let Some(attachment) = ops.get_attachment_metadata(&object.id)?
+                    data::get::AttachmentMetadata
                     {
-                        data::get::AdditionalMetadata::Photo(data::get::PhotoMetadata
-                        {
-                            attachment: data::get::AttachmentMetadata
-                            {
-                                filename: attachment.filename,
-                                created: data::Date::from_db_fields(attachment.created_timestamp, attachment.created_offset)?,
-                                modified: data::Date::from_db_fields(attachment.modified_timestamp, attachment.modified_offset)?,
-                                mime: attachment.mime.parse::<mime::Mime>()?,
-                                size: attachment.size as u64,
-                                orientation: data::Orientation::from_db_field(attachment.orientation)?,
-                                dimensions: data::Dimensions::from_db_fields(attachment.width, attachment.height),
-                                duration: data::Duration::from_db_field(attachment.duration)?,
-                                hash: attachment.hash,
-                            },
-                        })
+                        filename: attachment.filename,
+                        created: data::Date::from_db_fields(attachment.created_timestamp, attachment.created_offset)?,
+                        modified: data::Date::from_db_fields(attachment.modified_timestamp, attachment.modified_offset)?,
+                        mime: attachment.mime.parse::<mime::Mime>()?,
+                        size: attachment.size as u64,
+                        orientation: data::Orientation::from_db_field(attachment.orientation)?,
+                        dimensions: data::Dimensions::from_db_fields(attachment.width, attachment.height),
+                        duration: data::Duration::from_db_field(attachment.duration)?,
+                        hash: attachment.hash,
                     }
-                    else
-                    {
-                        return Err(Error::DatabaseConsistencyError
-                        {
-                            msg: format!("Object {} is a photo but contains no attachment metadata", object.id.to_string()),
-                        });
-                    }
-                },
-                data::ObjectType::Video =>
+                }
+                else
                 {
-                    if let Some(attachment) = ops.get_attachment_metadata(&object.id)?
+                    return Err(Error::DatabaseConsistencyError
                     {
-                        data::get::AdditionalMetadata::Video(data::get::VideoMetadata
-                        {
-                            attachment: data::get::AttachmentMetadata
-                            {
-                                filename: attachment.filename,
-                                created: data::Date::from_db_fields(attachment.created_timestamp, attachment.created_offset)?,
-                                modified: data::Date::from_db_fields(attachment.modified_timestamp, attachment.modified_offset)?,
-                                mime: attachment.mime.parse::<mime::Mime>()?,
-                                size: attachment.size as u64,
-                                orientation: data::Orientation::from_db_field(attachment.orientation)?,
-                                dimensions: data::Dimensions::from_db_fields(attachment.width, attachment.height),
-                                duration: data::Duration::from_db_field(attachment.duration)?,
-                                hash: attachment.hash,
-                            },
-                        })
-                    }
-                    else
-                    {
-                        return Err(Error::DatabaseConsistencyError
-                        {
-                            msg: format!("Object {} is a video but contains no attachment metadata", object.id.to_string()),
-                        });
-                    }
-                },
+                        msg: format!("Object {} contains no attachment metadata", object.id.to_string()),
+                    });
+                }
             };
 
             let rating = match object.rating
@@ -215,13 +179,12 @@ impl ApiMessage for GetObjectsRequest
                 created_time: data::Date::from_db_fields(object.created_timestamp, object.created_offset)?,
                 modified_time: data::Date::from_db_fields(object.modified_timestamp, object.modified_offset)?,
                 activity_time: data::Date::from_db_fields(object.activity_timestamp, object.activity_offset)?,
-                obj_type: obj_type,
                 title: object.title,
                 notes: object.notes,
                 rating: rating,
                 censor: data::Censor::from_db_field(object.censor)?,
                 location: location,
-                additional: additional,
+                attachment: attachment,
             });
         }
 
@@ -261,14 +224,7 @@ impl ApiMessage for AddObjectRequest
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
-        let obj_type = match &self.data.additional
-        {
-            data::add::AdditionalData::Photo{..} => data::ObjectType::Photo,
-            data::add::AdditionalData::Video{..} => data::ObjectType::Video,
-        };
-
         let object = ops.add_object(
-            obj_type,
             self.data.created_time.clone(),
             self.data.activity_time.clone(),
             self.data.title.clone(),
@@ -277,35 +233,16 @@ impl ApiMessage for AddObjectRequest
             self.data.censor.clone(),
             self.data.location.clone())?;
 
-        match &self.data.additional
-        {
-            data::add::AdditionalData::Photo{attachment} =>
-            {
-                ops.add_attachment(
-                    &object.id,
-                    attachment.filename.clone(),
-                    attachment.created.clone(),
-                    attachment.modified.clone(),
-                    attachment.mime.to_string(),
-                    attachment.orientation.clone(),
-                    attachment.dimensions.clone(),
-                    attachment.duration.clone(),
-                    attachment.bytes.clone())?;
-            },
-            data::add::AdditionalData::Video{attachment} =>
-            {
-                ops.add_attachment(
-                    &object.id,
-                    attachment.filename.clone(),
-                    attachment.created.clone(),
-                    attachment.modified.clone(),
-                    attachment.mime.to_string(),
-                    attachment.orientation.clone(),
-                    attachment.dimensions.clone(),
-                    attachment.duration.clone(),
-                    attachment.bytes.clone())?;
-            },
-        };
+        ops.add_attachment(
+            &object.id,
+            self.data.attachment.filename.clone(),
+            self.data.attachment.created.clone(),
+            self.data.attachment.modified.clone(),
+            self.data.attachment.mime.to_string(),
+            self.data.attachment.orientation.clone(),
+            self.data.attachment.dimensions.clone(),
+            self.data.attachment.duration.clone(),
+            self.data.attachment.bytes.clone())?;
 
         Ok(AddObjectResponse{ object_id: data::ObjectId::new(object.id) })
     }

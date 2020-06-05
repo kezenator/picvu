@@ -14,19 +14,6 @@ pub struct Attachment
 }
 
 #[derive(Debug)]
-pub enum AdditionalData
-{
-    Photo
-    {
-        attachment: Attachment,
-    },
-    Video
-    {
-        attachment: Attachment,
-    },
-}
-
-#[derive(Debug)]
 pub struct ObjectData
 {
     pub title: Option<String>,
@@ -36,5 +23,5 @@ pub struct ObjectData
     pub created_time: Option<Date>,
     pub activity_time: Option<Date>,
     pub location: Option<Location>,
-    pub additional: AdditionalData,
+    pub attachment: Attachment,
 }

@@ -1,4 +1,4 @@
-use crate::api::data::{Censor, Date, Dimensions, Duration, Location, ObjectId, ObjectType, Orientation, Rating};
+use crate::api::data::{Censor, Date, Dimensions, Duration, Location, ObjectId, Orientation, Rating};
 
 #[derive(Debug, Clone)]
 pub struct AttachmentMetadata
@@ -15,38 +15,18 @@ pub struct AttachmentMetadata
 }
 
 #[derive(Debug, Clone)]
-pub struct PhotoMetadata
-{
-    pub attachment: AttachmentMetadata,
-}
-
-#[derive(Debug, Clone)]
-pub struct VideoMetadata
-{
-    pub attachment: AttachmentMetadata,
-}
-
-#[derive(Debug, Clone)]
-pub enum AdditionalMetadata
-{
-    Photo(PhotoMetadata),
-    Video(VideoMetadata),
-}
-
-#[derive(Debug, Clone)]
 pub struct ObjectMetadata
 {
     pub id: ObjectId,
     pub created_time: Date,
     pub modified_time: Date,
     pub activity_time: Date,
-    pub obj_type: ObjectType,
     pub title: Option<String>,
     pub notes: Option<String>,
     pub rating: Option<Rating>,
     pub censor: Censor,
     pub location: Option<Location>,
-    pub additional: AdditionalMetadata,
+    pub attachment: AttachmentMetadata,
 }
 
 #[derive(Debug, Clone)]

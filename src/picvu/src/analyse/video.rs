@@ -1,6 +1,14 @@
-use std::io::Write;
+use std::io::{Read, Write};
 
 use picvudb::data::{Date, Dimensions, Duration, Location, Orientation};
+
+#[derive(Debug)]
+pub struct Thumbnail
+{
+    pub filename: String,
+    pub mime: mime::Mime,
+    pub bytes: Vec<u8>,
+}
 
 #[derive(Debug)]
 pub struct VideoAnalysisResults
@@ -10,15 +18,17 @@ pub struct VideoAnalysisResults
     pub orientation: Option<Orientation>,
     pub dimensions: Option<Dimensions>,
     pub duration: Option<Duration>,
+    pub thumbnail: Option<Thumbnail>,
 }
 
-pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Error>
+pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32) -> Result<VideoAnalysisResults, std::io::Error>
 {
     let mut date = None;
     let mut location = None;
     let mut orientation = None;
     let mut dimensions = None;
     let mut duration = None;
+    let mut thumbnail = None;
 
     let video_file = tempfile::NamedTempFile::new()?;
     video_file.as_file().write_all(bytes)?;
@@ -132,5 +142,47 @@ pub fn analyse_video(bytes: &[u8]) -> Result<VideoAnalysisResults, std::io::Erro
         }
     }
 
-    Ok(VideoAnalysisResults { date, location, orientation, dimensions, duration })
+    // Now, attempt to create a thumbnail
+
+    if let Some(dimensions) = dimensions.clone()
+    {
+        // FFMPEG automatically applies the rotation. But our dimensions
+        // are of the raw data - not the rotated date.
+        // So we need to adjust the dimensions for the rotation, and
+        // then resize to the requested thumbnail size
+
+        let dimensions = dimensions.adjust_for_orientation(&orientation);
+        let dimensions = dimensions.resize_to_max_dimension(thumbnail_size);
+
+        let mut jpeg_file = tempfile::Builder::new().suffix(".jpg").tempfile()?;
+
+        let output = std::process::Command::new("ffmpeg")
+            .arg("-i")
+            .arg(video_file.path())
+            .arg("-vframes")
+            .arg("1")
+            .arg("-an")
+            .arg("-s")
+            .arg(format!("{}x{}", dimensions.width, dimensions.height))
+            .arg("-ss")
+            .arg("0")
+            .arg("-y")
+            .arg(jpeg_file.path())
+            .output()?;
+
+        if output.status.success()
+        {
+            let mut bytes = Vec::new();
+            jpeg_file.read_to_end(&mut bytes)?;
+
+            thumbnail = Some(Thumbnail
+            {
+                filename: format!("{}.jpg", filename),
+                bytes: bytes,
+                mime: mime::IMAGE_JPEG,
+            });
+        }
+    }
+
+    Ok(VideoAnalysisResults { date, location, orientation, dimensions, duration, thumbnail })
 }

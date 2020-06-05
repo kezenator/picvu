@@ -1,10 +1,11 @@
 use serde::Deserialize;
 use actix_web::{web, HttpResponse};
+use horrorshow::{owned_html, Raw, Template};
 
-use crate::pages::{PageResources, PageResourcesBuilder};
-use crate::view;
-use crate::State;
 use crate::analyse;
+use crate::pages::{PageResources, PageResourcesBuilder};
+use crate::State;
+use crate::view;
 
 #[allow(dead_code)]
 pub struct AttachmentsPage
@@ -27,6 +28,16 @@ impl AttachmentsPage
     {
         format!("/attachments/{}/mvimg?hash={}", obj_id.to_string(), hash)
     }
+
+    pub fn path_video_thumbnail(obj_id: &picvudb::data::ObjectId, hash: &String, size: u32) -> String
+    {
+        format!("/attachments/{}/video_thumb?hash={}&size={}", obj_id.to_string(), hash, size)
+    }
+
+    pub fn raw_html_for_thumbnail(object: &picvudb::data::get::ObjectMetadata, size: u32, play_video: bool) -> Raw<String>
+    {
+        calc_raw_html_for_thumbnail(object, size, play_video)
+    }
 }
 
 impl PageResources for AttachmentsPage
@@ -36,6 +47,7 @@ impl PageResources for AttachmentsPage
         builder
             .route_other("/attachments/{object_id}/raw", web::get().to(get_attachment))
             .route_other("/attachments/{object_id}/img_thumb", web::get().to(get_img_thumbnail))
+            .route_other("/attachments/{object_id}/video_thumb", web::get().to(get_video_thumbnail))
             .route_other("/attachments/{object_id}/mvimg", web::get().to(get_mvimg));
     }
 }
@@ -146,6 +158,51 @@ async fn get_img_thumbnail(state: web::Data<State>, path: web::Path<String>, for
     }
 }
 
+async fn get_video_thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<FormThumbnail>) -> Result<HttpResponse, view::ErrorResponder>
+{
+    let object_id = picvudb::data::ObjectId::new(path.to_string());
+
+    let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
+    let response = state.db.send(msg).await??;
+
+    match response
+    {
+        picvudb::msgs::GetAttachmentDataResponse::ObjectNotFound =>
+        {
+            Ok(view::err(HttpResponse::NotFound(), "Object not found"))
+        }
+        picvudb::msgs::GetAttachmentDataResponse::HashNotFound =>
+        {
+            Ok(view::err(HttpResponse::NotFound(), "Object's current attachment has a different hash"))
+        }
+        picvudb::msgs::GetAttachmentDataResponse::Found{bytes, metadata} =>
+        {
+            let filename = metadata.filename;
+
+            let info = web::block(move || -> Result<analyse::video::VideoAnalysisResults, std::io::Error>
+            {
+                analyse::video::analyse_video(&bytes, &filename, form.size)
+            }).await?;
+
+            match info.thumbnail
+            {
+                None =>
+                {
+                    Ok(view::err(HttpResponse::NotFound(), "Can't generate video thumbnail"))
+                },
+                Some(thumbnail) =>
+                {
+                    Ok(view::binary(
+                        thumbnail.bytes,
+                        thumbnail.filename,
+                        thumbnail.mime,
+                        metadata.hash))
+                },
+            }
+        },
+    }
+}
+
 async fn get_mvimg(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<FormMvImg>) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::new(object_id.to_string());
@@ -190,4 +247,76 @@ async fn get_mvimg(state: web::Data<State>, object_id: web::Path<String>, form: 
             }
         }
     }
+}
+
+fn calc_raw_html_for_thumbnail(object: &picvudb::data::get::ObjectMetadata, size: u32, play_video: bool) -> Raw<String>
+{
+    let dimensions = object.attachment.dimensions.clone().map(|d| d.resize_to_max_dimension(size));
+
+    Raw(owned_html!
+    {
+        @if object.attachment.mime == mime::IMAGE_GIF
+        {
+            @if let Some(dimensions) = dimensions
+            {
+                img(src=AttachmentsPage::path_attachment(&object.id, &object.attachment.hash),
+                    width=dimensions.width.to_string(),
+                    height=dimensions.height.to_string())
+            }
+            else
+            {
+                // No dimensions - just try as a re-sized thumbnail of the correct size
+                img(src=AttachmentsPage::path_image_thumbnail(&object.id, &object.attachment.hash, size))
+            }
+        }
+        else if object.attachment.mime.type_() == mime::IMAGE
+        {
+            @if let Some(dimensions) = dimensions
+            {
+                img(src=AttachmentsPage::path_image_thumbnail(&object.id, &object.attachment.hash, size),
+                    width=dimensions.width.to_string(),
+                    height=dimensions.height.to_string())
+            }
+            else
+            {
+                // No dimensions - just try as a re-sized thumbnail of the correct size
+                img(src=AttachmentsPage::path_image_thumbnail(&object.id, &object.attachment.hash, size))
+            }
+        }
+        else if object.attachment.mime.type_() == mime::VIDEO
+        {
+            @if let Some(dimensions) = dimensions
+            {
+                @if play_video
+                {
+                    video(width=dimensions.width.to_string(),
+                        height=dimensions.height.to_string(),
+                        autoplay="true",
+                        muted="true",
+                        controls="true",
+                        loop="true")
+                    {
+                        source(
+                            src=AttachmentsPage::path_attachment(&object.id, &object.attachment.hash),
+                            type=object.attachment.mime.to_string())
+                    }
+                }
+                else
+                {
+                    img(src=AttachmentsPage::path_video_thumbnail(&object.id, &object.attachment.hash, size),
+                        width=dimensions.width.to_string(),
+                        height=dimensions.height.to_string())
+                }
+            }
+            else
+            {
+                div: "Video";
+            }
+
+        }
+        else
+        {
+            div: "Other";
+        }
+    }.into_string().unwrap())
 }

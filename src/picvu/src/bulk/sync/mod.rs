@@ -145,33 +145,25 @@ impl BulkOperation for GooglePhotosSync
                     {
                         sender.set(0.0, warnings.clone());
 
-                        let (filename, attachment_created, attachment_modified) = match object.additional
-                        {
-                            picvudb::data::get::AdditionalMetadata::Photo(photo) =>
-                            {
-                                (photo.attachment.filename.clone(), photo.attachment.created.clone(), photo.attachment.modified.clone())
-                            },
-                            picvudb::data::get::AdditionalMetadata::Video(video) =>
-                            {
-                                (video.attachment.filename.clone(), video.attachment.created.clone(), video.attachment.modified.clone())
-                            },
-                        };
-
                         let mut found_id = None;
 
-                        if let Some(id_list) = gp_filename_to_id_list.get(&filename)
+                        if let Some(id_list) = gp_filename_to_id_list.get(&object.attachment.filename)
                         {
                             for id in id_list.iter()
                             {
                                 if let Some(gp_media_item) = gp_id_to_media_item.get(id)
                                 {
                                     if are_times_close(&object.activity_time, &gp_media_item.media_metadata.creation_time)
-                                        || are_times_close(&attachment_created, &gp_media_item.media_metadata.creation_time)
+                                        || are_times_close(&object.attachment.created, &gp_media_item.media_metadata.creation_time)
                                     {
                                         if found_id.is_some()
                                         {
                                             warnings.push(format!("Duplicate IDs for filename {} obj {} activity {} id {} created {}",
-                                                filename, object.id.to_string(), object.activity_time.to_rfc3339(), id, gp_media_item.media_metadata.creation_time));
+                                                object.attachment.filename,
+                                                object.id.to_string(),
+                                                object.activity_time.to_rfc3339(),
+                                                id,
+                                                gp_media_item.media_metadata.creation_time));
                                         }
                                         else
                                         {
@@ -191,7 +183,7 @@ impl BulkOperation for GooglePhotosSync
                             {
                                 let mut found_times = Vec::new();
 
-                                if let Some(id_list) = gp_filename_to_id_list.get(&filename)
+                                if let Some(id_list) = gp_filename_to_id_list.get(&object.attachment.filename)
                                 {
                                     for id in id_list.iter()
                                     {
@@ -203,11 +195,11 @@ impl BulkOperation for GooglePhotosSync
                                 }
 
                                 warnings.push(format!("No matched media_item for filename {} object {} activity {} created {} modified {}, options were {:?}",
-                                    filename,
+                                object.attachment.filename,
                                     object.id.to_string(),
                                     object.activity_time.to_rfc3339(),
-                                    attachment_created.to_rfc3339(),
-                                    attachment_modified.to_rfc3339(),
+                                    object.attachment.created.to_rfc3339(),
+                                    object.attachment.modified.to_rfc3339(),
                                     found_times));
                             },
                         }

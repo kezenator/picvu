@@ -14,7 +14,6 @@ table! {
         modified_offset -> Integer,
         activity_timestamp -> BigInt,
         activity_offset -> Integer,
-        obj_type -> Text,
         title -> Nullable<Text>,
         notes -> Nullable<Text>,
         rating -> Nullable<Integer>,

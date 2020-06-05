@@ -160,26 +160,9 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
                 {
                     div(class="object-listing-thumbnail")
                     {
-                        @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
+                        a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
                         {
-                            a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
-                            {
-                                img(src=pages::attachments::AttachmentsPage::path_image_thumbnail(&object.id, &photo.attachment.hash, 128))
-                            }
-                        }
-                        else if let picvudb::data::get::AdditionalMetadata::Video(_video) = &object.additional
-                        {
-                            a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
-                            {
-                                : "Video"
-                            }
-                        }
-                        else
-                        {
-                            a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
-                            {
-                                : "Other"
-                            }
+                            : pages::attachments::AttachmentsPage::raw_html_for_thumbnail(&object, 128, false);
                         }
                     }
                     div(class="object-listing-title")
@@ -241,22 +224,8 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
 
                     td: object.title.clone().unwrap_or_default();
                     td: format::date_to_str(&object.activity_time, &now);
-
-                    @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
-                    {
-                        td: format::bytes_to_string(photo.attachment.size);
-                        td: photo.attachment.mime.to_string();
-                    }
-                    else if let picvudb::data::get::AdditionalMetadata::Video(video) = &object.additional
-                    {
-                        td: format::bytes_to_string(video.attachment.size);
-                        td: video.attachment.mime.to_string();
-                    }
-                    else
-                    {
-                        td: "N/A";
-                        td: "N/A";
-                    }
+                    td: format::bytes_to_string(object.attachment.size);
+                    td: object.attachment.mime.to_string();
                 }
             }
         }
@@ -284,19 +253,7 @@ fn get_heading(object: &picvudb::data::get::ObjectMetadata, query: &picvudb::dat
         },
         picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc =>
         {
-            let size = match &object.additional
-            {
-                picvudb::data::get::AdditionalMetadata::Photo(photo) =>
-                {
-                    photo.attachment.size
-                },
-                picvudb::data::get::AdditionalMetadata::Video(video) =>
-                {
-                    video.attachment.size
-                },
-            };
-
-            format::bytes_to_group_header(size)
+            format::bytes_to_group_header(object.attachment.size)
         },
     }
 }

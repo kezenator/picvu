@@ -11,7 +11,6 @@ CREATE TABLE objects (
   modified_offset INTEGER NOT NULL,
   activity_timestamp INTEGER NOT NULL,
   activity_offset INTEGER NOT NULL,
-  obj_type TEXT NOT NULL,
   title TEXT,
   notes TEXT,
   rating INTEGER,

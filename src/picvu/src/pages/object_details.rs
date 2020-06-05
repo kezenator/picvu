@@ -94,20 +94,17 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
     {
         table(class="details-table")
         {
-            @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
+            tr
             {
-                tr
+                th(colspan="2"): "Preview";
+            }
+            tr
+            {
+                td(colspan="2")
                 {
-                    th(colspan="2"): "Preview";
-                }
-                tr
-                {
-                    td(colspan="2")
+                    a(href=pages::attachments::AttachmentsPage::path_attachment(&object.id, &object.attachment.hash))
                     {
-                        a(href=pages::attachments::AttachmentsPage::path_attachment(&object.id, &photo.attachment.hash))
-                        {
-                            img(src=pages::attachments::AttachmentsPage::path_image_thumbnail(&object.id, &photo.attachment.hash, 512))
-                        }
+                        : pages::attachments::AttachmentsPage::raw_html_for_thumbnail(&object, 512, true);
                     }
                 }
             }
@@ -130,11 +127,6 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
             {
                 td: "Activity";
                 td: format::date_to_str(&object.activity_time, &now);
-            }
-            tr
-            {
-                td: "Type";
-                td: object.obj_type.to_string();
             }
             @if object.title.is_some()
             {
@@ -167,14 +159,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
 
             : location_details(&object.location);
 
-            @if let picvudb::data::get::AdditionalMetadata::Photo(photo) = &object.additional
-            {
-                : attachment_details(&object.id, &photo.attachment, &mvimg_split, &now);
-            }
-            else if let picvudb::data::get::AdditionalMetadata::Video(video) = &object.additional
-            {
-                : attachment_details(&object.id, &video.attachment, &mvimg_split, &now);
-            }
+            : attachment_details(&object.id, &object.attachment, &mvimg_split, &now);
 
             : exif_details(&image_analysis);
         }
