@@ -120,16 +120,19 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32) -> Resul
                             for part in value.split(",")
                             {
                                 let part = part.trim();
-                                let strs = part.split('x').collect::<Vec<_>>();
-                                if strs.len() == 2
+                                if let Some(part) = part.split(' ').nth(0)
                                 {
-                                    if let Ok(w) = strs[0].parse::<u32>()
+                                    let strs = part.split('x').collect::<Vec<_>>();
+                                    if strs.len() == 2
                                     {
-                                        if let Ok(h) = strs[1].parse::<u32>()
+                                        if let Ok(w) = strs[0].parse::<u32>()
                                         {
-                                            if dimensions.is_none()
+                                            if let Ok(h) = strs[1].parse::<u32>()
                                             {
-                                                dimensions = Some(Dimensions::new(w, h));
+                                                if dimensions.is_none()
+                                                {
+                                                    dimensions = Some(Dimensions::new(w, h));
+                                                }
                                             }
                                         }
                                     }

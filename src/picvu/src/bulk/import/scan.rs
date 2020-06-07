@@ -239,9 +239,52 @@ fn full_scan<F>(tx: SyncSender<Option<Result<FileEntry, std::io::Error>>>, total
                     return Ok(())
                 }
             }
-
-            bytes_processed += file_size;
         }
+        else // normal file
+        {
+            let entry_display_path = file_name.clone();
+            let entry_archive_path = file_name.clone();
+            let entry_file_name = Path::new(&file_name).file_name().unwrap_or_default().to_str().unwrap().to_owned();
+            let entry_ext = Path::new(&file_name).extension().unwrap_or_default().to_str().unwrap().to_owned().to_ascii_lowercase();
+
+            let entry_file_size: usize = file_size
+                .try_into()
+                .map_err(|_| {std::io::Error::new(std::io::ErrorKind::InvalidData, format!("File {} is too large", file_name))})?;
+
+            let mut bytes = Vec::new();
+
+            if needs_file_bytes(&entry_file_name)
+            {
+                bytes.reserve(entry_file_size);
+                File::open(file_name)?.read_to_end(&mut bytes)?;
+            }
+
+            let percent_bytes = bytes_processed;
+            let percent = (percent_bytes as f64) / (total_bytes as f64) * 100.0;
+            let progress_bytes = format!("Processed {} of {}",
+                format::bytes_to_string(percent_bytes),
+                format::bytes_to_string(total_bytes));
+
+            let result = FileEntry
+            {
+                display_path: entry_display_path,
+                archive_path: entry_archive_path,
+                file_name: entry_file_name,
+                ext: entry_ext,
+                size: entry_file_size as u64,
+                bytes: bytes,
+                percent: percent,
+                progress_bytes: progress_bytes,
+            };
+
+            if tx.send(Some(Ok(result))).is_err()
+            {
+                // The iterator has been dropped - we should abort
+                return Ok(())
+            }
+        }
+
+        bytes_processed += file_size;
     }
 
     // Send through a None to indicate that we're done
