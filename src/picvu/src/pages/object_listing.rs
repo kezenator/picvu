@@ -72,7 +72,7 @@ async fn object_query(state: web::Data<State>, options: &ListViewOptionsForm, qu
 
         if let Some(_progress) = bulk_queue.get_current_progress()
         {
-            return Ok(view::redirect(pages::bulk::BulkPage::path()));
+            return Ok(view::redirect(pages::bulk::BulkPage::progress_path()));
         }
     }
 
@@ -172,18 +172,9 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
                 }
             }
         }
-        h1: "Add New Object";
-        form(method="POST", action=pages::add_object::AddObjectPage::post_path(), enctype="multipart/form-data")
-        {
-            input(type="file", name="file", accept="image/*,video/*");
-            input(type="submit");
-        }
-        h1: "Bulk Import";
-        form(method="POST", action=pages::bulk::BulkPage::bulk_import_path(), enctype="application/x-www-form-urlencoded")
-        {
-            input(type="text", name="folder");
-            input(type="submit");
-        }
+
+        : (pagination(resp.query.clone(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone()));
+
     }.into_string().unwrap();
 
     view::html_page(req, header_links, &title, &contents)
@@ -203,11 +194,13 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
         {
             tr
             {
-                th: "ID";
                 th: "Title";
                 th: "Activity";
                 th: "Size";
                 th: "Mime";
+                th: "Dimensions";
+                th: "Duration";
+                th: "Location";
             }
 
             @for object in resp.objects.iter()
@@ -218,17 +211,20 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
                     {
                         a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
                         {
-                            : object.id.to_string();
+                            : object.title.clone().unwrap_or(object.id.to_string())
                         }
                     }
-
-                    td: object.title.clone().unwrap_or_default();
                     td: format::date_to_str(&object.activity_time, &now);
                     td: format::bytes_to_string(object.attachment.size);
                     td: object.attachment.mime.to_string();
+                    td: object.attachment.dimensions.clone().map(|d| d.to_string()).unwrap_or_default();
+                    td: object.attachment.duration.clone().map(|d| d.to_string()).unwrap_or_default();
+                    td: object.location.clone().map(|l| l.to_string()).unwrap_or_default();
                 }
             }
         }
+
+        : (pagination(resp.query.clone(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone()));
 
     }.into_string().unwrap();
 

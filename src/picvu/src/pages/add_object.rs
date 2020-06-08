@@ -78,6 +78,7 @@ async fn post_add_object(state: web::Data<State>, mut payload: Multipart) -> Res
     let add_msg = analyse::import::create_add_object_for_import(
         bytes,
         &file_name,
+        &analyse::import::ImportOptions::default(),
         None,
         None,
         None,

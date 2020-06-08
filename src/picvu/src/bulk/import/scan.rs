@@ -18,6 +18,8 @@ pub struct FileEntry
     pub archive_path: String,
     pub file_name: String,
     pub ext: String,
+    pub created: Option<picvudb::data::Date>,
+    pub modified: picvudb::data::Date,
     pub size: u64,
     pub bytes: Vec<u8>,
     pub percent: f64,
@@ -34,7 +36,7 @@ impl Scanner
 {
     pub fn new(path: String, progress_sender: ProgressSender) -> Result<Self, std::io::Error>
     {
-        let (total_bytes, file_names) = initial_scan(path, progress_sender)?;
+        let (total_bytes, file_names) = initial_scan(path, &progress_sender)?;
 
         Ok(Scanner { total_bytes, file_names })
     }
@@ -137,10 +139,18 @@ impl std::iter::Iterator for ScanIterator
     }
 }
 
-fn initial_scan(path: String, progress_sender: ProgressSender) -> Result<(u64, Vec<String>), std::io::Error>
+fn scan_dir(path: &std::path::Path, progress_sender: &ProgressSender, total_bytes: &mut u64, file_names: &mut Vec<String>) -> Result<(), std::io::Error>
 {
-    let mut total_bytes: u64 = 0;
-    let mut file_names: Vec<String> = Vec::new();
+    let mut total_bytes = total_bytes;
+    let mut file_names = file_names;
+
+    progress_sender.set(
+        0.0,
+        vec!
+        [
+            format!("Scanning: {}", path.display()),
+            format!("Found {} files, {}", file_names.len(), format::bytes_to_string(*total_bytes))
+        ]);
 
     for entry in std::fs::read_dir(path)?
     {
@@ -155,16 +165,25 @@ fn initial_scan(path: String, progress_sender: ProgressSender) -> Result<(u64, V
 
         if entry.file_type()?.is_dir()
         {
-            // TODO - recurse into dirs
+            scan_dir(&entry.path(), progress_sender, &mut total_bytes, &mut file_names)?;
         }
         else if entry.file_type()?.is_file()
         {
             let metadata = entry.metadata()?;
 
-            total_bytes += metadata.len();
+            *total_bytes += metadata.len();
             file_names.push(path);
         }
     }
+    Ok(())
+}
+
+fn initial_scan(path: String, progress_sender: &ProgressSender) -> Result<(u64, Vec<String>), std::io::Error>
+{
+    let mut total_bytes: u64 = 0;
+    let mut file_names: Vec<String> = Vec::new();
+
+    scan_dir(&Path::new(&path), progress_sender, &mut total_bytes, &mut file_names)?;
 
     Ok((total_bytes, file_names))
 }
@@ -176,7 +195,8 @@ fn full_scan<F>(tx: SyncSender<Option<Result<FileEntry, std::io::Error>>>, total
 
     for file_name in file_names
     {
-        let file_size = std::fs::metadata(file_name.clone())?.len();
+        let file_metadata = std::fs::metadata(file_name.clone())?;
+        let file_size = file_metadata.len();
 
         if file_name.ends_with(".tar.gz")
             || file_name.ends_with(".tgz")
@@ -200,6 +220,8 @@ fn full_scan<F>(tx: SyncSender<Option<Result<FileEntry, std::io::Error>>>, total
                 let entry_archive_path = path_str.clone();
                 let entry_file_name = Path::new(&path_str).file_name().unwrap_or_default().to_str().unwrap().to_owned();
                 let entry_ext = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap().to_owned().to_ascii_lowercase();
+
+                let entry_modified = unix_time_to_date(entry.header().mtime()?)?;
 
                 let tar_bytes_read = counted_get.get();
 
@@ -227,6 +249,8 @@ fn full_scan<F>(tx: SyncSender<Option<Result<FileEntry, std::io::Error>>>, total
                     archive_path: entry_archive_path,
                     file_name: entry_file_name,
                     ext: entry_ext,
+                    created: None,
+                    modified: entry_modified,
                     size: entry_file_size as u64,
                     bytes: bytes,
                     percent: percent,
@@ -246,6 +270,9 @@ fn full_scan<F>(tx: SyncSender<Option<Result<FileEntry, std::io::Error>>>, total
             let entry_archive_path = file_name.clone();
             let entry_file_name = Path::new(&file_name).file_name().unwrap_or_default().to_str().unwrap().to_owned();
             let entry_ext = Path::new(&file_name).extension().unwrap_or_default().to_str().unwrap().to_owned().to_ascii_lowercase();
+
+            let entry_created = system_time_to_date(file_metadata.created()?)?;
+            let entry_modified = system_time_to_date(file_metadata.modified()?)?;
 
             let entry_file_size: usize = file_size
                 .try_into()
@@ -271,6 +298,8 @@ fn full_scan<F>(tx: SyncSender<Option<Result<FileEntry, std::io::Error>>>, total
                 archive_path: entry_archive_path,
                 file_name: entry_file_name,
                 ext: entry_ext,
+                created: Some(entry_created),
+                modified: entry_modified,
                 size: entry_file_size as u64,
                 bytes: bytes,
                 percent: percent,
@@ -338,4 +367,22 @@ impl<SubReader> Read for CountedRead<SubReader>
 
         return result;
     }
+}
+
+fn system_time_to_date(sys_time: std::time::SystemTime) -> Result<picvudb::data::Date, std::io::Error>
+{
+    let duration_since_epoc = sys_time.duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid file time"))?;
+
+    unix_time_to_date(duration_since_epoc.as_secs())
+}
+
+fn unix_time_to_date(unix_time: u64) -> Result<picvudb::data::Date, std::io::Error>
+{
+    let naive = chrono::NaiveDateTime::from_timestamp_opt(unix_time as i64, 0)
+        .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid archive file time"))?;
+
+    let utc = chrono::DateTime::<chrono::Utc>::from_utc(naive, chrono::Utc);
+
+    Ok(picvudb::data::Date::from_chrono(&utc))
 }

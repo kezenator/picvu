@@ -181,7 +181,10 @@ async fn get_video_thumbnail(state: web::Data<State>, path: web::Path<String>, f
 
             let info = web::block(move || -> Result<analyse::video::VideoAnalysisResults, std::io::Error>
             {
-                analyse::video::analyse_video(&bytes, &filename, form.size)
+                let assume_timezone = None;
+                let mut warnings = Vec::new();
+
+                analyse::video::analyse_video(&bytes, &filename, form.size, &assume_timezone, &mut warnings)
             }).await?;
 
             match info.thumbnail

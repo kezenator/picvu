@@ -2,6 +2,30 @@ use std::path::Path;
 use image::GenericImageView;
 
 use crate::analyse;
+use crate::analyse::tz::ExplicitTimezone;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportOptions
+{
+    pub assume_timezone: Option<ExplicitTimezone>,
+    pub force_timezone: Option<ExplicitTimezone>,
+    pub assume_notes: Option<String>,
+    pub assume_location: Option<picvudb::data::Location>,
+}
+
+impl Default for ImportOptions
+{
+    fn default() -> Self
+    {
+        ImportOptions
+        {
+            assume_timezone: None,
+            force_timezone: None,
+            assume_notes: None,
+            assume_location: None,
+        }
+    }
+}
 
 pub fn guess_mime_type_from_filename(filename: &String) -> Option<mime::Mime>
 {
@@ -40,6 +64,7 @@ pub fn guess_mime_type_from_filename(filename: &String) -> Option<mime::Mime>
 pub fn create_add_object_for_import(
     bytes: Vec<u8>,
     file_name: &String,
+    import_options: &ImportOptions,
     opt_file_created_time: Option<picvudb::data::Date>,
     opt_file_modified_time: Option<picvudb::data::Date>,
     opt_google_photos_takeout_metadata: Option<analyse::takeout::Metadata>,
@@ -52,20 +77,25 @@ pub fn create_add_object_for_import(
     let mut title = file_name.clone();
     let mut notes = None;
     let mut obj_created_time = None;
-    let mut obj_activity_time = None;
+    let mut obj_activity_time;
     let mut location = None;
     let mut attachment_created_time = opt_file_created_time.unwrap_or(now.clone());
-    let mut attachment_modified_time = opt_file_modified_time.unwrap_or(now.clone());
+    let mut attachment_modified_time = opt_file_modified_time.clone().unwrap_or(now.clone());
     let mut orientation = None;
     let mut dimensions = None;
     let mut duration = None;
-
-    let mut got_better_activity_time = false;
 
     // Try and guess the MIME type
 
     let mut mime = guess_mime_type_from_filename(file_name)
         .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Cannot guess MIME type for file {}", file_name)))?;
+
+    // Often, the file created time is not useful - it will be the last time
+    // the file was copied to a new folder. However, copy operations
+    // to maintain the modified time. So lets use the file modified time
+    // as the first, worse guess at the media time
+
+    obj_activity_time = opt_file_modified_time;
 
     // Process the Google Photos Takeout Metadata if provided
 
@@ -110,13 +140,21 @@ pub fn create_add_object_for_import(
 
         if let Ok(md_photo_taken_timestamp) = metadata.photo_taken_time.timestamp.parse::<i64>()
         {
+            // The Google Takeout metadata has some good times. We should certainly
+            // use this instead of the archive time, because the archive times
+            // are just when the Google Takeout operation was started.
+            // However, they seem to be more related to the time the file was uploaded to
+            // Google - so if you were out in the bush they can be a couple of days
+            // off (until you returned to a service area). As such, we'll
+            // take this here, but still overrite it with the photo GPS information
+            // from below if that's available.
+
             let local_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
                     chrono::NaiveDateTime::from_timestamp(md_photo_taken_timestamp, 0),
                     chrono::Utc)
                 .with_timezone(&chrono::Local);
 
             obj_activity_time = Some(picvudb::data::Date::from_chrono(&local_date_time));
-            got_better_activity_time = true;
         }
 
         if let Some(md_location) = metadata.geo_data
@@ -153,8 +191,11 @@ pub fn create_add_object_for_import(
 
                 if analysis.orig_taken.is_some()
                 {
+                    // If we have a orig taken EXIF field in the
+                    // image, then this is the best guess of when
+                    // the photo was actually taken.
+
                     obj_activity_time = analysis.orig_taken;
-                    got_better_activity_time = true;
                 }
 
                 if analysis.location.is_some()
@@ -204,7 +245,7 @@ pub fn create_add_object_for_import(
                 // It's a JPEG with an MP4 attached - analyse the
                 // MP4 to collect a duration
 
-                match analyse::video::analyse_video(&bytes[mp4_offset..], file_name, 128)
+                match analyse::video::analyse_video(&bytes[mp4_offset..], file_name, 128, &import_options.assume_timezone, warnings)
                 {
                     Err(err) =>
                     {
@@ -235,7 +276,7 @@ pub fn create_add_object_for_import(
 
     if mime.type_() == mime::VIDEO
     {
-        match analyse::video::analyse_video(&bytes, file_name, 128)
+        match analyse::video::analyse_video(&bytes, file_name, 128, &import_options.assume_timezone, warnings)
         {
             Err(err) =>
             {
@@ -243,13 +284,13 @@ pub fn create_add_object_for_import(
             },
             Ok(info) =>
             {
-                if !got_better_activity_time
+                if info.date.is_some()
                 {
-                    if let Some(date) = info.date
-                    {
-                        obj_activity_time = Some(date);
-                        //got_better_activity_time = true;
-                    }                    
+                    // Similar to images, if the
+                    // video has a date embedded in it, we will
+                    // take this as a good guess.
+
+                    obj_activity_time = info.date;
                 }
 
                 if location.is_none()
@@ -281,6 +322,33 @@ pub fn create_add_object_for_import(
     if let Some(dim) = dimensions
     {
         dimensions = Some(dim.adjust_for_orientation(&orientation));
+    }
+
+    // Finally, adjust any fields that are specified
+    // in the import options
+
+    if let Some(forced_tz) = import_options.force_timezone.clone()
+    {
+        attachment_created_time = forced_tz.adjust(&attachment_created_time);
+        attachment_modified_time = forced_tz.adjust(&attachment_modified_time);
+        obj_created_time = forced_tz.adjust_opt(&obj_created_time);
+        obj_activity_time = forced_tz.adjust_opt(&obj_activity_time);
+    }
+
+    if let Some(assume_notes) = import_options.assume_notes.clone()
+    {
+        if notes.is_none()
+        {
+            notes = Some(assume_notes);
+        }
+    }
+
+    if let Some(assume_location) = import_options.assume_location.clone()
+    {
+        if location.is_none()
+        {
+            location = Some(assume_location);
+        }
     }
     
     // Construct the Add Object request

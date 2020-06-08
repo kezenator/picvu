@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 
 use picvudb::data::{Date, Dimensions, Duration, Location, Orientation};
+use crate::analyse::tz::ExplicitTimezone;
 
 #[derive(Debug)]
 pub struct Thumbnail
@@ -21,7 +22,7 @@ pub struct VideoAnalysisResults
     pub thumbnail: Option<Thumbnail>,
 }
 
-pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32) -> Result<VideoAnalysisResults, std::io::Error>
+pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_timezone: &Option<ExplicitTimezone>, warnings: &mut Vec<String>) -> Result<VideoAnalysisResults, std::io::Error>
 {
     let mut date = None;
     let mut location = None;
@@ -29,6 +30,8 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32) -> Resul
     let mut dimensions = None;
     let mut duration = None;
     let mut thumbnail = None;
+
+    let mut times_are_local = false;
 
     let video_file = tempfile::NamedTempFile::new()?;
     video_file.as_file().write_all(bytes)?;
@@ -45,11 +48,35 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32) -> Resul
             
             match param
             {
+                "compatible_brands" =>
+                {
+                    // For the movies my Nikon CoolPix W300 makes,
+                    // FFPROBE reports the creation time with a "Z" prefix,
+                    // but the times are actually in local time
+
+                    times_are_local = true;
+                },
                 "creation_time" =>
                 {
                     if date.is_none()
                     {
-                        if let Ok(decoded) = value.parse::<chrono::DateTime<chrono::Utc>>()
+                        if times_are_local
+                        {
+                            if let Some(assume_timezone) = assume_timezone.clone()
+                            {
+                                if let Ok(decoded) = value.parse::<chrono::DateTime<chrono::Utc>>()
+                                {
+                                    let naive = decoded.naive_local();
+                                    let to_local = assume_timezone.from_local_assuming_tz(&naive);
+                                    date = Some(to_local);
+                                }
+                            }
+                            else
+                            {
+                                warnings.push(format!("{}: No assumed timezone has been provided to process video creation time in local time format: {}", filename, value));
+                            }
+                        }
+                        else if let Ok(decoded) = value.parse::<chrono::DateTime<chrono::Utc>>()
                         {
                             date = Some(Date::from_chrono(&decoded));
                         }

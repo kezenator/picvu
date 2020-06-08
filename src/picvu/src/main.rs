@@ -1,7 +1,8 @@
-extern crate actix_rt;
 use std::sync::{Arc, Mutex};
 use actix::SyncArbiter;
 use actix_web::{web, App, HttpServer, HttpResponse};
+use structopt::StructOpt;
+
 use googlephotos::auth::GoogleAuthClient;
 
 mod analyse;
@@ -23,6 +24,18 @@ pub struct State {
     header_links: pages::HeaderLinkCollection,
 }
 
+#[derive(Debug, StructOpt)]
+#[structopt(name = "picvu", about = "A locally-hosted website for managing photos, including Google Photos integration")]
+struct CmdArgs
+{
+    /// The database file name to use
+    #[structopt(short, long, default_value="picvu.db")]
+    file: String,
+    /// The hostname to serve the web-site from
+    #[structopt(short, long, default_value="localhost:8080")]
+    host: String,
+}
+
 async fn get_index() -> HttpResponse
 {
     view::redirect(pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::ByActivityDesc))
@@ -31,8 +44,11 @@ async fn get_index() -> HttpResponse
 #[actix_rt::main]
 async fn main() -> std::io::Result<()>
 {
+    let args = CmdArgs::from_args();
 
-    let db_uri = "E:\\test.db";
+    let db_uri1 = args.file.clone();
+    let db_uri2 = args.file;
+    let host_base = format!("http://{}", args.host);
 
     // TODO - better file handling
     //let _remove_err = std::fs::remove_file(db_uri);
@@ -43,7 +59,7 @@ async fn main() -> std::io::Result<()>
         let sys = actix::System::new("picvu-db");
 
         let addr = SyncArbiter::start(1, move || {
-            db::DbExecutor::new(picvudb::Store::new(db_uri).expect("Could not open DB"))
+            db::DbExecutor::new(picvudb::Store::new(&db_uri1).expect("Can't open database"))
         });
 
         tx.send(addr).unwrap();
@@ -70,10 +86,10 @@ async fn main() -> std::io::Result<()>
 
         let state = State
         {
-            host_base: "http://localhost:8080".to_owned(),
+            host_base: host_base.clone(),
             bulk_queue: bulk_queue.clone(),
             db: db::DbAddr::new(addr.clone()),
-            db_uri: db_uri.to_owned(),
+            db_uri: db_uri2.clone(),
             google_auth_client: google_auth_client.clone(),
             header_links: page_builder.header_links,
         };

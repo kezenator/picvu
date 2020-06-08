@@ -26,16 +26,18 @@ pub struct FolderImport
 {
     folder_path: String,
     db_uri: String,
+    import_options: analyse::import::ImportOptions,
 }
 
 impl FolderImport
 {
-    pub fn new(folder_path: String, db_uri: String) -> Self
+    pub fn new(folder_path: String, db_uri: String, import_options: analyse::import::ImportOptions) -> Self
     {
         FolderImport
         {
             folder_path,
             db_uri,
+            import_options,
         }
     }
 }
@@ -150,6 +152,7 @@ impl BulkOperation for FolderImport
                 let mut summary_skipped_media_files: usize = 0;
 
                 let store = picvudb::Store::new(&self.db_uri)?;
+                let import_options = self.import_options.clone();
 
                 {
                     for entry in scanner.iter(|_| { true })
@@ -230,8 +233,9 @@ impl BulkOperation for FolderImport
                                 let add_msg = analyse::import::create_add_object_for_import(
                                     entry.bytes,
                                     &entry.file_name,
-                                    None,
-                                    None,
+                                    &import_options,
+                                    entry.created,
+                                    Some(entry.modified),
                                     google_metadata,
                                     &mut warnings)?;
 
