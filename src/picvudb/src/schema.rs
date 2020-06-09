@@ -57,5 +57,15 @@ table! {
     }
 }
 
+table! {
+    objects_location (id) {
+        id -> BigInt,
+        min_lat -> Double,
+        max_lat -> Double,
+        min_long -> Double,
+        max_long -> Double,
+    }
+}
+
 joinable!(attachments_metadata -> objects (obj_id));
 allow_tables_to_appear_in_same_query!(objects, attachments_metadata);

@@ -238,6 +238,22 @@ impl<'a> WriteOps for Transaction<'a>
                 .execute(self.connection)?;
         }
 
+        if let (Some(lat), Some(long)) = (latitude, longitude)
+        {
+            let location_insert_value = ObjectsLocation
+            {
+                id: new_id.new_id,
+                min_lat: lat,
+                max_lat: lat,
+                min_long: long,
+                max_long: long,
+            };
+
+            diesel::insert_into(schema::objects_location::table)
+                .values(vec![location_insert_value])
+                .execute(self.connection)?;
+        }
+
         // Return the created object
 
         let model_object = Object
@@ -336,19 +352,14 @@ impl<'a> WriteOps for Transaction<'a>
             rating: rating.map(|r| r.to_db_field()),
             censor: censor.to_db_field(),
             latitude: location.clone().map(|l| l.latitude),
-            longitude: location.map(|l| l.longitude),
+            longitude: location.clone().map(|l| l.longitude),
         };
 
         diesel::update(&object).set(changeset).execute(self.connection)?;
 
-        if title.is_none() && notes.is_none()
-        {
-            use schema::objects_fts::dsl::*;
+        // Update the associated indexes
 
-            diesel::delete(objects_fts.filter(id.eq(obj_id)))
-                .execute(self.connection)?;
-        }
-        else
+        if title.is_some() || notes.is_some()
         {
             let fts_insert_value = ObjectsFts
             {
@@ -359,6 +370,36 @@ impl<'a> WriteOps for Transaction<'a>
 
             diesel::replace_into(schema::objects_fts::table)
                 .values(vec![fts_insert_value])
+                .execute(self.connection)?;
+        }
+        else
+        {
+            use schema::objects_fts::dsl::*;
+
+            diesel::delete(objects_fts.filter(id.eq(obj_id)))
+                .execute(self.connection)?;
+        }
+
+        if let Some(loc) = location
+        {
+            let location_insert_value = ObjectsLocation
+            {
+                id: obj_id,
+                min_lat: loc.latitude,
+                max_lat: loc.latitude,
+                min_long: loc.longitude,
+                max_long: loc.longitude,
+            };
+
+            diesel::replace_into(schema::objects_location::table)
+                .values(vec![location_insert_value])
+                .execute(self.connection)?;
+        }
+        else
+        {
+            use schema::objects_location::dsl::*;
+
+            diesel::delete(objects_location.filter(id.eq(obj_id)))
                 .execute(self.connection)?;
         }
 

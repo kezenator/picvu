@@ -68,3 +68,9 @@ CREATE VIRTUAL TABLE objects_fts USING fts5(
   prefix = 3,
   content = objects,
   content_rowid = id);
+
+CREATE VIRTUAL TABLE objects_location USING rtree(
+  id,
+  min_lat, max_lat,
+  min_long, max_long,
+)

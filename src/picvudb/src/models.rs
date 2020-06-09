@@ -114,3 +114,15 @@ pub struct ObjectsFts
     pub title: Option<String>,
     pub notes: Option<String>,
 }
+
+#[derive(Queryable)]
+#[derive(Insertable)]
+#[table_name="objects_location"]
+pub struct ObjectsLocation
+{
+    pub id: i64,
+    pub min_lat: f64,
+    pub max_lat: f64,
+    pub min_long: f64,
+    pub max_long: f64,
+}
