@@ -7,7 +7,7 @@ table! {
 
 table! {
     objects (id) {
-        id -> Text,
+        id -> BigInt,
         created_timestamp -> BigInt,
         created_offset -> Integer,
         modified_timestamp -> BigInt,
@@ -25,7 +25,7 @@ table! {
 
 table! {
     attachments_metadata (obj_id) {
-        obj_id -> Text,
+        obj_id -> BigInt,
         filename -> Text,
         created_timestamp -> BigInt,
         created_offset -> Integer,
@@ -43,7 +43,7 @@ table! {
 
 table! {
     attachments_data (obj_id, offset) {
-        obj_id -> Text,
+        obj_id -> BigInt,
         offset -> BigInt,
         bytes -> Blob,
     }

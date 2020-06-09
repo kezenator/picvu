@@ -128,7 +128,7 @@ impl ApiMessage for GetObjectsRequest
             data::get::GetObjectsQuery::ByActivityDesc => ops.get_objects_by_activity_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByModifiedDesc => ops.get_objects_by_modified_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_objects_by_attachment_size_desc(pagination.offset, pagination.page_size)?,
-            data::get::GetObjectsQuery::ByObjectId(obj_id) => ops.get_object_by_id(obj_id.to_string())?.iter().map(|o| { o.clone() }).collect(),
+            data::get::GetObjectsQuery::ByObjectId(obj_id) => ops.get_object_by_id(obj_id.to_db_field())?.iter().map(|o| { o.clone() }).collect(),
         };
 
         results.reserve(from_db.len());
@@ -137,7 +137,7 @@ impl ApiMessage for GetObjectsRequest
         {
             let attachment = 
             {
-                if let Some(attachment) = ops.get_attachment_metadata(&object.id)?
+                if let Some(attachment) = ops.get_attachment_metadata(object.id)?
                 {
                     data::get::AttachmentMetadata
                     {
@@ -175,7 +175,7 @@ impl ApiMessage for GetObjectsRequest
 
             results.push(data::get::ObjectMetadata
             {
-                id: data::ObjectId::new(object.id),
+                id: data::ObjectId::from_db_field(object.id),
                 created_time: data::Date::from_db_fields(object.created_timestamp, object.created_offset)?,
                 modified_time: data::Date::from_db_fields(object.modified_timestamp, object.modified_offset)?,
                 activity_time: data::Date::from_db_fields(object.activity_timestamp, object.activity_offset)?,
@@ -234,7 +234,7 @@ impl ApiMessage for AddObjectRequest
             self.data.location.clone())?;
 
         ops.add_attachment(
-            &object.id,
+            object.id,
             self.data.attachment.filename.clone(),
             self.data.attachment.created.clone(),
             self.data.attachment.modified.clone(),
@@ -244,7 +244,7 @@ impl ApiMessage for AddObjectRequest
             self.data.attachment.duration.clone(),
             self.data.attachment.bytes.clone())?;
 
-        Ok(AddObjectResponse{ object_id: data::ObjectId::new(object.id) })
+        Ok(AddObjectResponse{ object_id: data::ObjectId::from_db_field(object.id) })
     }
 }
 
@@ -268,7 +268,7 @@ impl ApiMessage for GetAttachmentDataRequest
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
-        let metadata = ops.get_attachment_metadata(&self.object_id.to_db_field())?;
+        let metadata = ops.get_attachment_metadata(self.object_id.to_db_field())?;
         match metadata
         {
             None => Ok(GetAttachmentDataResponse::ObjectNotFound),
@@ -290,7 +290,7 @@ impl ApiMessage for GetAttachmentDataRequest
                 if self.specific_hash.is_none()
                     || (*self.specific_hash.as_ref().unwrap() == metadata.hash)
                 {
-                    let bytes = ops.get_attachment_data(&self.object_id.to_db_field())?
+                    let bytes = ops.get_attachment_data(self.object_id.to_db_field())?
                         .ok_or(Error::DatabaseConsistencyError{ msg: format!("Object {} contains attachment metadata but no attachment data", self.object_id.to_db_field()) })?;
                     
                     Ok(GetAttachmentDataResponse::Found{metadata, bytes})

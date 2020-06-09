@@ -2,6 +2,7 @@ mod censor;
 mod date;
 mod dimensions;
 mod duration;
+mod id;
 mod location;
 mod objectid;
 mod orientation;

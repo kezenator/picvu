@@ -32,7 +32,12 @@ impl PageResources for ObjectDetailsPage
 
 async fn get_object_details(state: web::Data<State>, object_id: web::Path<String>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
-    let object_id = picvudb::data::ObjectId::new(object_id.to_string());
+    let object_id = match picvudb::data::ObjectId::try_new(object_id.to_string())
+    {
+        Some(o) => o,
+        None => return Ok(view::err(HttpResponse::NotFound(), "Object not found")),
+    };
+
     let query = picvudb::data::get::GetObjectsQuery::ByObjectId(object_id);
     let pagination = picvudb::data::get::PaginationRequest
     {

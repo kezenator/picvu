@@ -48,7 +48,7 @@ impl<'a> ReadOps for Transaction<'a>
         self.get_num_objects()
     }
 
-    fn get_object_by_id(&self, obj_id: String) -> Result<Option<Object>, Error>
+    fn get_object_by_id(&self, obj_id: i64) -> Result<Option<Object>, Error>
     {
         use schema::objects::dsl::*;
 
@@ -101,7 +101,7 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(results)
     }
 
-    fn get_attachment_metadata(&self, q_obj_id: &String) -> Result<Option<AttachmentMetadata>, Error>
+    fn get_attachment_metadata(&self, q_obj_id: i64) -> Result<Option<AttachmentMetadata>, Error>
     {
         use schema::attachments_metadata::dsl::*;
 
@@ -114,7 +114,7 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(metadata)
     }
 
-    fn get_attachment_data(&self, q_obj_id: &String) -> Result<Option<Vec<u8>>, Error>
+    fn get_attachment_data(&self, q_obj_id: i64) -> Result<Option<Vec<u8>>, Error>
     {
         use schema::attachments_data::dsl::*;
 
@@ -196,14 +196,35 @@ impl<'a> WriteOps for Transaction<'a>
         let created_time = created_time.unwrap_or(modified_time.clone());
         let activity_time = activity_time.unwrap_or(created_time.clone());
 
-        let id = format!("{}", uuid::Uuid::new_v4());
-
         let latitude = location.clone().map(|l| l.latitude);
         let longitude = location.clone().map(|l| l.longitude);
 
+        let insertable_object = InsertableObject
+        {
+            created_timestamp: created_time.to_db_timestamp(),
+            created_offset: created_time.to_db_offset(),
+            modified_timestamp: modified_time.to_db_timestamp(),
+            modified_offset: modified_time.to_db_offset(),
+            activity_timestamp: activity_time.to_db_timestamp(),
+            activity_offset: activity_time.to_db_offset(),
+            title: title.clone(),
+            notes: notes.clone(),
+            rating: rating.clone().map(|r| { r.to_db_field() }),
+            censor: censor.to_db_field(),
+            latitude: latitude,
+            longitude: longitude,
+        };
+
+        diesel::insert_into(schema::objects::table)
+            .values(&insertable_object)
+            .execute(self.connection)?;
+
+        let new_id: NewId = diesel::sql_query("SELECT last_insert_rowid() as 'new_id'")
+            .get_result(self.connection)?;
+
         let model_object = Object
         {
-            id: id.clone(),
+            id: new_id.new_id,
             created_timestamp: created_time.to_db_timestamp(),
             created_offset: created_time.to_db_offset(),
             modified_timestamp: modified_time.to_db_timestamp(),
@@ -218,14 +239,10 @@ impl<'a> WriteOps for Transaction<'a>
             longitude: longitude,
         };
 
-        diesel::insert_into(schema::objects::table)
-            .values(&model_object)
-            .execute(self.connection)?;
-
         Ok(model_object)
     }
 
-    fn add_attachment(&self, obj_id: &String, filename: String, created: data::Date, modified: data::Date, mime: String, orientation: Option<data::Orientation>, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>
+    fn add_attachment(&self, obj_id: i64, filename: String, created: data::Date, modified: data::Date, mime: String, orientation: Option<data::Orientation>, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>
     {
         if bytes.is_empty()
         {
@@ -243,7 +260,7 @@ impl<'a> WriteOps for Transaction<'a>
 
         let model_metadata = AttachmentMetadata
         {
-            obj_id: obj_id.clone(),
+            obj_id: obj_id,
             filename: filename,
             created_timestamp: created.to_db_timestamp(),
             created_offset: created.to_db_offset(),

@@ -4,7 +4,7 @@ CREATE TABLE db_properties (
 );
 
 CREATE TABLE objects (
-  id TEXT NOT NULL PRIMARY KEY,
+  id INTEGER PRIMARY KEY,
   created_timestamp INTEGER NOT NULL,
   created_offset INTEGER NOT NULL,
   modified_timestamp INTEGER NOT NULL,
@@ -26,7 +26,7 @@ CREATE INDEX objects_by_activity_timestamp
   ON objects(activity_timestamp, id);
 
 CREATE TABLE attachments_metadata (
-  obj_id TEXT NOT NULL PRIMARY KEY,
+  obj_id INTEGER PRIMARY KEY,
   filename TEXT NOT NULL,
   created_timestamp INTEGER NOT NULL,
   created_offset INTEGER NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE attachments_metadata (
 );
 
 CREATE TABLE attachments_data (
-  obj_id TEXT NOT NULL,
+  obj_id INTEGER NOT NULL,
   offset BIGINT NOT NULL,
   bytes BLOB NOT NULL,
   UNIQUE(obj_id, offset)
