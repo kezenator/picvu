@@ -59,3 +59,12 @@ CREATE INDEX attachments_metadata_by_hash
 
 create INDEX attachments_data_by_obj_id_offset
   ON attachments_data(obj_id, offset);
+
+CREATE VIRTUAL TABLE objects_fts USING fts5(
+  id,
+  title,
+  notes,
+  tokenize = 'porter unicode61',
+  prefix = 3,
+  content = objects,
+  content_rowid = id);

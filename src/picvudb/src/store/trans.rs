@@ -222,6 +222,24 @@ impl<'a> WriteOps for Transaction<'a>
         let new_id: NewId = diesel::sql_query("SELECT last_insert_rowid() as 'new_id'")
             .get_result(self.connection)?;
 
+        // Now add data to the extra search indexes
+
+        if title.is_some() || notes.is_some()
+        {
+            let fts_insert_value = ObjectsFts
+            {
+                id: new_id.new_id,
+                title: title.clone(),
+                notes: notes.clone(),
+            };
+
+            diesel::insert_into(schema::objects_fts::table)
+                .values(vec![fts_insert_value])
+                .execute(self.connection)?;
+        }
+
+        // Return the created object
+
         let model_object = Object
         {
             id: new_id.new_id,
@@ -313,8 +331,8 @@ impl<'a> WriteOps for Transaction<'a>
         {
             activity_timestamp: activity_time.to_db_timestamp(),
             activity_offset: activity_time.to_db_offset(),
-            title,
-            notes,
+            title: title.clone(),
+            notes: notes.clone(),
             rating: rating.map(|r| r.to_db_field()),
             censor: censor.to_db_field(),
             latitude: location.clone().map(|l| l.latitude),
@@ -322,6 +340,27 @@ impl<'a> WriteOps for Transaction<'a>
         };
 
         diesel::update(&object).set(changeset).execute(self.connection)?;
+
+        if title.is_none() && notes.is_none()
+        {
+            use schema::objects_fts::dsl::*;
+
+            diesel::delete(objects_fts.filter(id.eq(obj_id)))
+                .execute(self.connection)?;
+        }
+        else
+        {
+            let fts_insert_value = ObjectsFts
+            {
+                id: obj_id,
+                title: title,
+                notes: notes,
+            };
+
+            diesel::replace_into(schema::objects_fts::table)
+                .values(vec![fts_insert_value])
+                .execute(self.connection)?;
+        }
 
         Ok(())
     }

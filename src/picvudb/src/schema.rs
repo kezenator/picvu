@@ -49,5 +49,13 @@ table! {
     }
 }
 
+table! {
+    objects_fts (id) {
+        id -> BigInt,
+        title -> Nullable<Text>,
+        notes -> Nullable<Text>,
+    }
+}
+
 joinable!(attachments_metadata -> objects (obj_id));
 allow_tables_to_appear_in_same_query!(objects, attachments_metadata);

@@ -104,3 +104,13 @@ pub struct AttachmentData
     pub offset: i64,
     pub bytes: Vec<u8>,
 }
+
+#[derive(Queryable)]
+#[derive(Insertable)]
+#[table_name="objects_fts"]
+pub struct ObjectsFts
+{
+    pub id: i64,
+    pub title: Option<String>,
+    pub notes: Option<String>,
+}
