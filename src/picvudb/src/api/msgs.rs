@@ -315,3 +315,40 @@ pub enum GetAttachmentDataResponse
         bytes: Vec<u8>,
     },
 }
+
+#[derive(Debug)]
+pub struct UpdateObjectRequest
+{
+    pub object_id: data::ObjectId,
+    pub activity_time: data::Date,
+    pub title: Option<String>,
+    pub notes: Option<String>,
+    pub rating: Option<data::Rating>,
+    pub censor: data::Censor,
+    pub location: Option<data::Location>,
+}
+
+impl ApiMessage for UpdateObjectRequest
+{
+    type Response = UpdateObjectResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        ops.update_object(
+            self.object_id.to_db_field(),
+            self.activity_time.clone(),
+            self.title.clone(),
+            self.notes.clone(),
+            self.rating.clone(),
+            self.censor.clone(),
+            self.location.clone())?;
+
+        Ok(UpdateObjectResponse{})
+    }
+}
+
+#[derive(Debug)]
+pub struct UpdateObjectResponse
+{
+}

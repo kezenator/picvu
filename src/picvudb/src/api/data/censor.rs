@@ -1,6 +1,6 @@
 use crate::Error;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Censor
 {
     FamilyFriendly,
@@ -46,5 +46,22 @@ impl ToString for Censor
             Self::FullNudes => "Full Nudes",
             Self::Explicit => "Explicit",
         }.to_owned()
+    }
+}
+
+impl std::str::FromStr for Censor
+{
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err>
+    {
+        match s
+        {
+            "Family Friendly" => Ok(Self::FamilyFriendly),
+            "Tasteful Nudes" => Ok(Self::TastefulNudes),
+            "Full Nudes" => Ok(Self::FullNudes),
+            "Explicit" => Ok(Self::Explicit),
+            _ => Err(Error::DatabaseConsistencyError{msg : "Invalid Censor".to_owned() }),
+        }
     }
 }

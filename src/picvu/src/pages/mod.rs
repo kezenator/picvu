@@ -5,6 +5,7 @@ pub mod add_object;
 pub mod attachments;
 pub mod auth;
 pub mod bulk;
+pub mod edit_object;
 pub mod object_details;
 pub mod object_listing;
 pub mod setup;

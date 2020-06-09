@@ -73,11 +73,7 @@ pub struct FormMvImg
 
 async fn get_attachment(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<FormAttachment>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    let object_id = match picvudb::data::ObjectId::try_new(object_id.to_string())
-    {
-        Some(o) => o,
-        None => return Ok(view::err(HttpResponse::NotFound(), "Object not found")),
-    };
+    let object_id = picvudb::data::ObjectId::try_new(object_id.to_string())?;
 
     let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
     let response = state.db.send(msg).await??;
@@ -101,11 +97,7 @@ async fn get_attachment(state: web::Data<State>, object_id: web::Path<String>, f
 
 async fn get_img_thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<FormThumbnail>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    let object_id = match picvudb::data::ObjectId::try_new(path.to_string())
-    {
-        Some(o) => o,
-        None => return Ok(view::err(HttpResponse::NotFound(), "Object not found")),
-    };
+    let object_id = picvudb::data::ObjectId::try_new(path.to_string())?;
 
     let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
     let response = state.db.send(msg).await??;
@@ -168,11 +160,7 @@ async fn get_img_thumbnail(state: web::Data<State>, path: web::Path<String>, for
 
 async fn get_video_thumbnail(state: web::Data<State>, path: web::Path<String>, form: web::Query<FormThumbnail>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    let object_id = match picvudb::data::ObjectId::try_new(path.to_string())
-    {
-        Some(o) => o,
-        None => return Ok(view::err(HttpResponse::NotFound(), "Object not found")),
-    };
+    let object_id = picvudb::data::ObjectId::try_new(path.to_string())?;
 
     let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
     let response = state.db.send(msg).await??;
@@ -220,11 +208,7 @@ async fn get_video_thumbnail(state: web::Data<State>, path: web::Path<String>, f
 
 async fn get_mvimg(state: web::Data<State>, object_id: web::Path<String>, form: web::Query<FormMvImg>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    let object_id = match picvudb::data::ObjectId::try_new(object_id.to_string())
-    {
-        Some(o) => o,
-        None => return Ok(view::err(HttpResponse::NotFound(), "Object not found")),
-    };
+    let object_id = picvudb::data::ObjectId::try_new(object_id.to_string())?;
 
     let msg = picvudb::msgs::GetAttachmentDataRequest{ object_id, specific_hash: Some(form.hash.clone()) };
     let response = state.db.send(msg).await??;

@@ -1,6 +1,6 @@
-use crate::Error;
+use crate::{Error, ParseError};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Rating
 {
     OneStar,
@@ -12,16 +12,16 @@ pub enum Rating
 
 impl Rating
 {
-    pub fn from_num_stars(num: u8) -> Option<Self>
+    pub fn from_num_stars(num: u8) -> Result<Self, ParseError>
     {
         match num
         {
-            1 => Some(Self::OneStar),
-            2 => Some(Self::TwoStars),
-            3 => Some(Self::ThreeStars),
-            4 => Some(Self::FourStars),
-            5 => Some(Self::FiveStars),
-            _ => None,
+            1 => Ok(Self::OneStar),
+            2 => Ok(Self::TwoStars),
+            3 => Ok(Self::ThreeStars),
+            4 => Ok(Self::FourStars),
+            5 => Ok(Self::FiveStars),
+            _ => Err(ParseError::new(format!("Invalid rating number of stars: {}", num))),
         }
     }
 
@@ -44,8 +44,7 @@ impl Rating
 
     pub(crate) fn from_db_field(num: i32) -> Result<Self, Error>
     {
-        Self::from_num_stars(num as u8)
-            .ok_or(Error::DatabaseConsistencyError{ msg: format!("Invalid Rating: {} stars", num) })
+        Self::from_num_stars(num as u8).map_err(|e| e.into())
     }
 }
 

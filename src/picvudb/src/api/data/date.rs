@@ -1,8 +1,8 @@
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Local, Offset, Utc};
 
-use crate::Error;
+use crate::{Error, ParseError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Date(DateTime<FixedOffset>);
 
 impl Date
@@ -14,6 +14,13 @@ impl Date
         let value = local.with_timezone(&fixed);
 
         Date(value)
+    }
+
+    pub fn from_rfc3339(s: &str) -> Result<Self, ParseError>
+    {
+        let fixed = chrono::DateTime::parse_from_rfc3339(s).map_err(|_| ParseError::new("Invalid Date/Time string"))?;
+
+        Ok(Self::from_chrono(&fixed))
     }
 
     pub fn from_chrono<T>(local: &chrono::DateTime<T>) -> Self

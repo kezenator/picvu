@@ -53,6 +53,28 @@ pub struct NewId
     pub new_id: i64
 }
 
+#[derive(Identifiable)]
+#[table_name="objects"]
+pub struct UpdateObjectId
+{
+    pub id: i64,
+}
+
+#[derive(AsChangeset)]
+#[table_name="objects"]
+#[changeset_options(treat_none_as_null="true")]
+pub struct UpdateObjectChangeset
+{
+    pub activity_timestamp: i64,
+    pub activity_offset: i32,
+    pub title: Option<String>,
+    pub notes: Option<String>,
+    pub rating: Option<i32>,
+    pub censor: i32,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+}
+
 #[derive(Queryable)]
 #[derive(Insertable)]
 #[table_name="attachments_metadata"]

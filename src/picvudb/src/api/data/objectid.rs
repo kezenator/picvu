@@ -1,13 +1,14 @@
 use serde::Serialize;
 
 use crate::data::id;
+use crate::ParseError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ObjectId(i64);
 
 impl ObjectId
 {
-    pub fn try_new(id: String) -> Option<Self>
+    pub fn try_new(id: String) -> Result<Self, ParseError>
     {
         id::decode(&id, "o").map(|val| ObjectId(val))
     }

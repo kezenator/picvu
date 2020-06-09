@@ -77,6 +77,7 @@ async fn main() -> std::io::Result<()>
 
         pages::object_details::ObjectDetailsPage::page_resources(&mut page_builder);
         pages::object_listing::ObjectListingPage::page_resources(&mut page_builder);
+        pages::edit_object::EditObjectPage::page_resources(&mut page_builder);
         pages::attachments::AttachmentsPage::page_resources(&mut page_builder);
         pages::setup::SetupPage::page_resources(&mut page_builder);
         pages::auth::AuthPage::page_resources(&mut page_builder);

@@ -25,4 +25,5 @@ pub trait WriteOps: ReadOps
     fn set_properties(&self, properties: &HashMap<String, String>) -> Result<(), Error>;
     fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<Object, Error>;
     fn add_attachment(&self, obj_id: i64, filename: String, created: data::Date, modified: data::Date, mime: String, orientation: Option<data::Orientation>, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>;
+    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>;
 }

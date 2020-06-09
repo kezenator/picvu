@@ -1,3 +1,5 @@
+use crate::ParseError;
+
 pub fn encode(val: i64, suffix: &'static str) -> String
 {
     let mut plain = val.to_string();
@@ -16,25 +18,27 @@ pub fn encode(val: i64, suffix: &'static str) -> String
     data_encoding::BASE64URL.encode(plain.as_bytes())
 }
 
-pub fn decode(encoded: &str, suffix: &'static str) -> Option<i64>
+pub fn decode(encoded: &str, suffix: &'static str) -> Result<i64, ParseError>
 {
-    let bytes = data_encoding::BASE64URL.decode(encoded.as_bytes()).ok()?;
-    let plain = String::from_utf8(bytes).ok()?;
-
-    let val_str = plain.trim_end_matches('=').trim_end_matches(suffix);
-
-    let val = val_str.parse().ok()?;
-
-    let canonical = encode(val, suffix);
-
-    if canonical == encoded
+    if let Ok(bytes) = data_encoding::BASE64URL.decode(encoded.as_bytes())
     {
-        Some(val)
+        if let Ok(plain) = String::from_utf8(bytes)
+        {
+            let val_str = plain.trim_end_matches('=').trim_end_matches(suffix);
+
+            if let Ok(val) = val_str.parse()
+            {
+                let canonical = encode(val, suffix);
+
+                if canonical == encoded
+                {
+                    return Ok(val)
+                }
+            }
+        }
     }
-    else
-    {
-        None
-    }
+    
+    Err(ParseError::new(format!("Invalid ID string: {}", encoded)))
 }
 
 #[cfg(test)]
@@ -45,7 +49,7 @@ mod tests
     pub fn test_round_trip(num: i64, suffix: &'static str, enc: &'static str)
     {
         assert_eq!(encode(num, suffix), enc.to_owned());
-        assert_eq!(decode(enc, suffix), Some(num));
+        assert_eq!(decode(enc, suffix), Ok(num));
     }
 
     #[test]

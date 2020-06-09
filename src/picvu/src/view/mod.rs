@@ -16,6 +16,7 @@ pub enum ErrorResponder
 {
     ActixMailboxError(actix::MailboxError),
     PicvudbError(picvudb::Error),
+    PicvudbParseError(picvudb::ParseError),
     MultipartError(actix_multipart::MultipartError),
     StdIoError(std::io::Error),
     BlockingOperationCanceled,
@@ -44,6 +45,14 @@ impl From<picvudb::Error> for ErrorResponder
     fn from(error: picvudb::Error) -> Self
     {
         ErrorResponder::PicvudbError(error)
+    }
+}
+
+impl From<picvudb::ParseError> for ErrorResponder
+{
+    fn from(error: picvudb::ParseError) -> Self
+    {
+        ErrorResponder::PicvudbParseError(error)
     }
 }
 
@@ -115,7 +124,8 @@ impl ResponseError for ErrorResponder
             {
                 StatusCode::INTERNAL_SERVER_ERROR
             },
-            Self::MultipartError(_) =>
+            Self::MultipartError(_)
+                | Self::PicvudbParseError(_) =>
             {
                 StatusCode::BAD_REQUEST
             }

@@ -301,4 +301,28 @@ impl<'a> WriteOps for Transaction<'a>
 
         Ok(())
     }
+
+    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>
+    {
+        let object = UpdateObjectId
+        {
+            id: obj_id,
+        };
+
+        let changeset = UpdateObjectChangeset
+        {
+            activity_timestamp: activity_time.to_db_timestamp(),
+            activity_offset: activity_time.to_db_offset(),
+            title,
+            notes,
+            rating: rating.map(|r| r.to_db_field()),
+            censor: censor.to_db_field(),
+            latitude: location.clone().map(|l| l.latitude),
+            longitude: location.map(|l| l.longitude),
+        };
+
+        diesel::update(&object).set(changeset).execute(self.connection)?;
+
+        Ok(())
+    }
 }
