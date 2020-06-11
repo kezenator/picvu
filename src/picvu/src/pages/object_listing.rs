@@ -25,6 +25,17 @@ pub struct ListViewOptionsForm
     pub page_size: Option<u64>,
 }
 
+#[derive(Deserialize)]
+pub struct LocationListViewOptionsForm
+{
+    #[serde(with = "serde_with::rust::display_fromstr")]
+    pub location: picvudb::data::Location,
+    pub radius_meters: f64,
+    pub list_type: Option<ViewObjectsListType>,
+    pub offset: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
 #[allow(dead_code)]
 pub struct ObjectListingPage
 {
@@ -32,20 +43,66 @@ pub struct ObjectListingPage
 
 impl ObjectListingPage
 {
-    pub fn path(query: picvudb::data::get::GetObjectsQuery) -> String
+    fn base_url(query: picvudb::data::get::GetObjectsQuery) -> (String, Vec<(&'static str, String)>)
     {
-        match query
+        let mut params = Vec::new();
+
+        let base_url = match &query
         {
             picvudb::data::get::GetObjectsQuery::ByActivityDesc => "/view/objects/by_activity_desc".to_owned(),
             picvudb::data::get::GetObjectsQuery::ByModifiedDesc => "/view/objects/by_modified_desc".to_owned(),
             picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => "/view/objects/by_size_desc".to_owned(),
             picvudb::data::get::GetObjectsQuery::ByObjectId(obj_id) => pages::object_details::ObjectDetailsPage::path_for(&obj_id),
+            picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ .. } => "/view/objects/near_location_by_activity_desc".to_owned(),
+        };
+
+        if let picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters} = query
+        {
+            params.push(("location", location.to_string()));
+            params.push(("radius_meters", radius_meters.to_string()));
         }
+
+        (base_url, params)
+    }
+
+    fn encode(base_uri: String, params: Vec<(&'static str, String)>) -> String
+    {
+        let mut result = base_uri;
+
+        if !params.is_empty()
+        {
+            result.push('?');
+
+            for i in 0..params.len()
+            {
+                if i != 0
+                {
+                    result.push('&');
+                }
+                result.push_str(params[i].0);
+                result.push('=');
+                result.push_str(&params[i].1);
+            }
+        }
+
+        result
+    }
+
+    pub fn path(query: picvudb::data::get::GetObjectsQuery) -> String
+    {
+        let (base_url, params) = Self::base_url(query);
+        Self::encode(base_url, params)
     }
     
     pub fn path_with_options(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjectsListType, offset: u64, page_size: u64) -> String
     {
-        format!("{}?list_type={:?}&offset={}&page_size={}", Self::path(query), list_type, offset, page_size)
+        let (base_url, mut params) = Self::base_url(query);
+
+        params.push(("list_type", format!("{:?}", list_type)));
+        params.push(("offset", offset.to_string()));
+        params.push(("page_size", page_size.to_string()));
+
+        Self::encode(base_url, params)
     }
 }
 
@@ -59,11 +116,12 @@ impl PageResources for ObjectListingPage
             .add_header_link("/view/objects/by_size_desc", "Largest Attachments", 2)
             .route_view("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
             .route_view("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
-            .route_view("/view/objects/by_size_desc", web::get().to(objects_by_size_desc));
+            .route_view("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
+            .route_view("/view/objects/near_location_by_activity_desc", web::get().to(objects_near_location_by_activity_desc));
     }
 }
 
-async fn object_query(state: web::Data<State>, options: &ListViewOptionsForm, query: picvudb::data::get::GetObjectsQuery, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+pub async fn object_query(state: web::Data<State>, options: &ListViewOptionsForm, query: picvudb::data::get::GetObjectsQuery, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     // TODO - this should be put into a middle-ware
     // that wraps all user-interface pages
@@ -120,6 +178,24 @@ async fn objects_by_modified_desc(state: web::Data<State>, options: web::Query<L
 async fn objects_by_size_desc(state: web::Data<State>, options: web::Query<ListViewOptionsForm>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     object_query(state, &options, picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc, req).await
+}
+
+async fn objects_near_location_by_activity_desc(state: web::Data<State>, query: web::Query<LocationListViewOptionsForm>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+{
+    let options = ListViewOptionsForm
+    {
+        list_type: query.list_type,
+        offset: query.offset,
+        page_size: query.page_size,
+    };
+
+    let query = picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc
+    {
+        location: query.location.clone(),
+        radius_meters: query.radius_meters,
+    };
+
+    object_query(state, &options, query, req).await
 }
 
 pub fn render_object_listing(resp: GetObjectsResponse, list_type: ViewObjectsListType, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
@@ -243,7 +319,8 @@ fn get_heading(object: &picvudb::data::get::ObjectMetadata, query: &picvudb::dat
         {
             format::date_to_date_only_string(&object.modified_time)
         },
-        picvudb::data::get::GetObjectsQuery::ByActivityDesc =>
+        picvudb::data::get::GetObjectsQuery::ByActivityDesc
+            | picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{..} =>
         {
             format::date_to_date_only_string(&object.activity_time)
         },

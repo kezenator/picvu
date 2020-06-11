@@ -93,12 +93,13 @@ impl ApiMessage for GetObjectsRequest
     {
         let mut results = Vec::new();
 
-        let num_objects = match self.query
+        let num_objects = match &self.query
         {
             data::get::GetObjectsQuery::ByActivityDesc 
                 | data::get::GetObjectsQuery::ByModifiedDesc => ops.get_num_objects()?,
             data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_num_objects_with_attachments()?,
             data::get::GetObjectsQuery::ByObjectId(_) => 1,
+            data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => ops.get_num_objects_near_location(location.latitude, location.longitude, *radius_meters)?,
         };
 
         // Fix up the pagination request
@@ -129,6 +130,7 @@ impl ApiMessage for GetObjectsRequest
             data::get::GetObjectsQuery::ByModifiedDesc => ops.get_objects_by_modified_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_objects_by_attachment_size_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByObjectId(obj_id) => ops.get_object_by_id(obj_id.to_db_field())?.iter().map(|o| { o.clone() }).collect(),
+            data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => ops.get_objects_near_location_by_activity_desc(location.latitude, location.longitude, *radius_meters, pagination.offset, pagination.page_size)?,
         };
 
         results.reserve(from_db.len());

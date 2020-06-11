@@ -18,6 +18,18 @@ pub fn bytes_to_string(bytes: u64) -> String
     }
 }
 
+pub fn meters_to_string(meters: &f64) -> String
+{
+    if *meters < 1000.0
+    {
+        format!("{:.0} m", meters)
+    }
+    else
+    {
+        format!("{:.1} km", meters / 1000.0)
+    }
+}
+
 pub fn bytes_to_group_header(bytes: u64) -> String
 {
     if bytes >= 10 * 1024 * 1024 * 1024
@@ -76,6 +88,7 @@ pub fn query_to_string(query: &picvudb::data::get::GetObjectsQuery) -> String
         picvudb::data::get::GetObjectsQuery::ByActivityDesc => "Calendar".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByModifiedDesc => "Recently Modified".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => "Largest Attachments".to_owned(),
+        picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => format!("Within {} of {}", meters_to_string(radius_meters), location.to_string()),
     }
 }
 

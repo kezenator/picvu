@@ -44,8 +44,46 @@ impl<'a> ReadOps for Transaction<'a>
 
     fn get_num_objects_with_attachments(&self) -> Result<u64, Error>
     {
-        // TODO
-        self.get_num_objects()
+        use schema::attachments_metadata::dsl::*;
+        use diesel::dsl::count_star;
+
+        let num: u64 = attachments_metadata
+            .select(count_star())
+            .first::<i64>(self.connection)?
+            .to_u64()
+            .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 attachments in database".to_owned() })?;
+
+        Ok(num)
+    }
+
+    fn get_num_objects_near_location(&self, latitude: f64, longitude: f64, radius_meters: f64) -> Result<u64, Error>
+    {
+        // There are approximately 100 km per degree (lat or long) at
+        // the equator
+        //
+        // TODO - use a real library to calculate the range
+
+        let radius_degrees = radius_meters / 100000.0;
+
+        let q_min_lat = latitude - radius_degrees;
+        let q_max_lat = latitude + radius_degrees;
+        let q_min_long = longitude - radius_degrees;
+        let q_max_long = longitude + radius_degrees;
+
+        use schema::objects_location::dsl::*;
+        use diesel::dsl::count_star;
+
+        let num: u64 = objects_location
+            .select(count_star())
+            .filter(min_lat.ge(q_min_lat)
+                .and(max_lat.le(q_max_lat))
+                .and(min_long.ge(q_min_long))
+                .and(max_long.le(q_max_long)))
+            .first::<i64>(self.connection)?
+            .to_u64()
+            .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 objects in database".to_owned() })?;
+
+        Ok(num)
     }
 
     fn get_object_by_id(&self, obj_id: i64) -> Result<Option<Object>, Error>
@@ -97,6 +135,40 @@ impl<'a> ReadOps for Transaction<'a>
             .offset(offset as i64)
             .limit(page_size as i64)
             .load::<Object>(self.connection)?;
+
+        Ok(results)
+    }
+
+    fn get_objects_near_location_by_activity_desc(&self, latitude: f64, longitude: f64, radius_meters: f64, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    {
+        // There are approximately 100 km per degree (lat or long) at
+        // the equator
+        //
+        // TODO - use a real library to calculate the range
+
+        let radius_degrees = radius_meters / 100000.0;
+
+        let q_min_lat = latitude - radius_degrees;
+        let q_max_lat = latitude + radius_degrees;
+        let q_min_long = longitude - radius_degrees;
+        let q_max_long = longitude + radius_degrees;
+
+        //use schema::objects::dsl::*;
+        use schema::objects_location::dsl::*;
+
+        let results = schema::objects::table
+            .inner_join(schema::objects_location::table)
+            .filter(min_lat.ge(q_min_lat)
+                .and(max_lat.le(q_max_lat))
+                .and(min_long.ge(q_min_long))
+                .and(max_long.le(q_max_long)))
+            .order_by(schema::objects::activity_timestamp.desc())
+            .offset(offset as i64)
+            .limit(page_size as i64)
+            .load::<(Object, ObjectsLocation)>(self.connection)?
+            .drain(..)
+            .map(|(o, _l)| o)
+            .collect();
 
         Ok(results)
     }

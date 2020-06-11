@@ -41,19 +41,19 @@ impl FromStr for Location
         let parts = s.split(',').collect::<Vec<_>>();
         if parts.len() == 2 || parts.len() == 3
         {
-            let latitude: f64 = parts[0].parse().map_err(|_| ParseError::new("Invalid location data"))?;
-            let longitude: f64 = parts[1].parse().map_err(|_| ParseError::new("Invalid location data"))?;
+            let latitude: f64 = parts[0].trim().parse().map_err(|_| ParseError::new("Invalid location data"))?;
+            let longitude: f64 = parts[1].trim().parse().map_err(|_| ParseError::new("Invalid location data"))?;
             let mut altitude = None;
 
             if parts.len() == 3
             {
-                let mut astr = parts[2];
+                let mut astr = parts[2].trim();
                 if astr.ends_with('m')
                 {
                     astr = &astr[..(astr.len() - 1)];
                 }
 
-                altitude = Some(astr.parse().map_err(|_| ParseError::new("Invalid location data"))?);
+                altitude = Some(astr.trim().parse().map_err(|_| ParseError::new("Invalid location data"))?);
             }
 
             return Ok(Location::new(latitude, longitude, altitude));

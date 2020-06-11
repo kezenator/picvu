@@ -8,6 +8,7 @@ pub mod bulk;
 pub mod edit_object;
 pub mod object_details;
 pub mod object_listing;
+pub mod search;
 pub mod setup;
 pub mod sync;
 

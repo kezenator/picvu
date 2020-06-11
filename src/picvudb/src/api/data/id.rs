@@ -32,7 +32,7 @@ pub fn decode(encoded: &str, suffix: &'static str) -> Result<i64, ParseError>
 
                 if canonical == encoded
                 {
-                    return Ok(val)
+                    return Ok(val);
                 }
             }
         }

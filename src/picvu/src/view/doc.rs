@@ -124,6 +124,12 @@ pub fn header(title: &str, req: &HttpRequest, header_links: &HeaderLinkCollectio
                         }
                     }
                 }
+
+                form(method="GET", action=crate::pages::search::SearchPage::path(), enctype="application/x-www-form-urlencoded")
+                {
+                    input(type="search", name="q");
+                    input(type="submit", value="Search");
+                }
             }
         }
 

@@ -69,3 +69,6 @@ table! {
 
 joinable!(attachments_metadata -> objects (obj_id));
 allow_tables_to_appear_in_same_query!(objects, attachments_metadata);
+
+joinable!(objects_location -> objects (id));
+allow_tables_to_appear_in_same_query!(objects, objects_location);

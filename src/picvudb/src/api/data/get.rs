@@ -51,4 +51,5 @@ pub enum GetObjectsQuery
     ByModifiedDesc,
     ByAttachmentSizeDesc,
     ByObjectId(ObjectId),
+    NearLocationByActivityDesc{ location: Location, radius_meters: f64 },
 }
