@@ -22,6 +22,8 @@ pub enum ErrorResponder
     BlockingOperationCanceled,
     ImageError(image::error::ImageError),
     GoogleAuthError(googlephotos::auth::GoogleAuthError),
+    GoogleTimezoneError(googlephotos::timezone::TimezoneError),
+    GoogleGeocodeError(googlephotos::geocode::GeocodeError),
 }
 
 impl std::fmt::Display for ErrorResponder
@@ -101,6 +103,22 @@ impl From<googlephotos::auth::GoogleAuthError> for ErrorResponder
     }
 }
 
+impl From<googlephotos::timezone::TimezoneError> for ErrorResponder
+{
+    fn from(error: googlephotos::timezone::TimezoneError) -> Self
+    {
+        ErrorResponder::GoogleTimezoneError(error)
+    }
+}
+
+impl From<googlephotos::geocode::GeocodeError> for ErrorResponder
+{
+    fn from(error: googlephotos::geocode::GeocodeError) -> Self
+    {
+        ErrorResponder::GoogleGeocodeError(error)
+    }
+}
+
 impl ResponseError for ErrorResponder
 {
     fn error_response(&self) -> HttpResponse
@@ -120,7 +138,9 @@ impl ResponseError for ErrorResponder
                 | Self::StdIoError(_) 
                 | Self::BlockingOperationCanceled
                 | Self::ImageError(_) 
-                | Self::GoogleAuthError(_) =>
+                | Self::GoogleAuthError(_)
+                | Self::GoogleTimezoneError(_)
+                | Self::GoogleGeocodeError(_) =>
             {
                 StatusCode::INTERNAL_SERVER_ERROR
             },

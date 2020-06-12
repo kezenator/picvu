@@ -75,17 +75,43 @@ async fn get_object_details(state: web::Data<State>, object_id: web::Path<String
                 },
                 picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes} =>
                 {
+                    let mut timezone_info: Option<googlephotos::timezone::Timezone> = None;
+                    let mut geocode_info: Option<googlephotos::geocode::ReverseGeocode> = None;
+
+                    if let Some(location) = object.location.clone()
+                    {
+                        let api_key1 = pages::setup::get_api_key(&state).await?;
+                        let api_key2 = api_key1.clone();
+                        let latitude = location.latitude;
+                        let longitude = location.longitude;
+                        let timestamp = object.activity_time.to_chrono_utc().clone();
+
+                        timezone_info = Some(web::block(move ||
+                        {
+                            let result = googlephotos::timezone::query_timezone(&api_key1, latitude, longitude, &timestamp);
+                            println!("Timezone: {:?}", result);
+                            result
+                        }).await?);
+
+                        geocode_info = Some(web::block(move ||
+                            {
+                                let result = googlephotos::geocode::reverse_geocode(&api_key2, latitude, longitude);
+                                println!("Geocode: {:?}", result);
+                                result
+                            }).await?);
+                        }
+
                     let image_analysis = analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename);
                     let mvimg_split = analyse::img::parse_mvimg_split(&bytes, &metadata.filename);
 
-                    Ok(render_object_details(object, image_analysis, mvimg_split, &req, &state.header_links))
+                    Ok(render_object_details(object, image_analysis, mvimg_split, timezone_info, geocode_info, &req, &state.header_links))
                 },
             }
         },
     }
 }
 
-fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>, mvimg_split: analyse::img::MvImgSplit, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
+fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>, mvimg_split: analyse::img::MvImgSplit, timezone_info: Option<googlephotos::timezone::Timezone>, geocode_info: Option<googlephotos::geocode::ReverseGeocode>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     let now = picvudb::data::Date::now();
 
@@ -169,7 +195,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 td: object.censor.to_string();
             }
 
-            : location_details(&object.location);
+            : location_details(&object.location, &timezone_info, &geocode_info);
 
             : attachment_details(&object.id, &object.attachment, &mvimg_split, &now);
 
@@ -261,7 +287,7 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
                     }
                 }
 
-                : location_details(&image_analysis.location);
+                : location_details(&image_analysis.location, &None, &None);
 
                 @if let Some(dop) = image_analysis.location_dop
                 {
@@ -301,7 +327,7 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
     }.into_string().unwrap())
 }
 
-fn location_details(location: &Option<picvudb::data::Location>) -> Raw<String>
+fn location_details(location: &Option<picvudb::data::Location>, timezone_info: &Option<googlephotos::timezone::Timezone>, geocode_info: &Option<googlephotos::geocode::ReverseGeocode>) -> Raw<String>
 {
     let location = location.clone();
 
@@ -318,6 +344,26 @@ fn location_details(location: &Option<picvudb::data::Location>) -> Raw<String>
                         target="_blank")
                     {
                         : format!("{}, {}", location.latitude, location.longitude);
+                    }
+
+                    @if let Some(timezone_info) = timezone_info.clone()
+                    {
+                        p
+                        {
+                            : format!("DST {} RAW {} ID {:?} Name {:?}",
+                                timezone_info.dst_offset_seconds,
+                                timezone_info.raw_offset_seconds,
+                                timezone_info.time_zone_id,
+                                timezone_info.time_zone_name);
+                        }
+                    }
+
+                    @if let Some(geocode_info) = geocode_info.clone()
+                    {
+                        p
+                        {
+                            : format!("Geocode {:?}", geocode_info);
+                        }
                     }
                 }
             }
