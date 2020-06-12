@@ -52,4 +52,5 @@ pub enum GetObjectsQuery
     ByAttachmentSizeDesc,
     ByObjectId(ObjectId),
     NearLocationByActivityDesc{ location: Location, radius_meters: f64 },
+    TitleNotesSearchByActivityDesc{ search: String },
 }

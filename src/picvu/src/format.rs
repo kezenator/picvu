@@ -89,6 +89,7 @@ pub fn query_to_string(query: &picvudb::data::get::GetObjectsQuery) -> String
         picvudb::data::get::GetObjectsQuery::ByModifiedDesc => "Recently Modified".to_owned(),
         picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => "Largest Attachments".to_owned(),
         picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => format!("Within {} of {}", meters_to_string(radius_meters), location.to_string()),
+        picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search } => format!("Search {:?}", search),
     }
 }
 

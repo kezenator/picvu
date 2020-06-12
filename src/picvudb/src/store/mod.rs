@@ -1,4 +1,5 @@
 mod access;
+mod extensions;
 mod ops;
 mod store;
 mod trans;

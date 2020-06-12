@@ -1,9 +1,8 @@
 use serde::Deserialize;
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpResponse};
 
 use crate::pages::{PageResources, PageResourcesBuilder};
 use crate::view;
-use crate::State;
 use crate::pages;
 
 #[allow(dead_code)]
@@ -32,12 +31,9 @@ impl PageResources for SearchPage
 struct SearchForm
 {
     q: String,
-    pub list_type: Option<pages::object_listing::ViewObjectsListType>,
-    pub offset: Option<u64>,
-    pub page_size: Option<u64>,
 }
 
-async fn get_search(state: web::Data<State>, form: web::Query<SearchForm>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+async fn get_search(form: web::Query<SearchForm>) -> HttpResponse
 {
     if let Ok(location) = form.q.parse()
     {
@@ -45,18 +41,15 @@ async fn get_search(state: web::Data<State>, form: web::Query<SearchForm>, req: 
         // redirect to the location page.
 
         let query = picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters: 100.0 };
-        return Ok(view::redirect(pages::object_listing::ObjectListingPage::path(query)));
+
+        view::redirect(pages::object_listing::ObjectListingPage::path(query))
     }
-
-    // TODO - search by string
-    let query = picvudb::data::get::GetObjectsQuery::ByActivityDesc;
-
-    let options = pages::object_listing::ListViewOptionsForm
+    else
     {
-        list_type: form.list_type,
-        offset: form.offset,
-        page_size: form.page_size,
-    };
+        // Just treat it as a standard text search
 
-    pages::object_listing::object_query(state, &options, query, req).await
+        let query = picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search: form.q.clone() };
+
+        view::redirect(pages::object_listing::ObjectListingPage::path(query))
+    }
 }

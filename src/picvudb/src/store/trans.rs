@@ -9,6 +9,7 @@ use crate::store::ops::*;
 use crate::models::*;
 use crate::schema;
 use crate::api::data;
+use crate::store::extensions::*;
 
 pub struct Transaction<'a>
 {
@@ -86,6 +87,22 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(num)
     }
 
+    fn get_num_objects_for_text_search(&self, search: &str) -> Result<u64, Error>
+    {
+        use schema::objects_fts::dsl::*;
+        use diesel::dsl::count_star;
+
+        let num: u64 = objects_fts
+            .select(count_star())
+            .filter(title.fts_match(search)
+                .or(notes.fts_match(search)))
+            .first::<i64>(self.connection)?
+            .to_u64()
+            .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 objects in database".to_owned() })?;
+
+        Ok(num)
+    }
+
     fn get_object_by_id(&self, obj_id: i64) -> Result<Option<Object>, Error>
     {
         use schema::objects::dsl::*;
@@ -153,7 +170,6 @@ impl<'a> ReadOps for Transaction<'a>
         let q_min_long = longitude - radius_degrees;
         let q_max_long = longitude + radius_degrees;
 
-        //use schema::objects::dsl::*;
         use schema::objects_location::dsl::*;
 
         let results = schema::objects::table
@@ -172,6 +188,21 @@ impl<'a> ReadOps for Transaction<'a>
 
         Ok(results)
     }
+
+    fn get_objects_for_text_search(&self, search: &str, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    {
+        use schema::objects_fts::dsl::*;
+
+        let results = schema::objects::table
+            .filter(schema::objects::id.eq_any(
+                    schema::objects_fts::table.select(schema::objects_fts::id).filter(title.fts_match(search).or(notes.fts_match(search)))))
+            .order_by(schema::objects::activity_timestamp.desc())
+            .offset(offset as i64)
+            .limit(page_size as i64)
+            .load::<Object>(self.connection)?;
+    
+            Ok(results)
+        }
 
     fn get_attachment_metadata(&self, q_obj_id: i64) -> Result<Option<AttachmentMetadata>, Error>
     {

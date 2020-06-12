@@ -78,6 +78,46 @@ pub struct GetStatisticsResponse
 }
 
 #[derive(Debug)]
+pub struct GetNumObjectsRequest
+{
+    pub query: data::get::GetObjectsQuery,
+}
+
+impl ApiMessage for GetNumObjectsRequest
+{
+    type Response = GetNumObjectsResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        let num_objects = match &self.query
+        {
+            data::get::GetObjectsQuery::ByActivityDesc 
+                | data::get::GetObjectsQuery::ByModifiedDesc => ops.get_num_objects()?,
+            data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_num_objects_with_attachments()?,
+            data::get::GetObjectsQuery::ByObjectId(_) => 1,
+            data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => ops.get_num_objects_near_location(location.latitude, location.longitude, *radius_meters)?,
+            data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search } => ops.get_num_objects_for_text_search(search)?,
+        };
+
+        let response = GetNumObjectsResponse
+        {
+            query: self.query.clone(),
+            num_objects: num_objects,
+        };
+
+        Ok(response)
+    }
+}
+
+#[derive(Debug)]
+pub struct GetNumObjectsResponse
+{
+    pub query: data::get::GetObjectsQuery,
+    pub num_objects: u64,
+}
+
+#[derive(Debug)]
 pub struct GetObjectsRequest
 {
     pub query: data::get::GetObjectsQuery,
@@ -91,16 +131,9 @@ impl ApiMessage for GetObjectsRequest
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
-        let mut results = Vec::new();
-
-        let num_objects = match &self.query
-        {
-            data::get::GetObjectsQuery::ByActivityDesc 
-                | data::get::GetObjectsQuery::ByModifiedDesc => ops.get_num_objects()?,
-            data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_num_objects_with_attachments()?,
-            data::get::GetObjectsQuery::ByObjectId(_) => 1,
-            data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => ops.get_num_objects_near_location(location.latitude, location.longitude, *radius_meters)?,
-        };
+        let num_objects = GetNumObjectsRequest{ query: self.query.clone() }
+            .execute(ops)?
+            .num_objects;
 
         // Fix up the pagination request
         let mut pagination = self.pagination.clone();
@@ -124,6 +157,8 @@ impl ApiMessage for GetObjectsRequest
             pagination.offset *= pagination.page_size;
         }
 
+        let mut results = Vec::new();
+
         let mut from_db = match &self.query
         {
             data::get::GetObjectsQuery::ByActivityDesc => ops.get_objects_by_activity_desc(pagination.offset, pagination.page_size)?,
@@ -131,6 +166,7 @@ impl ApiMessage for GetObjectsRequest
             data::get::GetObjectsQuery::ByAttachmentSizeDesc => ops.get_objects_by_attachment_size_desc(pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::ByObjectId(obj_id) => ops.get_object_by_id(obj_id.to_db_field())?.iter().map(|o| { o.clone() }).collect(),
             data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => ops.get_objects_near_location_by_activity_desc(location.latitude, location.longitude, *radius_meters, pagination.offset, pagination.page_size)?,
+            data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search } => ops.get_objects_for_text_search(search, pagination.offset, pagination.page_size)?,
         };
 
         results.reserve(from_db.len());
