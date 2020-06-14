@@ -75,33 +75,38 @@ async fn get_object_details(state: web::Data<State>, object_id: web::Path<String
                 },
                 picvudb::msgs::GetAttachmentDataResponse::Found{metadata, bytes} =>
                 {
-                    let mut timezone_info: Option<googlephotos::timezone::Timezone> = None;
-                    let mut geocode_info: Option<googlephotos::geocode::ReverseGeocode> = None;
+                    let api_key = pages::setup::get_api_key(&state).await?;
+                    let google_cache = analyse::google::GoogleCache::new(api_key);
+                    let google_cache1 = google_cache.clone();
+                    let google_cache2 = google_cache.clone();
 
-                    if let Some(location) = object.location.clone()
+                    let mut timezone_info: Option<analyse::google::TimezoneInfo> = None;
+                    let mut geocode_info: Option<analyse::google::ReverseGeocode> = None;
+
+                    if let Some(location) = &object.location
                     {
-                        let api_key1 = pages::setup::get_api_key(&state).await?;
-                        let api_key2 = api_key1.clone();
-                        let latitude = location.latitude;
-                        let longitude = location.longitude;
-                        let timestamp = object.activity_time.to_chrono_utc().clone();
+                        let location1 = location.clone();
+                        let timestamp1 = object.activity_time.clone();
+                        let location2 = location.clone();
 
-                        timezone_info = Some(web::block(move ||
-                        {
-                            let result = googlephotos::timezone::query_timezone(&api_key1, latitude, longitude, &timestamp);
-                            println!("Timezone: {:?}", result);
-                            result
-                        }).await?);
-
-                        geocode_info = Some(web::block(move ||
+                        if let Ok(tz_result) = web::block(move ||
                             {
-                                let result = googlephotos::geocode::reverse_geocode(&api_key2, latitude, longitude);
-                                println!("Geocode: {:?}", result);
-                                result
-                            }).await?);
+                                google_cache1.get_timezone_for(&location1, &timestamp1)
+                            }).await
+                        {
+                            timezone_info = Some(tz_result);
                         }
 
-                    let image_analysis = analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename);
+                        if let Ok(rg_result) = web::block(move ||
+                            {
+                                google_cache2.reverse_geocode(&location2)
+                            }).await
+                        {
+                            geocode_info = Some(rg_result);
+                        }
+                    }
+
+                    let image_analysis = analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename, Some(&google_cache));
                     let mvimg_split = analyse::img::parse_mvimg_split(&bytes, &metadata.filename);
 
                     Ok(render_object_details(object, image_analysis, mvimg_split, timezone_info, geocode_info, &req, &state.header_links))
@@ -111,7 +116,7 @@ async fn get_object_details(state: web::Data<State>, object_id: web::Path<String
     }
 }
 
-fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>, mvimg_split: analyse::img::MvImgSplit, timezone_info: Option<googlephotos::timezone::Timezone>, geocode_info: Option<googlephotos::geocode::ReverseGeocode>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
+fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analysis: Result<Option<(analyse::img::ImgAnalysis, Vec<analyse::warning::Warning>)>, analyse::img::ImgAnalysisError>, mvimg_split: analyse::img::MvImgSplit, timezone_info: Option<analyse::google::TimezoneInfo>, geocode_info: Option<analyse::google::ReverseGeocode>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     let now = picvudb::data::Date::now();
 
@@ -206,7 +211,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
     view::html_page(req, header_links, &title, &contents)
 }
 
-fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, analyse::img::ImgAnalysisError>) -> Raw<String>
+fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<analyse::warning::Warning>)>, analyse::img::ImgAnalysisError>) -> Raw<String>
 {
     let exif = exif.clone();
     let now = picvudb::data::Date::now();
@@ -222,7 +227,7 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
                     th(colspan="2"): "Photo EXIF Data";
                 }
 
-                @if let Some(orientation) = image_analysis.orientation
+                @if let Some(orientation) = &image_analysis.orientation
                 {
                     tr
                     {
@@ -231,7 +236,7 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
                     }
                 }
 
-                @if let Some(make_model) = image_analysis.make_model
+                @if let Some(make_model) = &image_analysis.make_model
                 {
                     tr
                     {
@@ -240,7 +245,7 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
                     }
                 }
 
-                @if let Some(orig_taken) = image_analysis.orig_taken
+                @if let Some(orig_taken) = &image_analysis.orig_taken
                 {
                     tr
                     {
@@ -274,7 +279,7 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
                     }
                 }
 
-                @if let Some(camera_settings) = image_analysis.camera_settings
+                @if let Some(camera_settings) = &image_analysis.camera_settings
                 {
                     tr
                     {
@@ -305,7 +310,7 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
                         td: "Warning";
                         td
                         {
-                            : w;
+                            : format!("{:?}", w);
                         }
                     }
                 }
@@ -321,13 +326,13 @@ fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<String>)>, 
             tr
             {
                 td: "Error";
-                td: image_analysis_err.msg;
+                td: image_analysis_err.msg.clone();
             }
         }
     }.into_string().unwrap())
 }
 
-fn location_details(location: &Option<picvudb::data::Location>, timezone_info: &Option<googlephotos::timezone::Timezone>, geocode_info: &Option<googlephotos::geocode::ReverseGeocode>) -> Raw<String>
+fn location_details(location: &Option<picvudb::data::Location>, timezone_info: &Option<analyse::google::TimezoneInfo>, geocode_info: &Option<analyse::google::ReverseGeocode>) -> Raw<String>
 {
     let location = location.clone();
 
@@ -350,11 +355,10 @@ fn location_details(location: &Option<picvudb::data::Location>, timezone_info: &
                     {
                         p
                         {
-                            : format!("DST {} RAW {} ID {:?} Name {:?}",
-                                timezone_info.dst_offset_seconds,
-                                timezone_info.raw_offset_seconds,
-                                timezone_info.time_zone_id,
-                                timezone_info.time_zone_name);
+                            : format!("Timezone {} ID {:?} Name {:?}",
+                                timezone_info.timezone.to_string(),
+                                timezone_info.id,
+                                timezone_info.name);
                         }
                     }
 

@@ -117,7 +117,7 @@ async fn get_img_thumbnail(state: web::Data<State>, path: web::Path<String>, for
             let (bytes, metadata) = web::block(move || -> Result<(Vec<u8>, picvudb::data::get::AttachmentMetadata), image::ImageError>
             {
                 let orientation =
-                    analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename)
+                    analyse::img::ImgAnalysis::decode(&bytes, &metadata.filename, None)
                     .ok()
                     .flatten()
                     .map(|(analysis, _warnings)|{ analysis.orientation })
@@ -184,7 +184,7 @@ async fn get_video_thumbnail(state: web::Data<State>, path: web::Path<String>, f
                 let assume_timezone = None;
                 let mut warnings = Vec::new();
 
-                analyse::video::analyse_video(&bytes, &filename, form.size, &assume_timezone, &mut warnings)
+                analyse::video::analyse_video(&bytes, &filename, form.size, &assume_timezone, None, &mut warnings)
             }).await?;
 
             match info.thumbnail

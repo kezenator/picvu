@@ -2,7 +2,9 @@ use std::path::Path;
 use image::GenericImageView;
 
 use crate::analyse;
+use crate::analyse::google::GoogleCache;
 use crate::analyse::tz::ExplicitTimezone;
+use crate::analyse::warning::{Warning, WarningKind};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImportOptions
@@ -64,11 +66,12 @@ pub fn guess_mime_type_from_filename(filename: &String) -> Option<mime::Mime>
 pub fn create_add_object_for_import(
     bytes: Vec<u8>,
     file_name: &String,
+    google_cache: &GoogleCache,
     import_options: &ImportOptions,
     opt_file_created_time: Option<picvudb::data::Date>,
     opt_file_modified_time: Option<picvudb::data::Date>,
     opt_google_photos_takeout_metadata: Option<analyse::takeout::Metadata>,
-    warnings: &mut Vec<String>) -> Result<picvudb::msgs::AddObjectRequest, std::io::Error>
+    warnings: &mut Vec<Warning>) -> Result<picvudb::msgs::AddObjectRequest, std::io::Error>
 {
     let now = picvudb::data::Date::now();
 
@@ -138,25 +141,6 @@ pub fn create_add_object_for_import(
             attachment_modified_time = picvudb::data::Date::from_chrono(&local_date_time);
         }
 
-        if let Ok(md_photo_taken_timestamp) = metadata.photo_taken_time.timestamp.parse::<i64>()
-        {
-            // The Google Takeout metadata has some good times. We should certainly
-            // use this instead of the archive time, because the archive times
-            // are just when the Google Takeout operation was started.
-            // However, they seem to be more related to the time the file was uploaded to
-            // Google - so if you were out in the bush they can be a couple of days
-            // off (until you returned to a service area). As such, we'll
-            // take this here, but still overrite it with the photo GPS information
-            // from below if that's available.
-
-            let local_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
-                    chrono::NaiveDateTime::from_timestamp(md_photo_taken_timestamp, 0),
-                    chrono::Utc)
-                .with_timezone(&chrono::Local);
-
-            obj_activity_time = Some(picvudb::data::Date::from_chrono(&local_date_time));
-        }
-
         if let Some(md_location) = metadata.geo_data
         {
             // Google photos takeout always provides metadata,
@@ -174,20 +158,49 @@ pub fn create_add_object_for_import(
                     Some(md_location.altitude)));
             }
         }
+
+        if let Ok(md_photo_taken_timestamp) = metadata.photo_taken_time.timestamp.parse::<i64>()
+        {
+            // The Google Takeout metadata has some good times. We should certainly
+            // use this instead of the archive time, because the archive times
+            // are just when the Google Takeout operation was started.
+            // However, they seem to be more related to the time the file was uploaded to
+            // Google - so if you were out in the bush they can be a couple of days
+            // off (until you returned to a service area). As such, we'll
+            // take this here, but still overrite it with the photo GPS information
+            // from below if that's available.
+
+            let local_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
+                    chrono::NaiveDateTime::from_timestamp(md_photo_taken_timestamp, 0),
+                    chrono::Utc)
+                .with_timezone(&chrono::Local);
+
+            let mut local_date = picvudb::data::Date::from_chrono(&local_date_time);
+
+            if let Some(loc) = &location
+            {
+                // If there's location data, we can use
+                // the google cache to found the date/time
+
+                if let Ok(tz_info) = google_cache.get_timezone_for(loc, &local_date)
+                {
+                    local_date = tz_info.timezone.adjust(&local_date);
+                }
+            }
+
+            obj_activity_time = Some(local_date);
+        }
     }
 
     // Process the image EXIF data if provided
 
     if mime.type_() == mime::IMAGE
     {
-        match analyse::img::ImgAnalysis::decode(&bytes, &file_name)
+        match analyse::img::ImgAnalysis::decode(&bytes, &file_name, Some(google_cache))
         {
-            Ok(Some((analysis, exif_warnings))) =>
+            Ok(Some((analysis, mut exif_warnings))) =>
             {
-                for w in exif_warnings
-                {
-                    warnings.push(format!("{}: EXIF Warning: {}", file_name, w));
-                }
+                warnings.append(&mut exif_warnings);
 
                 if analysis.orig_taken.is_some()
                 {
@@ -213,7 +226,7 @@ pub fn create_add_object_for_import(
             },
             Err(err) =>
             {
-                warnings.push(format!("{}: EXIF Error: {:?}", file_name, err));
+                warnings.push(Warning::new(file_name, WarningKind::ImgExifDecode, err.msg));
             },
         }
     }
@@ -245,11 +258,11 @@ pub fn create_add_object_for_import(
                 // It's a JPEG with an MP4 attached - analyse the
                 // MP4 to collect a duration
 
-                match analyse::video::analyse_video(&bytes[mp4_offset..], file_name, 128, &import_options.assume_timezone, warnings)
+                match analyse::video::analyse_video(&bytes[mp4_offset..], file_name, 128, &import_options.assume_timezone, Some(google_cache), warnings)
                 {
                     Err(err) =>
                     {
-                        warnings.push(format!("{}: MVIMG Video analysis error: {:?}", file_name, err));
+                        warnings.push(Warning::new(file_name, WarningKind::MvImgAnalysisError, format!("{:?}", err)));
                     },
                     Ok(info) =>
                     {
@@ -276,11 +289,11 @@ pub fn create_add_object_for_import(
 
     if mime.type_() == mime::VIDEO
     {
-        match analyse::video::analyse_video(&bytes, file_name, 128, &import_options.assume_timezone, warnings)
+        match analyse::video::analyse_video(&bytes, file_name, 128, &import_options.assume_timezone, Some(google_cache), warnings)
         {
             Err(err) =>
             {
-                warnings.push(format!("{}: Video analysis error: {:?}", file_name, err));
+                warnings.push(Warning::new(file_name, WarningKind::VideoAnalysisError, format!("{:?}", err)));
             },
             Ok(info) =>
             {

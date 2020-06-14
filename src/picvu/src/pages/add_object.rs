@@ -74,10 +74,12 @@ async fn post_add_object(state: web::Data<State>, mut payload: Multipart) -> Res
     // We ignore warnings here
 
     let mut warnings = Vec::new();
+    let google_cache = analyse::google::GoogleCache::new(pages::setup::get_api_key(&*state).await?);
 
     let add_msg = analyse::import::create_add_object_for_import(
         bytes,
         &file_name,
+        &google_cache,
         &analyse::import::ImportOptions::default(),
         None,
         None,

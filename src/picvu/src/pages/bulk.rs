@@ -63,6 +63,8 @@ fn parse_str_to_opt<T: std::str::FromStr>(s: &str) -> Result<Option<T>, HttpResp
 
 async fn post_bulk_import(state: web::Data<State>, form: web::Form<BulkImportForm>) -> Result<HttpResponse, HttpResponse>
 {
+    let api_key = pages::setup::get_api_key(&*state).await.unwrap_or_default();
+
     let import_options = analyse::import::ImportOptions
     {
         assume_timezone: parse_str_to_opt(&form.assume_timezone)?,
@@ -74,7 +76,7 @@ async fn post_bulk_import(state: web::Data<State>, form: web::Form<BulkImportFor
     {
         let mut bulk_queue = state.bulk_queue.lock().unwrap();
 
-        bulk_queue.enqueue(bulk::import::FolderImport::new(form.folder.clone(), state.db_uri.clone(), import_options));
+        bulk_queue.enqueue(bulk::import::FolderImport::new(form.folder.clone(), state.db_uri.clone(), api_key, import_options));
     }
 
     Ok(view::redirect(BulkPage::progress_path()))

@@ -1,7 +1,9 @@
 use std::io::{Read, Write};
 
 use picvudb::data::{Date, Dimensions, Duration, Location, Orientation};
+use crate::analyse::google::GoogleCache;
 use crate::analyse::tz::ExplicitTimezone;
+use crate::analyse::warning::{Warning, WarningKind};
 
 #[derive(Debug)]
 pub struct Thumbnail
@@ -22,7 +24,7 @@ pub struct VideoAnalysisResults
     pub thumbnail: Option<Thumbnail>,
 }
 
-pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_timezone: &Option<ExplicitTimezone>, warnings: &mut Vec<String>) -> Result<VideoAnalysisResults, std::io::Error>
+pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_timezone: &Option<ExplicitTimezone>, google_cache: Option<&GoogleCache>, warnings: &mut Vec<Warning>) -> Result<VideoAnalysisResults, std::io::Error>
 {
     let mut date = None;
     let mut location = None;
@@ -54,7 +56,10 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_t
                     // FFPROBE reports the creation time with a "Z" prefix,
                     // but the times are actually in local time
 
-                    times_are_local = true;
+                    if value == "mp42avc1niko"
+                    {
+                        times_are_local = true;
+                    }
                 },
                 "creation_time" =>
                 {
@@ -73,7 +78,8 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_t
                             }
                             else
                             {
-                                warnings.push(format!("{}: No assumed timezone has been provided to process video creation time in local time format: {}", filename, value));
+                                warnings.push(Warning::new(filename, WarningKind::VideoAnalysis,
+                                    format!("No assumed timezone has been provided to process video creation time in local time format: {}", value)));
                             }
                         }
                         else if let Ok(decoded) = value.parse::<chrono::DateTime<chrono::Utc>>()
@@ -167,6 +173,27 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_t
                             }
                         }
                     }
+                },
+            }
+        }
+    }
+
+    // Update the time with timezone information if available
+
+    if let Some(google_cache) = google_cache
+    {
+        if let (Some(loc), Some(d)) = (&location, &date)
+        {
+            match google_cache.get_timezone_for(loc, d)
+            {
+                Ok(tz_info) =>
+                {
+                    date = tz_info.timezone.adjust_opt(&date);
+                },
+                Err(e) =>
+                {
+                    warnings.push(Warning::new(filename, WarningKind::VideoAnalysisError,
+                        format!("Could not query Google for timezone information: {}", e)));
                 },
             }
         }

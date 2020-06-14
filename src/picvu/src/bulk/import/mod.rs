@@ -10,6 +10,7 @@ use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
 use crate::format;
 use crate::analyse;
+use crate::analyse::warning::{Warning, WarningKind};
 
 mod error;
 mod scan;
@@ -26,17 +27,19 @@ pub struct FolderImport
 {
     folder_path: String,
     db_uri: String,
+    google_api_key: String,
     import_options: analyse::import::ImportOptions,
 }
 
 impl FolderImport
 {
-    pub fn new(folder_path: String, db_uri: String, import_options: analyse::import::ImportOptions) -> Self
+    pub fn new(folder_path: String, db_uri: String, google_api_key: String, import_options: analyse::import::ImportOptions) -> Self
     {
         FolderImport
         {
             folder_path,
             db_uri,
+            google_api_key,
             import_options,
         }
     }
@@ -70,7 +73,7 @@ impl BulkOperation for FolderImport
 
                 let mut path_to_info: HashMap<String, FoundMediaFileInfo> = HashMap::new();
                 let mut is_google_photos_takeout_archive = false;
-                let mut warnings: Vec<String> = Vec::new();
+                let mut warnings: Vec<Warning> = Vec::new();
 
                 {
                     for entry in scanner.clone_iter(|_| { false })
@@ -143,6 +146,8 @@ impl BulkOperation for FolderImport
                     "Importing Media".to_owned(),
                     vec!["Summary".to_owned()]);
 
+                let google_cache = analyse::google::GoogleCache::new(self.google_api_key);
+
                 let num_found_metadata_files = path_to_metadata.len();
 
                 let mut summary_imported_media_files: usize = 0;
@@ -209,7 +214,11 @@ impl BulkOperation for FolderImport
                                                 // We should just skip these files
 
                                                 skip = true;
-                                                warnings.push(format!("{} was skipped - it's the MP4 part of a moving image", found_info.file_name));
+
+                                                warnings.push(Warning::new(
+                                                    found_info.file_name.clone(),
+                                                    WarningKind::SkippedDuplicateMvImgPart,
+                                                    "Skipped the MP4 part of a moving image".to_owned()));
                                             }
                                         }
                                     }
@@ -217,7 +226,10 @@ impl BulkOperation for FolderImport
 
                                 if !skip
                                 {
-                                    warnings.push(format!("{} has no metadata", found_info.file_name));
+                                    warnings.push(Warning::new(
+                                        found_info.file_name.clone(),
+                                        WarningKind::NoGoogleTakeoutMetadataAvailable,
+                                        "No Google Takeout metadata found".to_owned()));
                                 }
                             }
 
@@ -233,6 +245,7 @@ impl BulkOperation for FolderImport
                                 let add_msg = analyse::import::create_add_object_for_import(
                                     entry.bytes,
                                     &entry.file_name,
+                                    &google_cache,
                                     &import_options,
                                     entry.created,
                                     Some(entry.modified),
@@ -268,7 +281,13 @@ impl BulkOperation for FolderImport
                 if !warnings.is_empty()
                 {
                     status.push(format!("{} Warnings:", warnings.len()));
-                    status.append(&mut warnings);
+
+                    warnings.sort();
+
+                    for w in warnings
+                    {
+                        status.push(format!("{:?}", w));
+                    }
                 }
 
                 sender.set(100.0, status);

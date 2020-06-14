@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashSet;
 use curl::easy::Easy;
 use serde::Deserialize;
 use url::Url;
@@ -7,30 +7,11 @@ use url::Url;
 pub struct ReverseGeocode
 {
     pub address: String,
-    pub names: BTreeMap<GeocodeNameType, String>,
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum GeocodeNameType
-{
-    Country,
-    AdminAreaLevel1,
-    AdminAreaLevel2,
-    AdminAreaLevel3,
-    AdminAreaLevel4,
-    AdminAreaLevel5,
-    Colloquial,
-    Locality,
-    SubLocality,
-    Neighbourhood,
-    NaturalFeature,
-    Park,
-    PointOfInterest,
-    Route,
+    pub names: HashSet<String>,
 }
 
 #[derive(Debug)]
-pub struct GeocodeError(String);
+pub struct GeocodeError(pub String);
 
 pub fn reverse_geocode(api_key: &str, latitude: f64, longitude: f64) -> Result<ReverseGeocode, GeocodeError>
 {
@@ -51,8 +32,6 @@ pub fn reverse_geocode(api_key: &str, latitude: f64, longitude: f64) -> Result<R
         transfer.perform()?;
     }
 
-    println!("Data: {:?}", String::from_utf8_lossy(&data));
-
     let body = serde_json::from_slice::<JsonResponse>(&data)?;
 
     if body.status != "OK"
@@ -60,43 +39,93 @@ pub fn reverse_geocode(api_key: &str, latitude: f64, longitude: f64) -> Result<R
         return Err(GeocodeError::new(format!("Bad response status: {:?}, msg={:?}", body.status, body.error_message.unwrap_or_default())));
     }
 
-    let entry = body.results
-        .ok_or(GeocodeError::new("Bad response: missing results".to_owned()))?
-        .drain(..)
+    let results = body.results
+        .ok_or(GeocodeError::new("Bad response: missing results".to_owned()))?;
+
+    // Ensure there is at least one result, and use
+    // the first result as the address
+
+    let address = results
+        .iter()
         .nth(0)
-        .ok_or(GeocodeError::new("Bad response: zero results".to_owned()))?;
+        .ok_or(GeocodeError::new("Bad response: empty results".to_owned()))?
+        .formatted_address
+        .clone();
 
-    let mut names = BTreeMap::new();
+    // First, try and find the country
 
-    for addr in entry.address_components
+    let mut country = String::new();
+
+    for r in results.iter()
     {
-        for type_ in addr.types
+        if types_contains(&r.types, "country")
         {
-            match type_.as_str()
+            country = r.formatted_address.clone();
+        }
+    }
+
+    // Now, collect all useful names
+
+    let mut names = HashSet::new();
+
+    for r in results.iter()
+    {
+        if types_wanted(&r.types)
+            || types_contains(&r.types, "postal_code")
+            || types_contains(&r.types, "street_address")
+        {
+            for e in r.address_components.iter()
             {
-                "country" => { names.insert(GeocodeNameType::Country, addr.long_name.clone()); },
-                "administrative_area_level_1" => { names.insert(GeocodeNameType::AdminAreaLevel1, addr.long_name.clone()); },
-                "administrative_area_level_2" => { names.insert(GeocodeNameType::AdminAreaLevel2, addr.long_name.clone()); },
-                "administrative_area_level_3" => { names.insert(GeocodeNameType::AdminAreaLevel3, addr.long_name.clone()); },
-                "administrative_area_level_4" => { names.insert(GeocodeNameType::AdminAreaLevel4, addr.long_name.clone()); },
-                "administrative_area_level_5" => { names.insert(GeocodeNameType::AdminAreaLevel5, addr.long_name.clone()); },
-                "colloquial_area" => { names.insert(GeocodeNameType::Colloquial, addr.long_name.clone()); },
-                "locality" => { names.insert(GeocodeNameType::Locality, addr.long_name.clone()); },
-                "sublocality" => { names.insert(GeocodeNameType::SubLocality, addr.long_name.clone()); },
-                "neighborhood" => { names.insert(GeocodeNameType::Neighbourhood, addr.long_name.clone()); },
-                "natural_feature" => { names.insert(GeocodeNameType::NaturalFeature, addr.long_name.clone()); },
-                "park" => { names.insert(GeocodeNameType::Park, addr.long_name.clone()); },
-                "point_of_interest" => { names.insert(GeocodeNameType::PointOfInterest, addr.long_name.clone()); },
-                _ => {},
+                if types_wanted(&e.types)
+                {
+                    if types_contains(&e.types, "administrative_area_level_2")
+                        && (country == "Australia")
+                    {
+                        // Austrlian Admin level 2 are council names, with names like
+                        // "Brisbane City" or "Cairns Regional" - we'll just use the short name.
+
+                        names.insert(e.short_name.clone());
+                    }
+                    else
+                    {
+                        names.insert(e.long_name.clone());
+                    }
+                }
             }
         }
     }
 
     Ok(ReverseGeocode
     {
-        address: entry.formatted_address,
-        names: names,
+        address,
+        names,
     })
+}
+
+fn types_wanted(types: &Vec<String>) -> bool
+{
+    return types_contains(types, "country")
+        || types_contains(types, "administrative_area_level_1")
+        || types_contains(types, "administrative_area_level_2")
+        || types_contains(types, "administrative_area_level_3")
+        || types_contains(types, "colloquial_area")
+        || types_contains(types, "locality")
+        || types_contains(types, "neighborhood")
+        || types_contains(types, "natural_feature")
+        || types_contains(types, "park")
+        || types_contains(types, "point_of_interest");
+}
+
+fn types_contains(types: &Vec<String>, type_: &'static str) -> bool
+{
+    for t in types
+    {
+        if t == type_
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 impl GeocodeError
@@ -123,7 +152,7 @@ impl From<serde_json::Error> for GeocodeError
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 struct JsonResponse
@@ -133,7 +162,7 @@ struct JsonResponse
     results: Option<Vec<ResultEntry>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct ResultEntry
 {
@@ -144,7 +173,7 @@ struct ResultEntry
     types: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct AddressComponent
 {
@@ -153,16 +182,24 @@ struct AddressComponent
     types: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct Geometry
 {
     location: Location,
     location_type: String,
-    viewport: HashMap<String, Location>
+    viewport: Viewport,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct Viewport
+{
+    northeast: Location,
+    southwest: Location,
+}
+
+#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct Location
 {

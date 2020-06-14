@@ -12,7 +12,7 @@ pub struct Timezone
 }
 
 #[derive(Debug)]
-pub struct TimezoneError(String);
+pub struct TimezoneError(pub String);
 
 pub fn query_timezone(api_key: &str, latitude: f64, longitude: f64, timestamp: &chrono::DateTime<chrono::Utc>) -> Result<Timezone, TimezoneError>
 {
@@ -33,8 +33,6 @@ pub fn query_timezone(api_key: &str, latitude: f64, longitude: f64, timestamp: &
         })?;
         transfer.perform()?;
     }
-
-    println!("Data: {:?}", String::from_utf8_lossy(&data));
 
     let body = serde_json::from_slice::<JsonResponse>(&data)?;
 

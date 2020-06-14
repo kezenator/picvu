@@ -3,6 +3,9 @@ use chrono::offset::TimeZone;
 
 pub use picvudb::data::Orientation;
 
+use crate::analyse::warning::{Warning, WarningKind};
+use crate::analyse::google::GoogleCache;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MvImgSplit
 {
@@ -12,7 +15,20 @@ pub enum MvImgSplit
     Both{mp4_offset: usize},
 }
 
-fn orientation_from_rexif_str(s: &str) -> Result<Option<Orientation>, ImgAnalysisError>
+pub struct ImgAnalysisError
+{
+    pub msg: String,
+}
+
+impl ImgAnalysisError
+{
+    pub fn new<S: Into<String>>(msg: S) -> Self
+    {
+        ImgAnalysisError{ msg: msg.into() }
+    }
+}
+
+fn orientation_from_rexif_str(s: &str) -> Result<Option<Orientation>, String>
 {
     match s
     {
@@ -22,10 +38,7 @@ fn orientation_from_rexif_str(s: &str) -> Result<Option<Orientation>, ImgAnalysi
         "Rotated to right" => Ok(Some(Orientation::RotatedRight)),
         "Undefined" 
             | "Unknown (0)" => Ok(None),
-        _ => Err(ImgAnalysisError{
-            msg: format!("Unknown Orientation {:?}", s),
-            debug_entries: Vec::new(),
-        }),
+        _ => Err(format!("Unknown Orientation {:?}", s)),
     }
 }
 
@@ -34,24 +47,6 @@ pub struct MakeModel
 {
     pub make: String,
     pub model: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct DebugEntry
-{
-    tag: rexif::ExifTag,
-    len: usize,
-    value: String,
-    unit: String,
-    details: String,
-    kind: rexif::IfdKind,
-}
-
-#[derive(Debug, Clone)]
-pub struct ImgAnalysisError
-{
-    pub msg: String,
-    pub debug_entries: Vec<DebugEntry>,
 }
 
 #[derive(Debug, Clone)]
@@ -90,7 +85,7 @@ fn find_single(exif: &Vec<rexif::ExifEntry>, tag: rexif::ExifTag) -> Option<rexi
     None
 }
 
-fn parse_urational(entry: &rexif::ExifEntry, factors: Vec<f64>, msg: String, debug_entries: &Vec<DebugEntry>) -> Result<f64, ImgAnalysisError>
+fn parse_urational(entry: &rexif::ExifEntry, factors: Vec<f64>, msg: String) -> Result<f64, String>
 {
     if let rexif::TagValue::URational(vec) = &entry.value
     {
@@ -107,17 +102,14 @@ fn parse_urational(entry: &rexif::ExifEntry, factors: Vec<f64>, msg: String, deb
         }
     }
 
-    return Err(ImgAnalysisError{
-        msg: msg,
-        debug_entries: debug_entries.to_vec(),
-    });
+    return Err(msg);
 }
 
 impl ImgAnalysis
 {
-    pub fn decode(data: &Vec<u8>, file_name: &String) -> Result<Option<(Self, Vec<String>)>, ImgAnalysisError>
+    pub fn decode(data: &Vec<u8>, file_name: &String, google_cache: Option<&GoogleCache>) -> Result<Option<(Self, Vec<Warning>)>, ImgAnalysisError>
     {
-        let (exif_result, exif_warnings) = rexif::parse_buffer_quiet(&data);
+        let (exif_result, mut exif_warnings) = rexif::parse_buffer_quiet(&data);
 
         match exif_result
         {
@@ -128,57 +120,33 @@ impl ImgAnalysis
                 let mime = exif.mime.parse::<mime::Mime>();
                 if mime.is_err()
                 {
-                    return Err(ImgAnalysisError
-                    {
-                        msg: format!("Mime parse error({:?}): {:?}", exif.mime, mime),
-                        debug_entries: Vec::new(),
-                    });
+                    return Err(ImgAnalysisError::new(format!("Mime parse error({:?}): {:?}", exif.mime, mime)));
                 }
                 let mime = mime.unwrap();
 
-                // Debug entries - TODO - remove
+                // Turn the EXIF warnings into our warning type
 
-                let debug_entries = exif.entries
-                    .iter()
-                    .map(|entry|
-                        {
-                            let value = match &entry.value
-                            {
-                                rexif::TagValue::Ascii(s) => s.to_owned(),
-                                rexif::TagValue::U8(d) => format!("U8 {:?}", d),
-                                rexif::TagValue::U16(d) => format!("U16 {:?}", d),
-                                rexif::TagValue::U32(d) => format!("U32 {:?}", d),
-                                rexif::TagValue::URational(d) => format!("{:?}", d),
-                                rexif::TagValue::I8(d) => format!("I8 {:?}", d),
-                                rexif::TagValue::I16(d) => format!("I16 {:?}", d),
-                                rexif::TagValue::I32(d) => format!("I32 {:?}", d),
-                                rexif::TagValue::IRational(d) => format!("{:?}", d),
-                                rexif::TagValue::F32(d) => format!("F32 {:?}", d),
-                                rexif::TagValue::F64(d) => format!("F64 {:?}", d),
-                                _ => String::new(),
-                            };
-
-                            DebugEntry
-                            {
-                                tag: entry.tag,
-                                len: entry.ifd.data.len(),
-                                value: value,
-                                unit: entry.unit.clone(),
-                                details: entry.value_more_readable.clone(),
-                                kind: entry.kind,
-                            }
-                        })
-                    .collect::<Vec<DebugEntry>>();
-
-                // TODO - remove
-                //println!("{:#?}", debug_entries);
+                let mut exif_warnings = exif_warnings
+                        .drain(..)
+                        .map(|s| Warning::new(file_name, WarningKind::ImgExifDecode, s))
+                        .collect::<Vec<Warning>>();
 
                 // Orientation
 
                 let mut orientation = None;
                 if let Some(entry) = find_single(&exif.entries, rexif::ExifTag::Orientation)
                 {
-                    orientation = orientation_from_rexif_str(&entry.value_more_readable)?;
+                    match orientation_from_rexif_str(&entry.value_more_readable)
+                    {
+                        Ok(o) =>
+                        {
+                            orientation = o;
+                        },
+                        Err(e) =>
+                        {
+                            exif_warnings.push(Warning::new(file_name, WarningKind::ImgExifAnalyse, e));
+                        }
+                    }
                 }
 
                 // Make/Model
@@ -197,6 +165,24 @@ impl ImgAnalysis
                     }
                 }
 
+                // Location
+
+                let mut location = None;
+                let mut location_dop = None;
+
+                match calc_location_and_dop(&exif.entries)
+                {
+                    Ok((l, ldop)) =>
+                    {
+                        location = l;
+                        location_dop = ldop;
+                    },
+                    Err(e) =>
+                    {
+                        exif_warnings.push(Warning::new(file_name, WarningKind::ImgExifAnalyse, e));
+                    }
+                }
+
                 // Original Date/Time, Naive
 
                 let mut orig_taken_naive = None;
@@ -207,10 +193,22 @@ impl ImgAnalysis
 
                         let datetime_naive = chrono::naive::NaiveDateTime::parse_from_str(
                             &datetime_string,
-                            "%Y:%m:%d %H:%M:%S")
-                            .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode DateTimeOriginal \"{}\": {:?}", datetime_string, e), debug_entries: debug_entries.clone() }})?;
+                            "%Y:%m:%d %H:%M:%S");
 
-                            orig_taken_naive = Some(datetime_naive);
+                        match datetime_naive
+                        {
+                            Ok(datetime_naive) =>
+                            {
+                                orig_taken_naive = Some(datetime_naive);
+                            },
+                            Err(e) =>
+                            {
+                                exif_warnings.push(Warning::new(
+                                    file_name,
+                                    WarningKind::ImgExifAnalyse,
+                                    format!("Can't decode DateTimeOriginal \"{}\": {:?}", datetime_string, e)));
+                            },
+                        }
                     }
                 }
 
@@ -224,10 +222,22 @@ impl ImgAnalysis
 
                         let datetime_naive = chrono::naive::NaiveDateTime::parse_from_str(
                             &datetime_string,
-                            "%Y:%m:%d %H:%M:%S")
-                            .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode DateTimeDigitized \"{}\": {:?}", datetime_string, e), debug_entries: debug_entries.clone() }})?;
+                            "%Y:%m:%d %H:%M:%S");
 
-                            orig_digitized_naive = Some(datetime_naive);
+                        match datetime_naive
+                        {
+                            Ok(datetime_naive) =>
+                            {
+                                orig_digitized_naive = Some(datetime_naive);
+                            },
+                            Err(e) =>
+                            {
+                                exif_warnings.push(Warning::new(
+                                    file_name,
+                                    WarningKind::ImgExifAnalyse,
+                                    format!("Can't decode DateTimeDigitized \"{}\": {:?}", datetime_string, e)));
+                            },
+                        }
                     }
                 }
 
@@ -241,10 +251,22 @@ impl ImgAnalysis
                             let formatted_gps_datetime_string = format!("{} {}", gps_date_entry.value_more_readable, gps_time_entry.value_more_readable);
 
                             let gps_naive = chrono::naive::NaiveDateTime::parse_from_str(
-                                &formatted_gps_datetime_string, "%Y:%m:%d %H:%M:%S%.f UTC")
-                                .map_err(|e| { ImgAnalysisError { msg: format!("Can't decode GPSDateStamp/GPSTimeStamp \"{}\": {:?}", formatted_gps_datetime_string, e), debug_entries: debug_entries.clone() }})?;
+                                &formatted_gps_datetime_string, "%Y:%m:%d %H:%M:%S%.f UTC");
 
-                            gps_timestamp = Some(chrono::Utc.from_utc_datetime(&gps_naive));
+                            match gps_naive
+                            {
+                                Ok(gps_naive) =>
+                                {
+                                    gps_timestamp = Some(chrono::Utc.from_utc_datetime(&gps_naive));
+                                },
+                                Err(e) =>
+                                {
+                                    exif_warnings.push(Warning::new(
+                                        file_name,
+                                        WarningKind::ImgExifAnalyse,
+                                        format!("Can't decode GPSDateStamp/GPSTimeStamp \"{}\": {:?}", formatted_gps_datetime_string, e)));
+                                },
+                            }
                         }
                     }
                 }
@@ -254,12 +276,75 @@ impl ImgAnalysis
 
                 let mut orig_taken = None;
                 {
-                    if let Some(ref_orig_taken_naive) = orig_taken_naive
+                    // If the image has a location, then use the Google services
+                    // to look up the timezone. We'll use the "orig_taken" or "GPS",
+                    // and we'll just assume the "orig_taken" is a GPS timezone, because
+                    // it should be pretty good, and worst case is we get the DST incorrect...
+
+                    if let (Some(gcache), Some(loc)) = (google_cache, &location)
                     {
-                        if let Some(ref_gps) = gps_timestamp
+                        if let Some(gps_ts) = &gps_timestamp
                         {
-                            orig_taken = Some(calc_timezone_from_taken_and_gps(&ref_orig_taken_naive, &ref_gps)
-                                .map_err(|e| ImgAnalysisError { msg: format!("Can't decode timezone from orig taken {} and GPS timestamp {}: {}", ref_orig_taken_naive, ref_gps, e), debug_entries: debug_entries.clone() })?);
+                            let gps_date = picvudb::data::Date::from_chrono(&gps_ts);
+
+                            match gcache.get_timezone_for(loc, &gps_date)
+                            {
+                                Ok(tz_info) =>
+                                {
+                                    orig_taken = Some(tz_info.timezone.adjust(&gps_date));
+                                },
+                                Err(e) =>
+                                {
+                                    exif_warnings.push(Warning::new(file_name, WarningKind::ImgExifAnalyse,
+                                        format!("Could not query Google for timezone information based on GPS timestamp {}: {}", gps_ts.to_string(), e)));
+                                },
+                            }
+                        }
+                        else if let Some(taken_naive_ts) = &orig_taken_naive
+                        {
+                            let hack_utc_ts = chrono::Utc.from_utc_datetime(&taken_naive_ts);
+                            let hack_utc_date = picvudb::data::Date::from_chrono(&hack_utc_ts);
+
+                            match gcache.get_timezone_for(loc, &hack_utc_date)
+                            {
+                                Ok(tz_info) =>
+                                {
+                                    orig_taken = Some(tz_info.timezone.from_local_assuming_tz(&taken_naive_ts));
+                                },
+                                Err(e) =>
+                                {
+                                    exif_warnings.push(Warning::new(file_name, WarningKind::ImgExifAnalyse,
+                                        format!("Could not query Google for timezone information based on Orig Taken local time {}: {}", taken_naive_ts.to_string(), e)));
+                                },
+                            }
+                        }
+                    }
+
+                    // If we couldn't use the location and Google services
+                    // to work out the timezone, then see if we can look at
+                    // the difference between the local time and the GPS timestamp
+                    // to get the timezone
+
+                    if orig_taken.is_none()
+                    {
+                        if let Some(ref_orig_taken_naive) = orig_taken_naive
+                        {
+                            if let Some(ref_gps) = gps_timestamp
+                            {
+                                match calc_timezone_from_taken_and_gps(&ref_orig_taken_naive, &ref_gps)
+                                {
+                                    Ok(calc_timezone) =>
+                                    {
+                                        orig_taken = Some(calc_timezone);
+                                    },
+                                    Err(e) =>
+                                    {
+                                        exif_warnings.push(Warning::new(
+                                            file_name, WarningKind::ImgExifAnalyse,
+                                            format!("Can't decode timezone from orig taken {} and GPS timestamp {}: {}", ref_orig_taken_naive, ref_gps, e)));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -299,126 +384,6 @@ impl ImgAnalysis
                     }
                 }
 
-                // Location
-
-                let mut location = None;
-                let mut location_dop = None;
-
-                if let Some(lat) = find_single(&exif.entries, rexif::ExifTag::GPSLatitude)
-                {
-                    if let Some(long) = find_single(&exif.entries, rexif::ExifTag::GPSLongitude)
-                    {
-                        let lat_ref = find_single(&exif.entries, rexif::ExifTag::GPSLatitudeRef);
-                        let long_ref = find_single(&exif.entries, rexif::ExifTag::GPSLongitudeRef);
-
-                        if lat_ref.is_none()
-                            || long_ref.is_none()
-                        {
-                            return Err(ImgAnalysisError{
-                                msg: format!("Unsupported GPS format - missing lat/long reference info"),
-                                debug_entries,
-                            });
-                        }
-
-                        let lat_ref = lat_ref.unwrap();
-                        let long_ref = long_ref.unwrap();
-
-                        if (lat_ref.value_more_readable.eq("N") || lat_ref.value_more_readable.eq("S"))
-                            && (long_ref.value_more_readable.eq("E") || long_ref.value_more_readable.eq("W"))
-                        {
-                            let mut lat = parse_urational(
-                                &lat,
-                                vec![1.0, 1.0 / 60.0, 1.0 / 3600.0],
-                                format!("Unsupported GPS format - invalid lat"),
-                                &debug_entries)?;
-
-                            let mut long = parse_urational(
-                                &long,
-                                vec![1.0, 1.0 / 60.0, 1.0 / 3600.0],
-                                format!("Unsupported GPS format - invalid long"),
-                                &debug_entries)?;
-
-                            if lat_ref.value_more_readable.eq("S")
-                            {
-                                lat = -1.0 * lat;
-                            }
-
-                            if long_ref.value_more_readable.eq("W")
-                            {
-                                long = -1.0 * long;
-                            }
-
-                            let mut alt = None;
-                            {
-                                let alt_entry = find_single(&exif.entries, rexif::ExifTag::GPSAltitude);
-                                let alt_ref = find_single(&exif.entries, rexif::ExifTag::GPSAltitudeRef);
-
-                                if let Some(alt_entry) = alt_entry
-                                {
-                                    if alt_entry.unit != "m"
-                                    {
-                                        return Err(ImgAnalysisError{
-                                            msg: format!("Unsupported GPS format - invalid alt units"),
-                                            debug_entries,
-                                        });
-                                    }
-                                    else
-                                    {
-                                        let mut alt_sign_num = 1.0;
-
-                                        if let Some(alt_ref) = alt_ref
-                                        {
-                                            if (alt_ref.value_more_readable != "Above sea level")
-                                                && (alt_ref.value_more_readable != "Below sea level")
-                                            {
-                                                return Err(ImgAnalysisError{
-                                                    msg: format!("Unsupported GPS format - invalid alt_ref units"),
-                                                    debug_entries,
-                                                });
-                                            }
-
-                                            if alt_ref.value_more_readable.eq("Below sea level")
-                                            {
-                                                alt_sign_num = -1.0;
-                                            }
-                                        }
-
-                                        let alt_val = parse_urational(
-                                            &alt_entry,
-                                            vec![1.0],
-                                            format!("Unsupported GPS format - invalid alt"),
-                                            &debug_entries)?;
-                                            
-                                        alt = Some(alt_val * alt_sign_num);
-                                    }
-                                }
-                            }
-
-                            location = Some(picvudb::data::Location::new(lat, long, alt));
-
-                            let dop = find_single(&exif.entries, rexif::ExifTag::GPSDOP);
-
-                            if let Some(dop) = dop
-                            {
-                                let dop = parse_urational(
-                                    &dop,
-                                    vec![1.0],
-                                    format!("Unsupported GPS format - invalid DOP"),
-                                    &debug_entries)?;
-
-                                location_dop = Some(dop);
-                            }
-                        }
-                        else
-                        {
-                            return Err(ImgAnalysisError{
-                                msg: format!("Unsupported GPS format - invalid lat/long units"),
-                                debug_entries,
-                            });
-                        }
-                    }
-                }
-
                 // Successful decode!
 
                 Ok(Some((ImgAnalysis
@@ -454,10 +419,7 @@ impl ImgAnalysis
                     _ => {},
                 }
 
-                return Err(ImgAnalysisError{
-                    msg: format!("EXIF parse error for file {}: {:?}", file_name, err),
-                    debug_entries: Vec::new(),
-                })
+                return Err(ImgAnalysisError::new(format!("EXIF parse error for file {}: {:?}", file_name, err)));
             }
         }
     }
@@ -487,6 +449,113 @@ pub fn parse_mvimg_split(data: &Vec<u8>, file_name: &String) -> MvImgSplit
     }
 
     result
+}
+
+fn calc_location_and_dop(entries: &Vec<rexif::ExifEntry>) -> Result<(Option<picvudb::data::Location>, Option<f64>), String>
+{
+    let mut location = None;
+    let mut location_dop = None;
+
+    if let (Some(lat), Some(long)) = (find_single(entries, rexif::ExifTag::GPSLatitude),
+                                        find_single(entries, rexif::ExifTag::GPSLongitude))
+    {
+        if let (Some(lat_ref), Some(long_ref)) = (find_single(entries, rexif::ExifTag::GPSLatitudeRef),
+                                                    find_single(entries, rexif::ExifTag::GPSLongitudeRef))
+        {
+            if (lat_ref.value_more_readable.eq("N") || lat_ref.value_more_readable.eq("S"))
+                && (long_ref.value_more_readable.eq("E") || long_ref.value_more_readable.eq("W"))
+            {
+                let mut lat = parse_urational(
+                    &lat,
+                    vec![1.0, 1.0 / 60.0, 1.0 / 3600.0],
+                    format!("Unsupported GPS format - invalid lat"))?;
+
+                let mut long = parse_urational(
+                    &long,
+                    vec![1.0, 1.0 / 60.0, 1.0 / 3600.0],
+                    format!("Unsupported GPS format - invalid long"))?;
+
+                if lat_ref.value_more_readable.eq("S")
+                {
+                    lat = -1.0 * lat;
+                }
+
+                if long_ref.value_more_readable.eq("W")
+                {
+                    long = -1.0 * long;
+                }
+
+                let mut alt = None;
+                {
+                    let alt_entry = find_single(entries, rexif::ExifTag::GPSAltitude);
+                    let alt_ref = find_single(entries, rexif::ExifTag::GPSAltitudeRef);
+
+                    if let Some(alt_entry) = alt_entry
+                    {
+                        if alt_entry.unit != "m"
+                        {
+                            return Err("Unsupported GPS format - invalid alt units".to_owned());
+                        }
+                        else
+                        {
+                            let mut alt_sign_num = 1.0;
+
+                            if let Some(alt_ref) = alt_ref
+                            {
+                                if (alt_ref.value_more_readable != "Above sea level")
+                                    && (alt_ref.value_more_readable != "Below sea level")
+                                {
+                                    return Err("Unsupported GPS format - invalid alt_ref units".to_owned());
+                                }
+
+                                if alt_ref.value_more_readable.eq("Below sea level")
+                                {
+                                    alt_sign_num = -1.0;
+                                }
+                            }
+
+                            let alt_val = parse_urational(
+                                &alt_entry,
+                                vec![1.0],
+                                format!("Unsupported GPS format - invalid alt"))?;
+                                
+                            alt = Some(alt_val * alt_sign_num);
+                        }
+                    }
+                }
+
+                location = Some(picvudb::data::Location::new(lat, long, alt));
+
+                let dop = find_single(entries, rexif::ExifTag::GPSDOP);
+
+                if let Some(dop) = dop
+                {
+                    let dop = parse_urational(
+                        &dop,
+                        vec![1.0],
+                        format!("Unsupported GPS format - invalid DOP"))?;
+            
+                    location_dop = Some(dop);
+                }
+            
+            }
+            else
+            {
+                return Err("Unsupported GPS format - invalid lat/long units".to_owned());
+            }
+        }
+        else
+        {
+            return Err("Unsupported GPS format - missing lat/long reference info".to_owned());
+        }
+        
+    }
+    else
+    {
+        // No location data
+    }
+
+    Ok((location, location_dop))
 }
 
 fn calc_timezone_from_taken_and_gps(orig_taken_naive: &chrono::NaiveDateTime, gps_timestamp: &chrono::DateTime<chrono::Utc>) -> Result<picvudb::data::Date, String>
