@@ -122,23 +122,21 @@ pub fn create_add_object_for_import(
 
         if let Ok(md_create_timestamp) = metadata.creation_time.timestamp.parse::<i64>()
         {
-            let local_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
+            let utc_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
                     chrono::NaiveDateTime::from_timestamp(md_create_timestamp, 0),
-                    chrono::Utc)
-                .with_timezone(&chrono::Local);
+                    chrono::Utc);
 
-            attachment_created_time = picvudb::data::Date::from_chrono(&local_date_time);
+            attachment_created_time = picvudb::data::Date::from_chrono_utc(&utc_date_time);
             obj_created_time = Some(attachment_created_time.clone());
         }
 
         if let Ok(md_modified_timestamp) = metadata.modification_time.timestamp.parse::<i64>()
         {
-            let local_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
+            let utc_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
                     chrono::NaiveDateTime::from_timestamp(md_modified_timestamp, 0),
-                    chrono::Utc)
-                .with_timezone(&chrono::Local);
+                    chrono::Utc);
 
-            attachment_modified_time = picvudb::data::Date::from_chrono(&local_date_time);
+            attachment_modified_time = picvudb::data::Date::from_chrono_utc(&utc_date_time);
         }
 
         if let Some(md_location) = metadata.geo_data
@@ -170,12 +168,11 @@ pub fn create_add_object_for_import(
             // take this here, but still overrite it with the photo GPS information
             // from below if that's available.
 
-            let local_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
+            let utc_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
                     chrono::NaiveDateTime::from_timestamp(md_photo_taken_timestamp, 0),
-                    chrono::Utc)
-                .with_timezone(&chrono::Local);
+                    chrono::Utc);
 
-            let mut local_date = picvudb::data::Date::from_chrono(&local_date_time);
+            let mut local_date = picvudb::data::Date::from_chrono_utc(&utc_date_time);
 
             if let Some(loc) = &location
             {

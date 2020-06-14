@@ -84,7 +84,7 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_t
                         }
                         else if let Ok(decoded) = value.parse::<chrono::DateTime<chrono::Utc>>()
                         {
-                            date = Some(Date::from_chrono(&decoded));
+                            date = Some(Date::from_chrono_utc(&decoded));
                         }
                     }
                 },

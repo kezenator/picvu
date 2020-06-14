@@ -42,7 +42,7 @@ impl DbConnection
                 .context(LowerDbMigrationError{})?;
 
             let name = "version".to_owned();
-            let value = "2020-06-10".to_owned();
+            let value = "2020-06-14".to_owned();
             
             diesel::insert_into(schema::db_properties::table)
                 .values(&models::DbProperty{name, value})
@@ -66,7 +66,7 @@ impl DbConnection
             version = versions[0].clone();
         }
 
-        ensure!(version == "2020-06-10", UnsupportedVersionError{ version });
+        ensure!(version == "2020-06-14", UnsupportedVersionError{ version });
 
         Ok(Self{ connection: db_connection })
     }

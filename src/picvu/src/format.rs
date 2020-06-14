@@ -72,7 +72,18 @@ pub fn bytes_to_group_header(bytes: u64) -> String
 
 pub fn date_to_str(date: &picvudb::data::Date, _now: &picvudb::data::Date) -> String
 {
-    date.to_rfc3339()
+    match date
+    {
+        picvudb::data::Date::Utc(utc) =>
+        {
+            let local = utc.with_timezone(&chrono::Local);
+            format!("{} (Local)", local.to_rfc3339())
+        },
+        picvudb::data::Date::FixedOffset(fixed) =>
+        {
+            fixed.to_rfc3339()
+        },
+    }
 }
 
 pub fn date_to_date_only_string(date: &picvudb::data::Date) -> String

@@ -285,7 +285,7 @@ impl ImgAnalysis
                     {
                         if let Some(gps_ts) = &gps_timestamp
                         {
-                            let gps_date = picvudb::data::Date::from_chrono(&gps_ts);
+                            let gps_date = picvudb::data::Date::from_chrono_utc(&gps_ts);
 
                             match gcache.get_timezone_for(loc, &gps_date)
                             {
@@ -303,7 +303,7 @@ impl ImgAnalysis
                         else if let Some(taken_naive_ts) = &orig_taken_naive
                         {
                             let hack_utc_ts = chrono::Utc.from_utc_datetime(&taken_naive_ts);
-                            let hack_utc_date = picvudb::data::Date::from_chrono(&hack_utc_ts);
+                            let hack_utc_date = picvudb::data::Date::from_chrono_utc(&hack_utc_ts);
 
                             match gcache.get_timezone_for(loc, &hack_utc_date)
                             {
@@ -606,11 +606,16 @@ fn calc_timezone_from_taken_and_gps(orig_taken_naive: &chrono::NaiveDateTime, gp
         },
         chrono::LocalResult::Single(t) =>
         {
-            Ok(picvudb::data::Date::from_chrono(&t))
+            Ok(picvudb::data::Date::from_chrono_fixed(&t))
         },
-        chrono::LocalResult::Ambiguous(_, _) =>
+        chrono::LocalResult::Ambiguous(_, t) =>
         {
-            Err("Local time conversion returned ambiguous results".to_owned())
+            // The clocks go back during this date - e.g. 
+            // 1AM, then 2AM, then 2AM repeats, then 3AM.
+            // We'll take the second one, so that we use the
+            // "normal" timezone for most of this day.
+
+            Ok(picvudb::data::Date::from_chrono_fixed(&t))
         },
     }
 }

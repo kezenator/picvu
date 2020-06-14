@@ -384,5 +384,5 @@ fn unix_time_to_date(unix_time: u64) -> Result<picvudb::data::Date, std::io::Err
 
     let utc = chrono::DateTime::<chrono::Utc>::from_utc(naive, chrono::Utc);
 
-    Ok(picvudb::data::Date::from_chrono(&utc))
+    Ok(picvudb::data::Date::from_chrono_utc(&utc))
 }

@@ -18,7 +18,7 @@ impl ExplicitTimezone
             v.with_timezone(&self.0)
         };
         
-        picvudb::data::Date::from_chrono(&adjust_chrono(val.to_chrono_fixed_offset()))
+        picvudb::data::Date::from_chrono_fixed(&adjust_chrono(val.to_chrono_fixed_offset()))
     }
 
     pub fn adjust_opt(&self, val: &Option<picvudb::data::Date>) -> Option<picvudb::data::Date>
@@ -30,7 +30,7 @@ impl ExplicitTimezone
     {
         let utc = *local + chrono::Duration::seconds(self.0.utc_minus_local().into());
         let assumed = chrono::DateTime::<chrono::FixedOffset>::from_utc(utc, self.0);
-        picvudb::data::Date::from_chrono(&assumed)
+        picvudb::data::Date::from_chrono_fixed(&assumed)
     }
 }
 
