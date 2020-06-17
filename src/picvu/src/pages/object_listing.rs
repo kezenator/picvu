@@ -45,6 +45,16 @@ pub struct SearchListViewOptionsForm
     pub page_size: Option<u64>,
 }
 
+#[derive(Deserialize)]
+pub struct TagListViewOptionsForm
+{
+    #[serde(with = "serde_with::rust::display_fromstr")]
+    pub tag_id: picvudb::data::TagId,
+    pub list_type: Option<ViewObjectsListType>,
+    pub offset: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
 #[allow(dead_code)]
 pub struct ObjectListingPage
 {
@@ -64,6 +74,7 @@ impl ObjectListingPage
             picvudb::data::get::GetObjectsQuery::ByObjectId(obj_id) => pages::object_details::ObjectDetailsPage::path_for(&obj_id),
             picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ .. } => "/view/objects/near_location_by_activity_desc".to_owned(),
             picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ .. } => "/view/objects/search".to_owned(),
+            picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ .. } => "/view/objects/by_tag".to_owned(),
         };
 
         if let picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters} = query
@@ -75,7 +86,10 @@ impl ObjectListingPage
         {
             params.push(("q", search.clone()));
         }
-
+        else if let picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id } = query
+        {
+            params.push(("tag_id", tag_id.to_string()));
+        }
 
         (base_url, params)
     }
@@ -133,7 +147,8 @@ impl PageResources for ObjectListingPage
             .route_view("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
             .route_view("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
             .route_view("/view/objects/near_location_by_activity_desc", web::get().to(objects_near_location_by_activity_desc))
-            .route_view("/view/objects/search", web::get().to(objects_search));
+            .route_view("/view/objects/search", web::get().to(objects_search))
+            .route_view("/view/objects/by_tag", web::get().to(objects_by_tag));
     }
 }
 
@@ -226,6 +241,23 @@ async fn objects_search(state: web::Data<State>, query: web::Query<SearchListVie
     let query = picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc
     {
         search: query.q.clone(),
+    };
+
+    object_query(state, &options, query, req).await
+}
+
+async fn objects_by_tag(state: web::Data<State>, query: web::Query<TagListViewOptionsForm>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
+{
+    let options = ListViewOptionsForm
+    {
+        list_type: query.list_type,
+        offset: query.offset,
+        page_size: query.page_size,
+    };
+
+    let query = picvudb::data::get::GetObjectsQuery::TagByActivityDesc
+    {
+        tag_id: query.tag_id.clone(),
     };
 
     object_query(state, &options, query, req).await
@@ -354,7 +386,8 @@ fn get_heading(object: &picvudb::data::get::ObjectMetadata, query: &picvudb::dat
         },
         picvudb::data::get::GetObjectsQuery::ByActivityDesc
             | picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ .. }
-            | picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ .. } =>
+            | picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ .. }
+            | picvudb::data::get::GetObjectsQuery::TagByActivityDesc { .. } =>
         {
             format::date_to_date_only_string(&object.activity_time)
         },

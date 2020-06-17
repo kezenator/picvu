@@ -98,6 +98,7 @@ impl ApiMessage for GetNumObjectsRequest
             data::get::GetObjectsQuery::ByObjectId(_) => 1,
             data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => ops.get_num_objects_near_location(location.latitude, location.longitude, *radius_meters)?,
             data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search } => ops.get_num_objects_for_text_search(search)?,
+            data::get::GetObjectsQuery::TagByActivityDesc{ tag_id } => ops.get_num_objects_with_tag(tag_id.to_db_field())?,
         };
 
         let response = GetNumObjectsResponse
@@ -167,6 +168,7 @@ impl ApiMessage for GetObjectsRequest
             data::get::GetObjectsQuery::ByObjectId(obj_id) => ops.get_object_by_id(obj_id.to_db_field())?.iter().map(|o| { o.clone() }).collect(),
             data::get::GetObjectsQuery::NearLocationByActivityDesc{ location, radius_meters } => ops.get_objects_near_location_by_activity_desc(location.latitude, location.longitude, *radius_meters, pagination.offset, pagination.page_size)?,
             data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search } => ops.get_objects_for_text_search(search, pagination.offset, pagination.page_size)?,
+            data::get::GetObjectsQuery::TagByActivityDesc{ tag_id } => ops.get_objects_with_tag_by_activity_desc(tag_id.to_db_field(), pagination.offset, pagination.page_size)?,
         };
 
         results.reserve(from_db.len());

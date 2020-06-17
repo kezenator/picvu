@@ -103,6 +103,21 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(num)
     }
 
+    fn get_num_objects_with_tag(&self, tag: i64) -> Result<u64, Error>
+    {
+        use schema::object_tags::dsl::*;
+        use diesel::dsl::count_star;
+
+        let num: u64 = object_tags
+            .select(count_star())
+            .filter(tag_id.eq(tag))
+            .first::<i64>(self.connection)?
+            .to_u64()
+            .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 objects in database".to_owned() })?;
+
+        Ok(num)
+    }
+
     fn get_object_by_id(&self, obj_id: i64) -> Result<Option<Object>, Error>
     {
         use schema::objects::dsl::*;
@@ -201,8 +216,21 @@ impl<'a> ReadOps for Transaction<'a>
             .limit(page_size as i64)
             .load::<Object>(self.connection)?;
     
-            Ok(results)
-        }
+        Ok(results)
+    }
+
+    fn get_objects_with_tag_by_activity_desc(&self, tag_id: i64, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    {
+        let results = schema::objects::table
+            .filter(schema::objects::id.eq_any(
+                    schema::object_tags::table.select(schema::object_tags::obj_id).filter(schema::object_tags::tag_id.eq(tag_id))))
+            .order_by(schema::objects::activity_timestamp.desc())
+            .offset(offset as i64)
+            .limit(page_size as i64)
+            .load::<Object>(self.connection)?;
+    
+        Ok(results)
+    }
 
     fn get_attachment_metadata(&self, q_obj_id: i64) -> Result<Option<AttachmentMetadata>, Error>
     {

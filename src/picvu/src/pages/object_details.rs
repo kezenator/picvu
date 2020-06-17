@@ -209,7 +209,10 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                     {
                         @for tag in object.tags.iter()
                         {
-                            p: format!("{} ({:?}, {:?}, {:?})", tag.name, tag.kind, tag.rating, tag.censor);
+                            a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }))
+                            {
+                                p : format!("{} ({:?}, {:?}, {:?})", tag.name, tag.kind, tag.rating, tag.censor);
+                            }
                         }
                     }
                 }

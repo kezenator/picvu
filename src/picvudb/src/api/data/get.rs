@@ -64,4 +64,5 @@ pub enum GetObjectsQuery
     ByObjectId(ObjectId),
     NearLocationByActivityDesc{ location: Location, radius_meters: f64 },
     TitleNotesSearchByActivityDesc{ search: String },
+    TagByActivityDesc{ tag_id: TagId },
 }

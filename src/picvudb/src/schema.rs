@@ -100,3 +100,6 @@ allow_tables_to_appear_in_same_query!(objects, objects_location);
 
 joinable!(objects_fts -> objects (id));
 allow_tables_to_appear_in_same_query!(objects, objects_fts);
+
+joinable!(object_tags -> objects (obj_id));
+allow_tables_to_appear_in_same_query!(objects, object_tags);
