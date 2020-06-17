@@ -308,7 +308,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
                     }
                     div(class="object-listing-title")
                     {
-                        : format::insert_zero_width_spaces(object.title.clone().unwrap_or(String::new()));
+                        : format::insert_zero_width_spaces(object.title.clone().unwrap_or(object.attachment.filename.clone()));
                     }
                 }
             }
@@ -352,7 +352,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
                     {
                         a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
                         {
-                            : object.title.clone().unwrap_or(object.id.to_string())
+                            : object.title.clone().unwrap_or(object.attachment.filename.clone())
                         }
                     }
                     td: format::date_to_str(&object.activity_time, &now);

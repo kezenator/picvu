@@ -120,7 +120,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
 {
     let now = picvudb::data::Date::now();
 
-    let title = object.title.clone().unwrap_or(format!("Object {}", object.id.to_string()));
+    let title = object.title.clone().unwrap_or(object.attachment.filename.clone());
 
     let contents = owned_html!
     {

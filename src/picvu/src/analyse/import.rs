@@ -77,7 +77,7 @@ pub fn create_add_object_for_import(
 
     // Take default values from the information provided
 
-    let mut title = file_name.clone();
+    let mut title = None;
     let mut notes = None;
     let mut obj_created_time = None;
     let mut obj_activity_time;
@@ -106,8 +106,12 @@ pub fn create_add_object_for_import(
     if let Some(metadata) = opt_google_photos_takeout_metadata
     {
         if !metadata.title.is_empty()
+            && metadata.title != *file_name
         {
-            title = metadata.title;
+            // If the item has a title that's different to
+            // the file name, then we'll use it.
+
+            title = Some(metadata.title);
         }
 
         if !metadata.description.is_empty()
@@ -433,7 +437,7 @@ pub fn create_add_object_for_import(
 
     let data = picvudb::data::add::ObjectData
     {
-        title: Some(title),
+        title: title,
         notes: notes,
         rating: None,
         censor: picvudb::data::Censor::FamilyFriendly,
