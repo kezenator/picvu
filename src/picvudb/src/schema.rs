@@ -20,6 +20,7 @@ table! {
         censor -> Integer,
         latitude -> Nullable<Double>,
         longitude -> Nullable<Double>,
+        tag_set -> Nullable<Text>,
     }
 }
 
@@ -64,6 +65,30 @@ table! {
         max_lat -> Double,
         min_long -> Double,
         max_long -> Double,
+    }
+}
+
+table! {
+    tags (tag_id) {
+        tag_id -> BigInt,
+        tag_name -> Text,
+        tag_kind -> Integer,
+        tag_rating -> Nullable<Integer>,
+        tag_censor -> Integer,
+    }
+}
+
+table! {
+    object_tags (tag_id, obj_id) {
+        tag_id -> BigInt,
+        obj_id -> BigInt,
+    }
+}
+
+table! {
+    tags_fts (tag_id) {
+        tag_id -> BigInt,
+        tag_name -> Text,
     }
 }
 

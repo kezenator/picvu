@@ -16,7 +16,8 @@ CREATE TABLE objects (
   rating INTEGER,
   censor INTEGER NOT NULL,
   latitude REAL,
-  longitude REAL
+  longitude REAL,
+  tag_set TEXT
 );
 
 CREATE INDEX objects_by_modified_timestamp
@@ -73,4 +74,37 @@ CREATE VIRTUAL TABLE objects_location USING rtree(
   id,
   min_lat, max_lat,
   min_long, max_long,
-)
+);
+
+CREATE TABLE tags
+(
+  tag_id INTEGER PRIMARY KEY,
+  tag_name TEXT NOT NULL UNIQUE,
+  tag_kind INTEGER NOT NULL,
+  tag_rating INTEGER,
+  tag_censor INTEGER NOT NULL
+);
+
+create INDEX tags_by_name
+  ON tags(tag_name);
+
+CREATE TABLE object_tags
+(
+  tag_id INTEGER NOT NULL,
+  obj_id INTEGER NOT NULL
+);
+
+create INDEX object_tags_by_object
+  ON object_tags(obj_id, tag_id);
+
+create INDEX object_tags_by_tag
+  ON object_tags(tag_id, obj_id);
+
+CREATE VIRTUAL TABLE tags_fts USING fts5(
+  tag_id,
+  tag_name,
+  tokenize = 'porter unicode61',
+  prefix = 3,
+  content = tags,
+  content_rowid = tag_id
+);

@@ -1,4 +1,4 @@
-use crate::api::data::{Censor, Date, Dimensions, Duration, Location, Orientation, Rating};
+use crate::api::data::{Censor, Date, Dimensions, Duration, Location, Orientation, Rating, TagKind};
 
 #[derive(Debug)]
 pub struct Attachment
@@ -14,6 +14,15 @@ pub struct Attachment
 }
 
 #[derive(Debug)]
+pub struct Tag
+{
+    pub name: String,
+    pub kind: TagKind,
+    pub rating: Option<Rating>,
+    pub censor: Censor,
+}
+
+#[derive(Debug)]
 pub struct ObjectData
 {
     pub title: Option<String>,
@@ -24,4 +33,5 @@ pub struct ObjectData
     pub activity_time: Option<Date>,
     pub location: Option<Location>,
     pub attachment: Attachment,
+    pub tags: Vec<Tag>,
 }

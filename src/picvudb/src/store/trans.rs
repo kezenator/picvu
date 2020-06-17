@@ -262,6 +262,24 @@ impl<'a> ReadOps for Transaction<'a>
 
         Ok(Some(collected_bytes))
     }
+
+    fn get_tag(&self, tag_id: i64) -> Result<Tag, Error>
+    {
+        match schema::tags::table
+            .filter(schema::tags::tag_id.eq(tag_id))
+            .get_result(self.connection)
+            .optional()?
+        {
+            Some(tag) =>
+            {
+                Ok(tag)
+            },
+            None =>
+            {
+                Err(Error::DatabaseConsistencyError{ msg: format!("Tag ID {} has no stored data", tag_id) })
+            },
+        }
+    }
 }
 
 impl<'a> WriteOps for Transaction<'a>
@@ -293,7 +311,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<Object, Error>
+    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet) -> Result<Object, Error>
     {
         let modified_time = data::Date::now();
         let created_time = created_time.unwrap_or(modified_time.clone());
@@ -316,6 +334,7 @@ impl<'a> WriteOps for Transaction<'a>
             censor: censor.to_db_field(),
             latitude: latitude,
             longitude: longitude,
+            tag_set: tag_set.to_db_field(),
         };
 
         diesel::insert_into(schema::objects::table)
@@ -374,6 +393,7 @@ impl<'a> WriteOps for Transaction<'a>
             censor: censor.to_db_field(),
             latitude: latitude,
             longitude: longitude,
+            tag_set: tag_set.to_db_field(),
         };
 
         Ok(model_object)
@@ -505,6 +525,61 @@ impl<'a> WriteOps for Transaction<'a>
             diesel::delete(objects_location.filter(id.eq(obj_id)))
                 .execute(self.connection)?;
         }
+
+        Ok(())
+    }
+
+    fn find_or_add_tag(&self, name: String, kind: data::TagKind, rating: Option<data::Rating>, censor: data::Censor) -> Result<i64, Error>
+    {
+        match schema::tags::table.filter(schema::tags::tag_name.eq(name.clone())).get_result::<Tag>(self.connection).optional()?
+        {
+            Some(tag) =>
+            {
+                Ok(tag.tag_id)
+            },
+            None =>
+            {
+                let tag = InsertableTag
+                {
+                    tag_name: name.clone(),
+                    tag_kind: kind.to_db_field(),
+                    tag_rating: rating.map(|r| r.to_db_field()),
+                    tag_censor: censor.to_db_field(),
+                };
+
+                diesel::insert_into(schema::tags::table)
+                    .values(&tag)
+                    .execute(self.connection)?;
+
+                let new_id: NewId = diesel::sql_query("SELECT last_insert_rowid() as 'new_id'")
+                    .get_result(self.connection)?;
+
+                let tag_fts = TagsFts
+                {
+                    tag_id: new_id.new_id,
+                    tag_name: name
+                };
+
+                diesel::insert_into(schema::tags_fts::table)
+                    .values(&tag_fts)
+                    .execute(self.connection)?;
+
+                Ok(new_id.new_id)
+            },
+        }
+    }
+
+    fn add_object_tag(&self, obj_id: i64, tag_id: i64) -> Result<(), Error>
+    {
+        let entry = ObjectTags
+        {
+            obj_id: obj_id,
+            tag_id: tag_id,
+        };
+
+        diesel::insert_into(schema::object_tags::table)
+            .values(&entry)
+            .execute(self.connection)?;
 
         Ok(())
     }

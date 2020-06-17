@@ -199,17 +199,31 @@ impl ApiMessage for GetObjectsRequest
                 }
             };
 
-            let rating = match object.rating
-            {
-                Some(num) => Some(data::Rating::from_db_field(num)?),
-                None => None,
-            };
-
             let location = match (object.latitude, object.longitude)
             {
                 (Some(latitude), Some(longitude)) => Some(data::Location::new(latitude, longitude, None)),
                 _ => None
             };
+
+            let mut tags = Vec::new();
+            {
+                let tag_set = data::TagSet::from_db_field(object.tag_set)?;
+
+                tags.reserve(tag_set.to_db_vec().len());
+
+                for tag_id in tag_set.to_db_vec()
+                {
+                    let tag_data = ops.get_tag(*tag_id)?;
+
+                    tags.push(data::get::TagMetadata {
+                        tag_id: data::TagId::from_db_field(tag_data.tag_id),
+                        name: tag_data.tag_name,
+                        kind: data::TagKind::from_db_field(tag_data.tag_kind)?,
+                        rating: data::Rating::from_db_field(tag_data.tag_rating)?,
+                        censor: data::Censor::from_db_field(tag_data.tag_censor)?,
+                    });
+                }
+            }
 
             results.push(data::get::ObjectMetadata
             {
@@ -219,10 +233,11 @@ impl ApiMessage for GetObjectsRequest
                 activity_time: data::Date::from_db_fields(object.activity_timestamp, object.activity_offset)?,
                 title: object.title,
                 notes: object.notes,
-                rating: rating,
+                rating: data::Rating::from_db_field(object.rating)?,
                 censor: data::Censor::from_db_field(object.censor)?,
                 location: location,
                 attachment: attachment,
+                tags: tags,
             });
         }
 
@@ -262,6 +277,19 @@ impl ApiMessage for AddObjectRequest
 
     fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
     {
+        let mut tag_ids = std::collections::BTreeSet::new();
+
+        for t in self.data.tags.iter()
+        {
+            let tag_id = ops.find_or_add_tag(
+                t.name.clone(),
+                t.kind.clone(),
+                t.rating.clone(),
+                t.censor.clone())?;
+
+            tag_ids.insert(tag_id);
+        }
+
         let object = ops.add_object(
             self.data.created_time.clone(),
             self.data.activity_time.clone(),
@@ -269,7 +297,8 @@ impl ApiMessage for AddObjectRequest
             self.data.notes.clone(),
             self.data.rating.clone(),
             self.data.censor.clone(),
-            self.data.location.clone())?;
+            self.data.location.clone(),
+            data::TagSet::from_db_set(&tag_ids))?;
 
         ops.add_attachment(
             object.id,
@@ -281,6 +310,11 @@ impl ApiMessage for AddObjectRequest
             self.data.attachment.dimensions.clone(),
             self.data.attachment.duration.clone(),
             self.data.attachment.bytes.clone())?;
+
+        for tag_id in tag_ids
+        {
+            ops.add_object_tag(object.id, tag_id)?;
+        }
 
         Ok(AddObjectResponse{ object_id: data::ObjectId::from_db_field(object.id) })
     }

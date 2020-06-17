@@ -2,3 +2,8 @@ DROP TABLE db_properties
 DROP TABLE objects
 DROP TABLE attachments_metadata
 DROP TABLE attachments_data
+DROP TABLE objects_fts
+DROP TABLE objects_location
+DROP TABLE tags
+DROP TABLE object_tags
+DROP TABLE tags_fts

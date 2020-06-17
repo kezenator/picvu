@@ -29,4 +29,7 @@ pub enum WarningKind
     VideoAnalysisError,
     SkippedDuplicateMvImgPart,
     NoGoogleTakeoutMetadataAvailable,
+    MissingDimensions,
+    MissingDuration,
+    ReverseGeocodeError,
 }

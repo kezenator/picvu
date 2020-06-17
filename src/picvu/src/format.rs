@@ -88,7 +88,20 @@ pub fn date_to_str(date: &picvudb::data::Date, _now: &picvudb::data::Date) -> St
 
 pub fn date_to_date_only_string(date: &picvudb::data::Date) -> String
 {
-    date.to_rfc3339()[0..10].to_owned()
+    let rfc3339_str = match date
+    {
+        picvudb::data::Date::Utc(utc) =>
+        {
+            let local = utc.with_timezone(&chrono::Local);
+            local.to_rfc3339()
+        },
+        picvudb::data::Date::FixedOffset(fixed) =>
+        {
+            fixed.to_rfc3339()
+        },
+    };
+
+    rfc3339_str[0..10].to_owned()
 }
 
 pub fn query_to_string(query: &picvudb::data::get::GetObjectsQuery) -> String

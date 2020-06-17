@@ -1,4 +1,4 @@
-use crate::{Error, ParseError};
+use crate::ParseError;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Rating
@@ -42,9 +42,13 @@ impl Rating
         self.num_stars() as i32
     }
 
-    pub(crate) fn from_db_field(num: i32) -> Result<Self, Error>
+    pub(crate) fn from_db_field(num: Option<i32>) -> Result<Option<Self>, ParseError>
     {
-        Self::from_num_stars(num as u8).map_err(|e| e.into())
+        match num
+        {
+            Some(num) => Ok(Some(Self::from_num_stars(num as u8)?)),
+            None => Ok(None),
+        }
     }
 }
 

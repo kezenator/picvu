@@ -200,6 +200,21 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 td: object.censor.to_string();
             }
 
+            @if !object.tags.is_empty()
+            {
+                tr
+                {
+                    td: "Tags";
+                    td
+                    {
+                        @for tag in object.tags.iter()
+                        {
+                            p: format!("{} ({:?}, {:?}, {:?})", tag.name, tag.kind, tag.rating, tag.censor);
+                        }
+                    }
+                }
+            }
+
             : location_details(&object.location, &timezone_info, &geocode_info);
 
             : attachment_details(&object.id, &object.attachment, &mvimg_split, &now);

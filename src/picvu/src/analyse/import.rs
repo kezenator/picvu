@@ -87,6 +87,7 @@ pub fn create_add_object_for_import(
     let mut orientation = None;
     let mut dimensions = None;
     let mut duration = None;
+    let mut tags = Vec::new();
 
     // Try and guess the MIME type
 
@@ -334,7 +335,27 @@ pub fn create_add_object_for_import(
         dimensions = Some(dim.adjust_for_orientation(&orientation));
     }
 
-    // Finally, adjust any fields that are specified
+    // Add a warning if we can't get a dimension, or
+    // a duration for vide
+
+    if mime.type_() == mime::IMAGE
+        || mime.type_() == mime::VIDEO
+    {
+        if dimensions.is_none()
+        {
+            warnings.push(Warning::new(file_name, WarningKind::MissingDimensions, "Could not decode dimensions"));
+        }
+    }
+
+    if mime.type_() == mime::VIDEO
+    {
+        if duration.is_none()
+        {
+            warnings.push(Warning::new(file_name, WarningKind::MissingDuration, "Could not decode video duration"));
+        }
+    }
+
+    // Adjust any fields that are specified
     // in the import options
 
     if let Some(forced_tz) = import_options.force_timezone.clone()
@@ -360,6 +381,41 @@ pub fn create_add_object_for_import(
             location = Some(assume_location);
         }
     }
+
+    // If we have a location, then use the Google Maps service
+    // to add some tags
+
+    if let Some(loc) = &location
+    {
+        match google_cache.reverse_geocode(loc)
+        {
+            Ok(rev_geocode) =>
+            {
+                for name in rev_geocode.names
+                {
+                    tags.push(picvudb::data::add::Tag{
+                        name: name,
+                        kind: picvudb::data::TagKind::Location,
+                        rating: None,
+                        censor: picvudb::data::Censor::FamilyFriendly,
+                    });
+                }
+            },
+            Err(e) =>
+            {
+                warnings.push(Warning::new(file_name, WarningKind::ReverseGeocodeError, e));
+            },
+        }
+    }
+
+    // Always mark it as unsorted
+
+    tags.push(picvudb::data::add::Tag{
+        name: "Unsorted".to_owned(),
+        kind: picvudb::data::TagKind::Label,
+        rating: None,
+        censor: picvudb::data::Censor::FamilyFriendly,
+    });
     
     // Construct the Add Object request
 
@@ -385,6 +441,7 @@ pub fn create_add_object_for_import(
         activity_time: obj_activity_time,
         location: location,
         attachment: attachment,
+        tags: tags,
     };
 
     let msg = picvudb::msgs::AddObjectRequest{ data };

@@ -26,6 +26,7 @@ pub struct Object
     pub censor: i32,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub tag_set: Option<String>,
 }
 
 #[derive(Insertable)]
@@ -44,6 +45,7 @@ pub struct InsertableObject
     pub censor: i32,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub tag_set: Option<String>,
 }
 
 #[derive(QueryableByName)]
@@ -125,4 +127,42 @@ pub struct ObjectsLocation
     pub max_lat: f64,
     pub min_long: f64,
     pub max_long: f64,
+}
+
+#[derive(Insertable)]
+#[table_name="tags"]
+pub struct InsertableTag
+{
+    pub tag_name: String,
+    pub tag_kind: i32,
+    pub tag_rating: Option<i32>,
+    pub tag_censor: i32,
+}
+
+#[derive(Queryable)]
+pub struct Tag
+{
+    pub tag_id: i64,
+    pub tag_name: String,
+    pub tag_kind: i32,
+    pub tag_rating: Option<i32>,
+    pub tag_censor: i32,
+}
+
+#[derive(Queryable)]
+#[derive(Insertable)]
+#[table_name="object_tags"]
+pub struct ObjectTags
+{
+    pub obj_id: i64,
+    pub tag_id: i64,
+}
+
+#[derive(Queryable)]
+#[derive(Insertable)]
+#[table_name="tags_fts"]
+pub struct TagsFts
+{
+    pub tag_id: i64,
+    pub tag_name: String,
 }
