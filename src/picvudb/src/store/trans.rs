@@ -339,7 +339,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet) -> Result<Object, Error>
+    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<Object, Error>
     {
         let modified_time = data::Date::now();
         let created_time = created_time.unwrap_or(modified_time.clone());
@@ -363,6 +363,8 @@ impl<'a> WriteOps for Transaction<'a>
             latitude: latitude,
             longitude: longitude,
             tag_set: tag_set.to_db_field(),
+            ext_ref_type: ext_ref.clone().map(|e| e.to_db_field_type()),
+            ext_ref_id: ext_ref.clone().map(|e| e.to_db_field_id()),
         };
 
         diesel::insert_into(schema::objects::table)
@@ -422,6 +424,8 @@ impl<'a> WriteOps for Transaction<'a>
             latitude: latitude,
             longitude: longitude,
             tag_set: tag_set.to_db_field(),
+            ext_ref_type: ext_ref.clone().map(|e| e.to_db_field_type()),
+            ext_ref_id: ext_ref.clone().map(|e| e.to_db_field_id()),
         };
 
         Ok(model_object)

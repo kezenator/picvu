@@ -32,4 +32,6 @@ pub enum WarningKind
     MissingDimensions,
     MissingDuration,
     ReverseGeocodeError,
+    DuplicateGooglePhotosFilename,
+    MissingGooglePhotosReference,
 }

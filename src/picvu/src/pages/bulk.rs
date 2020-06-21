@@ -65,6 +65,23 @@ async fn post_bulk_import(state: web::Data<State>, form: web::Form<BulkImportFor
 {
     let api_key = pages::setup::get_api_key(&*state).await.unwrap_or_default();
 
+    let access_token =
+    {
+        let auth = state.google_auth_client.lock().unwrap();
+
+        match auth.access_token()
+        {
+            Some(access_token) =>
+            {
+                access_token
+            },
+            None =>
+            {
+                return Ok(view::redirect(pages::auth::AuthPage::path()));
+            },
+        }
+    };
+
     let import_options = analyse::import::ImportOptions
     {
         assume_timezone: parse_str_to_opt(&form.assume_timezone)?,
@@ -76,7 +93,7 @@ async fn post_bulk_import(state: web::Data<State>, form: web::Form<BulkImportFor
     {
         let mut bulk_queue = state.bulk_queue.lock().unwrap();
 
-        bulk_queue.enqueue(bulk::import::FolderImport::new(form.folder.clone(), state.db_uri.clone(), api_key, import_options));
+        bulk_queue.enqueue(bulk::import::FolderImport::new(form.folder.clone(), state.db_uri.clone(), api_key, access_token, import_options));
     }
 
     Ok(view::redirect(BulkPage::progress_path()))

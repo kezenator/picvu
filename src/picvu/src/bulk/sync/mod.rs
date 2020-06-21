@@ -11,6 +11,8 @@ use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
 
 pub mod error;
+pub mod mediaitems;
+
 pub use error::SyncError;
 
 pub struct GooglePhotosSync

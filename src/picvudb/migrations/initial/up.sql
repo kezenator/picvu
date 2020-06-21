@@ -17,7 +17,9 @@ CREATE TABLE objects (
   censor INTEGER NOT NULL,
   latitude REAL,
   longitude REAL,
-  tag_set TEXT
+  tag_set TEXT,
+  ext_ref_type TEXT,
+  ext_ref_id TEXT
 );
 
 CREATE INDEX objects_by_modified_timestamp

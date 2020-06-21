@@ -1,6 +1,8 @@
 use snafu::Snafu;
 use snafu::IntoError;
 
+use crate::bulk::sync::SyncError;
+
 #[derive(Debug, Snafu)]
 pub enum ImportError
 {
@@ -10,6 +12,8 @@ pub enum ImportError
     DbConnectionError { source: picvudb::DbConnectionError },
     #[snafu(display("DB Error: {:?}", source))]
     DbError { source: picvudb::Error },
+    #[snafu(display("Sync Error: {:?}", source))]
+    GoogleSyncError { source: SyncError },
 }
 
 impl From<std::io::Error> for ImportError
@@ -30,5 +34,12 @@ impl From<picvudb::Error> for ImportError
 {
     fn from(source: picvudb::Error) -> Self {
         DbError{}.into_error(source)
+    }
+}
+
+impl From<SyncError> for ImportError
+{
+    fn from(source: SyncError) -> Self {
+        GoogleSyncError{}.into_error(source)
     }
 }

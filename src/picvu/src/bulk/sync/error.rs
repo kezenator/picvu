@@ -10,6 +10,16 @@ pub enum SyncError
     DbError { source: picvudb::Error },
     #[snafu(display("Google Photos Error: {:?}", source))]
     GooglePhotosError { source: googlephotos::api::GoogleApiError },
+    #[snafu(display("Google Photos Parse Error: {}", msg))]
+    GooglePhotosParseError { msg: String },
+}
+
+impl SyncError
+{
+    pub fn new_parse_err(msg: String) -> SyncError
+    {
+        GooglePhotosParseError{msg}.fail::<()>().err().unwrap()
+    }
 }
 
 impl From<picvudb::DbConnectionError> for SyncError

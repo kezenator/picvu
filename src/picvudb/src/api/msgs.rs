@@ -240,6 +240,7 @@ impl ApiMessage for GetObjectsRequest
                 location: location,
                 attachment: attachment,
                 tags: tags,
+                ext_ref: data::ExternalReference::from_db_fields(object.ext_ref_type, object.ext_ref_id)?,
             });
         }
 
@@ -300,7 +301,8 @@ impl ApiMessage for AddObjectRequest
             self.data.rating.clone(),
             self.data.censor.clone(),
             self.data.location.clone(),
-            data::TagSet::from_db_set(&tag_ids))?;
+            data::TagSet::from_db_set(&tag_ids),
+            self.data.ext_ref.clone())?;
 
         ops.add_attachment(
             object.id,

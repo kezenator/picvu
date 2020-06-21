@@ -6,8 +6,11 @@ use actix_web::web;
 use picvudb::StoreAccess;
 use picvudb::ApiMessage;
 
+use googlephotos::auth::AccessToken;
+
 use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
+use crate::bulk::sync::mediaitems::MediaItemDatabase;
 use crate::format;
 use crate::analyse;
 use crate::analyse::warning::{Warning, WarningKind};
@@ -28,18 +31,20 @@ pub struct FolderImport
     folder_path: String,
     db_uri: String,
     google_api_key: String,
+    access_token: AccessToken,
     import_options: analyse::import::ImportOptions,
 }
 
 impl FolderImport
 {
-    pub fn new(folder_path: String, db_uri: String, google_api_key: String, import_options: analyse::import::ImportOptions) -> Self
+    pub fn new(folder_path: String, db_uri: String, google_api_key: String, access_token: AccessToken, import_options: analyse::import::ImportOptions) -> Self
     {
         FolderImport
         {
             folder_path,
             db_uri,
             google_api_key,
+            access_token,
             import_options,
         }
     }
@@ -108,6 +113,39 @@ impl BulkOperation for FolderImport
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
                                 format!("Unsupported file: {}", entry.display_path)).into());
+                        }
+                    }
+                }
+
+                let google_photos_db =
+                {
+                    if is_google_photos_takeout_archive
+                    {
+                        sender.start_stage(
+                            "Loading Google Photots Metadata".to_owned(),
+                            vec!["Loading Metadata".to_owned(), "Importing Media".to_owned(), "Summary".to_owned()]);
+
+                        MediaItemDatabase::load_all(&self.access_token, &sender)?
+                    }
+                    else
+                    {
+                        MediaItemDatabase::empty()
+                    }
+                };
+
+                // Add warnings for Google Photos entries with duplicate file names
+                // as we can't be sure we get the right one
+
+                {
+                    for list in google_photos_db.filename_to_id_vec.iter()
+                    {
+                        if list.1.len() > 1
+                        {
+                            warnings.push(Warning::new(
+                                list.0.clone(),
+                                WarningKind::DuplicateGooglePhotosFilename,
+                                format!("{} items have the same filename: {:?}", list.1.len(), list.1)
+                            ));
                         }
                     }
                 }
@@ -242,6 +280,17 @@ impl BulkOperation for FolderImport
                                 summary_imported_media_files += 1;
                                 summary_imported_media_bytes += entry.bytes.len() as u64;
 
+                                let ext_ref = google_photos_db.find_best_match(&entry.file_name, &entry.created);
+
+                                if is_google_photos_takeout_archive
+                                    && ext_ref.is_none()
+                                {
+                                    warnings.push(Warning::new(
+                                        entry.file_name.clone(),
+                                        WarningKind::MissingGooglePhotosReference,
+                                        "No Google Photos link found".to_owned()));
+                                }
+
                                 let add_msg = analyse::import::create_add_object_for_import(
                                     entry.bytes,
                                     &entry.file_name,
@@ -250,6 +299,7 @@ impl BulkOperation for FolderImport
                                     entry.created,
                                     Some(entry.modified),
                                     google_metadata,
+                                    ext_ref,
                                     &mut warnings)?;
 
                                 if add_msg.data.location.is_some()

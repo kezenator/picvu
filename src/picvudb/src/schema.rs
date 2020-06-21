@@ -21,6 +21,8 @@ table! {
         latitude -> Nullable<Double>,
         longitude -> Nullable<Double>,
         tag_set -> Nullable<Text>,
+        ext_ref_type -> Nullable<Text>,
+        ext_ref_id -> Nullable<Text>,
     }
 }
 

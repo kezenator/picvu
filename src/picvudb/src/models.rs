@@ -27,6 +27,8 @@ pub struct Object
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
     pub tag_set: Option<String>,
+    pub ext_ref_type: Option<String>,
+    pub ext_ref_id: Option<String>,
 }
 
 #[derive(Insertable)]
@@ -46,6 +48,8 @@ pub struct InsertableObject
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
     pub tag_set: Option<String>,
+    pub ext_ref_type: Option<String>,
+    pub ext_ref_id: Option<String>,
 }
 
 #[derive(QueryableByName)]

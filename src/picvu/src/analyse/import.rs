@@ -71,6 +71,7 @@ pub fn create_add_object_for_import(
     opt_file_created_time: Option<picvudb::data::Date>,
     opt_file_modified_time: Option<picvudb::data::Date>,
     opt_google_photos_takeout_metadata: Option<analyse::takeout::Metadata>,
+    opt_ext_ref: Option<picvudb::data::ExternalReference>,
     warnings: &mut Vec<Warning>) -> Result<picvudb::msgs::AddObjectRequest, std::io::Error>
 {
     let now = picvudb::data::Date::now();
@@ -446,6 +447,7 @@ pub fn create_add_object_for_import(
         location: location,
         attachment: attachment,
         tags: tags,
+        ext_ref: opt_ext_ref,
     };
 
     let msg = picvudb::msgs::AddObjectRequest{ data };

@@ -218,6 +218,21 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 }
             }
 
+            @if let Some(ext_ref) = object.ext_ref
+            {
+                tr
+                {
+                    td: "Reference";
+                    td
+                    {
+                        a(href=ext_ref.get_url(), target="_blank")
+                        {
+                            : ext_ref.get_type()
+                        }
+                    }
+                }
+            }
+
             : location_details(&object.location, &timezone_info, &geocode_info);
 
             : attachment_details(&object.id, &object.attachment, &mvimg_split, &now);
