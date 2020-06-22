@@ -137,16 +137,13 @@ impl BulkOperation for FolderImport
                 // as we can't be sure we get the right one
 
                 {
-                    for list in google_photos_db.filename_to_id_vec.iter()
+                    for (filename, len) in google_photos_db.filenames_with_multiple_media_items()
                     {
-                        if list.1.len() > 1
-                        {
-                            warnings.push(Warning::new(
-                                list.0.clone(),
-                                WarningKind::DuplicateGooglePhotosFilename,
-                                format!("{} items have the same filename: {:?}", list.1.len(), list.1)
-                            ));
-                        }
+                        warnings.push(Warning::new(
+                            filename,
+                            WarningKind::DuplicateGooglePhotosFilename,
+                            format!("{} items have the same filename", len)
+                        ));
                     }
                 }
 

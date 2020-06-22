@@ -8,6 +8,16 @@ pub enum GoogleApiError
     CurlError{ source: curl::Error },
     #[snafu(display("JSON error: {:?}", source))]
     JsonError{ source: serde_json::error::Error },
+    #[snafu(display("Unexpedted response: {:?}", body))]
+    UnexpectedResponse{ body: String },
+}
+
+impl GoogleApiError
+{
+    pub fn new_unexpected_response(body: String) -> GoogleApiError
+    {
+        UnexpectedResponse{body}.fail::<()>().err().unwrap()
+    }
 }
 
 impl From<curl::Error> for GoogleApiError

@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use actix_web::web;
 
 use googlephotos::auth::AccessToken;
@@ -10,6 +10,7 @@ use picvudb::ApiMessage;
 use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
 
+pub mod albums;
 pub mod error;
 pub mod mediaitems;
 
@@ -51,68 +52,26 @@ impl BulkOperation for GooglePhotosSync
         Box::pin(async move
         {
             let mut stages = vec![
-                "Loading Google Photos media items".to_owned(),
                 "Loading Google Photos albums".to_owned(),
-                "Loading Google Photos album contents".to_owned(),
                 "Loading PicVu item data".to_owned(),
-                "Updating items".to_owned(),
+                "Creating new albums".to_owned(),
+                "Updating albums".to_owned(),
             ];
 
             web::block(move ||
             {
-                // Load media items
-                {
-                    let stage = stages[0].clone();
-                    stages.remove(0);
-                    sender.start_stage(stage, stages.clone());
-                }
-
-                let mut gp_id_to_media_item = HashMap::new();
-                let mut gp_filename_to_id_list = HashMap::new();
-
-                {
-                    let mut next_page_token = None;
-
-                    loop
-                    {
-                        sender.set(0.0, vec![format!("Loaded {} media items", gp_id_to_media_item.len())]);
-
-                        let mut response = googlephotos::api::raw::media_items_list(&access_token, next_page_token)?;
-
-                        next_page_token = response.next_page_token;
-
-                        for media_item in response.media_items.drain(..)
-                        {
-                            let filename = media_item.filename.clone();
-                            let filename_list = gp_filename_to_id_list.entry(filename).or_insert(Vec::new());
-                            filename_list.push(media_item.id.clone());
-
-                            gp_id_to_media_item.insert(media_item.id.clone(), media_item);
-                        }
-
-                        if next_page_token.is_none()
-                        {
-                            break;
-                        }
-                    }
-
-                    sender.set(0.0, vec![format!("Loaded {} media items", gp_id_to_media_item.len())]);
-                }
-
                 // Load albums
+                let mut album_db =
                 {
                     let stage = stages[0].clone();
                     stages.remove(0);
                     sender.start_stage(stage, stages.clone());
-                }
-                
-                // Load album contents
-                {
-                    let stage = stages[0].clone();
-                    stages.remove(0);
-                    sender.start_stage(stage, stages.clone());
-                }
 
+                    albums::AlbumDatabase::load_all(&access_token, &sender)?
+                };
+
+                println!("Album DB:\n:{:#?}", album_db);
+                
                 // Load objects
                 {
                     let stage = stages[0].clone();
@@ -122,6 +81,7 @@ impl BulkOperation for GooglePhotosSync
 
                 let store = picvudb::Store::new(&db_uri)?;
 
+                let objects =
                 {
                     let stats = store.write_transaction(|ops|
                         {
@@ -130,82 +90,67 @@ impl BulkOperation for GooglePhotosSync
 
                     let msg = picvudb::msgs::GetObjectsRequest
                     {
-                        query: picvudb::data::get::GetObjectsQuery::ByModifiedDesc,
+                        query: picvudb::data::get::GetObjectsQuery::ByActivityDesc,
                         pagination: picvudb::data::get::PaginationRequest{ offset: 0, page_size: stats.num_objects },
                     };
 
-                    let mut results = store.write_transaction(|ops|
+                    let results = store.write_transaction(|ops|
                     {
                         msg.execute(ops)
                     })?;
 
                     assert_eq!(results.pagination_response.total, results.objects.len() as u64);
 
-                    let mut warnings = Vec::new();
+                    results.objects
+                };
 
-                    for object in results.objects.drain(..)
+                // Creating albums
+                {
+                    let stage = stages[0].clone();
+                    stages.remove(0);
+                    sender.start_stage(stage, stages.clone());
+
+                    let mut album_names = HashSet::new();
+
+                    for object in objects.iter()
                     {
-                        sender.set(0.0, warnings.clone());
-
-                        let mut found_id = None;
-
-                        if let Some(id_list) = gp_filename_to_id_list.get(&object.attachment.filename)
+                        if let Some(picvudb::data::ExternalReference::GooglePhotos{..}) = &object.ext_ref
                         {
-                            for id in id_list.iter()
+                            for tag in object.tags.iter()
                             {
-                                if let Some(gp_media_item) = gp_id_to_media_item.get(id)
-                                {
-                                    if are_times_close(&object.activity_time, &gp_media_item.media_metadata.creation_time)
-                                        || are_times_close(&object.attachment.created, &gp_media_item.media_metadata.creation_time)
-                                    {
-                                        if found_id.is_some()
-                                        {
-                                            warnings.push(format!("Duplicate IDs for filename {} obj {} activity {} id {} created {}",
-                                                object.attachment.filename,
-                                                object.id.to_string(),
-                                                object.activity_time.to_rfc3339(),
-                                                id,
-                                                gp_media_item.media_metadata.creation_time));
-                                        }
-                                        else
-                                        {
-                                            found_id = Some(id);
-                                        }
-                                    }
-                                }
+                                album_names.insert(tag.name.clone());
                             }
                         }
+                    }
 
-                        match found_id
+                    album_db.create_albums(album_names, &access_token, &sender)?;
+                }
+
+                // Now put items into the albums
+                {
+                    let stage = stages[0].clone();
+                    stages.remove(0);
+                    sender.start_stage(stage, stages.clone());
+
+                    sender.set(0.0, vec!["Analysing changes required...".to_owned()]);
+
+                    let mut memberships = HashMap::new();
+
+                    for object in objects.iter()
+                    {
+                        if let Some(picvudb::data::ExternalReference::GooglePhotos{id}) = &object.ext_ref
                         {
-                            Some(_id) =>
+                            for tag in object.tags.iter()
                             {
-                            },
-                            None =>
-                            {
-                                let mut found_times = Vec::new();
-
-                                if let Some(id_list) = gp_filename_to_id_list.get(&object.attachment.filename)
-                                {
-                                    for id in id_list.iter()
-                                    {
-                                        if let Some(gp_media_item) = gp_id_to_media_item.get(id)
-                                        {
-                                            found_times.push(gp_media_item.media_metadata.creation_time.clone());
-                                        }
-                                    }
-                                }
-
-                                warnings.push(format!("No matched media_item for filename {} object {} activity {} created {} modified {}, options were {:?}",
-                                object.attachment.filename,
-                                    object.id.to_string(),
-                                    object.activity_time.to_rfc3339(),
-                                    object.attachment.created.to_rfc3339(),
-                                    object.attachment.modified.to_rfc3339(),
-                                    found_times));
-                            },
+                                memberships
+                                    .entry(tag.name.clone())
+                                    .or_insert(Vec::new())
+                                    .push(id.clone());
+                            }
                         }
                     }
+
+                    album_db.apply_changes(memberships, &access_token, &sender)?;
                 }
 
                 Ok(())
@@ -215,23 +160,4 @@ impl BulkOperation for GooglePhotosSync
             Ok(())
         })
     }
-}
-
-fn are_times_close(t1: &picvudb::data::Date, t2: &String) -> bool
-{
-    let t1 = t1.to_chrono_utc();
-    let t2 = match t2.parse::<chrono::DateTime<chrono::Utc>>()
-    {
-        Ok(t) => t,
-        Err(_) => return false,
-    };
-
-    let t1 = t1.timestamp();
-    let t2 = t2.timestamp();
-
-    // Some photos have time zone issues, or may
-    // have been delayed in uploading, so
-    // accept up to 30 hours difference
-    
-    return (t2 - t1).abs() < (30 * 3600);
 }
