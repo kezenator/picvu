@@ -15,6 +15,8 @@ pub enum Icon
     Login,
     Search,
     Settings,
+    Sun,
+    User,
 }
 
 pub enum IconSize
@@ -41,6 +43,8 @@ impl Icon
             Icon::Login => "log-in",
             Icon::Search => "search",
             Icon::Settings => "settings",
+            Icon::Sun => "sun",
+            Icon::User => "user",
         };
 
         let size = match size

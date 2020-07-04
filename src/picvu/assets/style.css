@@ -36,15 +36,92 @@ div.header
 
 div.header-links a
 {
-    margin: 0.2em;
+    margin: 0.4em;
+    padding: 0.4em;
+    color: black;
+}
+
+div.header-links a:hover
+{
+    background-color: orangered;
+    color: white;
+}
+
+.header-link-selected
+{
+    border: 1px solid black;
+    background-color: orangered;
+    color: white !important;
+}
+
+div.header-links form
+{
+    margin: 0.4em;
+    padding: 0.4em;
+    display: inline;
 }
 
 div.pagination
 {
-    margin: 0.4em;
+    margin: 0px;
+    padding: 0px;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
+    align-items: stretch;
+    background-color: lightgrey;
+}
+
+div.pagination-top
+{
+    border-bottom: solid 1px black;
+}
+
+div.pagination-bottom
+{
+    border-top: solid 1px black;
+    border-bottom: solid 1px black;
+}
+
+div.pagination a
+{
+    box-sizing: border-box;
+    margin: 0px;
+    padding: 0.4em;
+    color: black;
+}
+
+div.pagination a:hover
+{
+    background-color: slategrey;
+    color: white !important;
+}
+
+.pagination-link
+{
+    flex-basis: auto;
+}
+
+.pagination-elipsis
+{
+    flex-basis: auto;
+    flex-grow: 100;
+    padding: 0.4em;
+    text-align: center;
+}
+
+.pagination-summary
+{
+    flex-basis: auto;
+    flex-grow: 100;
+    padding: 0.4em;
+    text-align: right;
+}
+
+.pagination-selected
+{
+    background-color: slategrey;
+    color: white !important;
 }
 
 div.object-listing
@@ -107,6 +184,27 @@ div.object-listing-title
 {
     border: solid 1px black;
     padding: 0.4em;
+}
+
+.details-table-header-right
+{
+    float: right;
+}
+
+.details-table-header-right a
+{
+    color: black;
+}
+
+.tag
+{
+    background-color: plum;
+    border: solid 1px rebeccapurple;
+    border-radius: 0.6em;
+    padding: 0.3em;
+    margin: 0.3em;
+    color: black !important;
+    display: inline-block;
 }
 
 svg.icon-16

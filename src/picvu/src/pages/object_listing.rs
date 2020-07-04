@@ -4,7 +4,7 @@ use horrorshow::{owned_html, Raw, Template};
 
 use picvudb::msgs::GetObjectsResponse;
 
-use crate::icons::Icon;
+use crate::icons::{Icon, IconSize};
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -296,7 +296,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
 
     let contents = owned_html!{
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone()));
+        : (pagination(resp.query.clone(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone(), true));
 
         div(class="object-listing")
         {
@@ -330,7 +330,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
             }
         }
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone()));
+        : (pagination(resp.query.clone(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone(), false));
 
     }.into_string().unwrap();
 
@@ -346,7 +346,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
 
     let contents = owned_html!{
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone()));
+        : (pagination(resp.query.clone(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone(), true));
 
         table(class="details-table")
         {
@@ -382,7 +382,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
             }
         }
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone()));
+        : (pagination(resp.query.clone(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone(), false));
 
     }.into_string().unwrap();
 
@@ -442,7 +442,7 @@ fn should_print_page(page: u64, cur_page: u64, last_page: u64) -> bool
     }
 }
 
-fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjectsListType, response: picvudb::data::get::PaginationResponse) -> Raw<String>
+fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjectsListType, response: picvudb::data::get::PaginationResponse, top: bool) -> Raw<String>
 {
     let this_page_offset = response.offset;
     let page_size = response.page_size;
@@ -470,26 +470,18 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjects
 
     let result: String = owned_html!
     {
-        div(class="pagination")
+        div(class=(if top { "pagination pagination-top" } else { "pagination pagination-bottom" }))
         {
             @for page in pages.iter()
             {
                 @if should_print_page(*page, cur_page, last_page)
                 {
                     : ({ done_elipsis = false; ""});
-                    div(class="pagintation-link")
+
+                    a(href=ObjectListingPage::path_with_options(query.clone(), list_type, (*page - 1) * page_size, page_size),
+                        class=(if cur_page == *page { "pagination-link pagination-selected" } else { "pagination-link" }))
                     {
-                        a(href=ObjectListingPage::path_with_options(query.clone(), list_type, (*page - 1) * page_size, page_size))
-                        {
-                            @if cur_page == *page
-                            {
-                                : (format!("[[ {} ]], ", page));
-                            }
-                            else
-                            {
-                                : (format!("{}, ", page));
-                            }
-                        }
+                        : (format!("{}, ", page));
                     }
                 }
                 else
@@ -507,30 +499,20 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjects
             div(class="pagination-summary")
             {
                 : (format!("Total: {} objects ", total));
+            }
 
-                a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::ThumbnailsGrid, this_page_offset, page_size))
-                {
-                    @if list_type == ViewObjectsListType::ThumbnailsGrid
-                    {
-                        : " [[ Thumbnails ]] ";
-                    }
-                    else
-                    {
-                        : " Thumbnails ";
-                    }
-                }
+            a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::ThumbnailsGrid, this_page_offset, page_size),
+                class=(if list_type == ViewObjectsListType::ThumbnailsGrid { "pagination-link pagination-selected" } else { "pagination-link" }))
+            {
+                : Icon::Image.render(IconSize::Size16x16);
+                : " Thumbnails ";
+            }
 
-                a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::DetailsTable, this_page_offset, page_size))
-                {
-                    @if list_type == ViewObjectsListType::DetailsTable
-                    {
-                        : "[[ Details ]]";
-                    }
-                    else
-                    {
-                        : " Details ";
-                    }
-                }
+            a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::DetailsTable, this_page_offset, page_size),
+                class=(if list_type == ViewObjectsListType::DetailsTable { "pagination-link pagination-selected" } else { "pagination-link" }))
+            {
+                : Icon::List.render(IconSize::Size16x16);
+                : " Details ";
             }
         }
     }.into_string().unwrap();

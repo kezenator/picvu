@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use horrorshow::{owned_html, Raw, Template};
 
-use crate::icons::Icon;
+use crate::icons::{Icon, IconSize};
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -152,6 +152,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                     {
                         a(href=pages::edit_object::EditObjectPage::path_for(&object.id))
                         {
+                            : Icon::Edit.render(IconSize::Size16x16);
                             : "Edit";
                         }
                     }
@@ -210,9 +211,20 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                     {
                         @for tag in object.tags.iter()
                         {
-                            a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }))
+                            a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }),
+                                class="tag")
                             {
-                                p : format!("{} ({:?}, {:?}, {:?})", tag.name, tag.kind, tag.rating, tag.censor);
+                                : (match tag.kind
+                                {
+                                    picvudb::data::TagKind::Activity => Icon::Sun,
+                                    picvudb::data::TagKind::Event => Icon::Calendar,
+                                    picvudb::data::TagKind::Label => Icon::Label,
+                                    picvudb::data::TagKind::List => Icon::List,
+                                    picvudb::data::TagKind::Location => Icon::Location,
+                                    picvudb::data::TagKind::Person => Icon::User,
+                                }).render(IconSize::Size16x16);
+
+                                : format!("{} ({:?}, {:?}, {:?})", tag.name, tag.kind, tag.rating, tag.censor);
                             }
                         }
                     }

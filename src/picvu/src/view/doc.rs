@@ -114,20 +114,11 @@ pub fn header(title: &str, icon: Icon, req: &HttpRequest, header_links: &HeaderL
             {
                 @for header in header_links.by_order()
                 {
-                    a(href=(&header.path))
+                    a(href=(&header.path),
+                      class=(if header.path == req.path() { Some("header-link-selected") } else { None }))
                     {
-                        @if header.path == req.path()
-                        {
-                            : "[[ "
-                        }
-
                         : header.icon.render(IconSize::Size16x16);
                         : header.label;
-
-                        @if header.path == req.path()
-                        {
-                            : " ]]"
-                        }
                     }
                 }
 
