@@ -2,6 +2,7 @@ use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use horrorshow::{owned_html, Template};
 
+use crate::icons::Icon;
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -258,5 +259,5 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
         }
     }.into_string().unwrap();
 
-    view::html_page(req, header_links, &title, &contents)
+    view::html_page(req, header_links, &title, Icon::Edit, &contents)
 }

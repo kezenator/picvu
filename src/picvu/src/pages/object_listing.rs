@@ -4,6 +4,7 @@ use horrorshow::{owned_html, Raw, Template};
 
 use picvudb::msgs::GetObjectsResponse;
 
+use crate::icons::Icon;
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -133,6 +134,20 @@ impl ObjectListingPage
 
         Self::encode(base_url, params)
     }
+
+    pub fn icon(query: &picvudb::data::get::GetObjectsQuery) -> Icon
+    {
+        match query
+        {
+            picvudb::data::get::GetObjectsQuery::ByActivityDesc => Icon::Calendar,
+            picvudb::data::get::GetObjectsQuery::ByModifiedDesc => Icon::List,
+            picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => Icon::FilePlus,
+            picvudb::data::get::GetObjectsQuery::ByObjectId(_) => Icon::Edit,
+            picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ .. } => Icon::Location,
+            picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ .. } => Icon::Search,
+            picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ .. } => Icon::Label,
+        }
+    }
 }
 
 impl PageResources for ObjectListingPage
@@ -140,9 +155,9 @@ impl PageResources for ObjectListingPage
     fn page_resources(builder: &mut PageResourcesBuilder)
     {
         builder
-            .add_header_link("/view/objects/by_activity_desc", "Calendar", 0)
-            .add_header_link("/view/objects/by_modified_desc", "Recently Modified", 1)
-            .add_header_link("/view/objects/by_size_desc", "Largest Attachments", 2)
+            .add_header_link("/view/objects/by_activity_desc", "Calendar", Icon::Calendar, 0)
+            .add_header_link("/view/objects/by_modified_desc", "Recently Modified", Icon::List, 1)
+            .add_header_link("/view/objects/by_size_desc", "Largest Attachments", Icon::FilePlus, 2)
             .route_view("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
             .route_view("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
             .route_view("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
@@ -275,6 +290,7 @@ pub fn render_object_listing(resp: GetObjectsResponse, list_type: ViewObjectsLis
 pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     let title = format::query_to_string(&resp.query);
+    let icon = ObjectListingPage::icon(&resp.query);
 
     let mut cur_heading = String::new();
 
@@ -318,7 +334,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
 
     }.into_string().unwrap();
 
-    view::html_page(req, header_links, &title, &contents)
+    view::html_page(req, header_links, &title, icon, &contents)
 }
 
 pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
@@ -326,6 +342,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
     let now = picvudb::data::Date::now();
 
     let title = format::query_to_string(&resp.query);
+    let icon = ObjectListingPage::icon(&resp.query);
 
     let contents = owned_html!{
 
@@ -369,7 +386,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
 
     }.into_string().unwrap();
 
-    view::html_page(req, header_links, &title, &contents)
+    view::html_page(req, header_links, &title, icon, &contents)
 }
 
 fn get_heading(object: &picvudb::data::get::ObjectMetadata, query: &picvudb::data::get::GetObjectsQuery) -> String

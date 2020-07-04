@@ -11,6 +11,7 @@ use actix_web::http::header::{
 
 use horrorshow::{owned_html, Raw, Template};
 
+use crate::icons::{Icon, IconSize};
 use crate::pages::HeaderLinkCollection;
 
 pub fn err<T>(builder: HttpResponseBuilder, err: T) -> HttpResponse
@@ -87,46 +88,52 @@ pub fn html_response(builder: HttpResponseBuilder, title: &str, body: &str) -> H
         .body(body.to_string())
 }
 
-pub fn html_page(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, content: &str) -> HttpResponse
+pub fn html_page(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, icon: Icon, content: &str) -> HttpResponse
 {
     let body = owned_html!{
-        : header(title, req, header_links);
+        : header(title, icon, req, header_links);
         : Raw(content)
     }.into_string().unwrap();
 
     html_response(HttpResponse::Ok(), title, &body)
 }
 
-pub fn header(title: &str, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
+pub fn header(title: &str, icon: Icon, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
 {
     let html = owned_html!{
 
         div(class="header")
         {
-            h1: title;
+            h1
+            {
+                : icon.render(IconSize::Size32x32);
+                : title;
+            }
 
             div(class="header-links")
             {
                 @for header in header_links.by_order()
                 {
-                    @if header.path == req.path()
+                    a(href=(&header.path))
                     {
-                        a(href=(header.path))
+                        @if header.path == req.path()
                         {
-                            : format!("[[ {} ]]", header.label)
+                            : "[[ "
                         }
-                    }
-                    else
-                    {
-                        a(href=(header.path))
+
+                        : header.icon.render(IconSize::Size16x16);
+                        : header.label;
+
+                        @if header.path == req.path()
                         {
-                            : header.label
+                            : " ]]"
                         }
                     }
                 }
 
                 form(method="GET", action=crate::pages::search::SearchPage::path(), enctype="application/x-www-form-urlencoded")
                 {
+                    : Icon::Search.render(IconSize::Size16x16);
                     input(type="search", name="q");
                     input(type="submit", value="Search");
                 }

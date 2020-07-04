@@ -3,6 +3,7 @@ use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use horrorshow::{owned_html, Template};
 
+use crate::icons::Icon;
 use crate::pages::{PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -25,7 +26,7 @@ impl PageResources for SetupPage
     fn page_resources(builder: &mut PageResourcesBuilder)
     {
         builder
-            .add_header_link("/view/setup", "Setup", 400)
+            .add_header_link("/view/setup", "Setup", Icon::Settings, 400)
             .route_view("/view/setup", web::get().to(get_setup_form))
             .route_other("/forms/setup", web::post().to(post_setup_form));
     }
@@ -87,7 +88,7 @@ async fn get_setup_form(state: web::Data<State>, req: HttpRequest) -> Result<Htt
         }
     }.into_string().unwrap();
 
-    Ok(view::html_page(&req, &state.header_links, "Setup", &contents))
+    Ok(view::html_page(&req, &state.header_links, "Setup", Icon::Settings, &contents))
 }
 
 const PROP_NAME_API_KEY: &'static str = "api_key.auth.google.com";

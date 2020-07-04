@@ -108,3 +108,15 @@ div.object-listing-title
     border: solid 1px black;
     padding: 0.4em;
 }
+
+svg.icon-16
+{
+    vertical-align: text-bottom;
+    padding: 2px;
+}
+
+svg.icon-32
+{
+    vertical-align: text-bottom;
+    padding: 4px;
+}

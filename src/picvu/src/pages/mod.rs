@@ -1,6 +1,8 @@
 use actix_web::{web, Resource};
 use std::collections::BTreeMap;
 
+use crate::icons::Icon;
+
 pub mod add_object;
 pub mod attachments;
 pub mod auth;
@@ -16,11 +18,12 @@ pub struct HeaderLink
 {
     pub path: String,
     pub label: String,
+    pub icon: Icon,
 }
 
 pub struct HeaderLinkCollection
 {
-    by_order: BTreeMap<(isize, String), String>,
+    by_order: BTreeMap<(isize, String), (String, Icon)>,
 }
 
 impl HeaderLinkCollection
@@ -33,16 +36,16 @@ impl HeaderLinkCollection
         }
     }
 
-    pub fn insert(&mut self, path: String, label: String, order: isize)
+    pub fn insert(&mut self, path: String, label: String, icon: Icon, order: isize)
     {
-        self.by_order.insert((order, path.clone()), label.clone());
+        self.by_order.insert((order, path), (label, icon));
     }
 
     pub fn by_order(&self) -> Vec<HeaderLink>
     {
         self.by_order
             .iter()
-            .map(|(k, v)| { HeaderLink { path: k.1.clone(), label: v.clone(), }})
+            .map(|(k, v)| { HeaderLink { path: k.1.clone(), label: v.0.clone(), icon: v.1.clone(), }})
             .collect()
     }
 }
@@ -71,12 +74,12 @@ impl PageResourcesBuilder
         }
     }
 
-    pub fn add_header_link(&mut self, path: &str, label: &str, order: isize) -> &mut Self
+    pub fn add_header_link(&mut self, path: &str, label: &str, icon: Icon, order: isize) -> &mut Self
     {
         let path = path.to_owned();
         let label = label.to_owned();
 
-        self.header_links.insert(path, label, order);
+        self.header_links.insert(path, label, icon, order);
         self
     }
 

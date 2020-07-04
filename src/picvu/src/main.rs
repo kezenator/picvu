@@ -10,6 +10,7 @@ mod assets;
 mod bulk;
 mod db;
 mod format;
+mod icons;
 mod pages;
 mod view;
 
