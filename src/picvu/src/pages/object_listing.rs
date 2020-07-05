@@ -359,14 +359,21 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
                                     : duration.to_string();
                                 }
                             }
-                            
+
                             : pages::attachments::AttachmentsPage::raw_html_for_thumbnail(&object, 128, false);
                         }
                     }
 
                     div(class="object-listing-title")
                     {
-                        : format::insert_zero_width_spaces(object.title.clone().unwrap_or(object.attachment.filename.clone()));
+                        @if let Some(title) = &object.title
+                        {
+                            : render_with_zero_width_spaces(title.get_events());
+                        }
+                        else
+                        {
+                            : render_with_zero_width_spaces(vec![ pulldown_cmark::Event::Text(pulldown_cmark::CowStr::Borrowed(&object.attachment.filename))].drain(..));
+                        }
                     }
                 }
             }
@@ -412,7 +419,14 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
                     {
                         a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
                         {
-                            : object.title.clone().unwrap_or(object.attachment.filename.clone())
+                            @if let Some(title) = &object.title
+                            {
+                                : Raw(title.get_html())
+                            }
+                            else
+                            {
+                                : &object.attachment.filename
+                            }
                         }
                     }
 
@@ -581,6 +595,39 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjects
             }
         }
     }.into_string().unwrap();
+
+    Raw(result)
+}
+
+
+
+pub fn render_with_zero_width_spaces<'a, T: Iterator<Item = pulldown_cmark::Event<'a>>>(events: T) -> Raw<String>
+{
+    let mut result = String::new();
+
+    let events = events.map(|e|
+    {
+        match e
+        {
+            pulldown_cmark::Event::Text(t) =>
+            {
+                let t = t.to_string();
+                let t = t.replace("_", "_\u{200B}");
+                return pulldown_cmark::Event::Text(t.into());
+            },
+            pulldown_cmark::Event::Code(t) =>
+            {
+                let t = t.to_string();
+                let t = t.replace("_", "_\u{200B}");
+                return pulldown_cmark::Event::Code(t.into());
+            },
+            _ => {},
+        }
+        // Other events unchanged
+        e
+    });
+
+    pulldown_cmark::html::push_html(&mut result, events);
 
     Raw(result)
 }

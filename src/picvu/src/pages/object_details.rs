@@ -121,7 +121,26 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
 {
     let now = picvudb::data::Date::now();
 
-    let title = object.title.clone().unwrap_or(object.attachment.filename.clone());
+    let filename = object.attachment.filename.clone();
+
+    let title = view::Title
+    {
+        text: object.title.clone().map(|m| m.get_display_text()).unwrap_or(filename.clone()),
+        html: Raw(object.title.clone().map(|m| m.get_html()).unwrap_or(owned_html!{ : filename.clone() }.into_string().unwrap())),
+    };
+
+    let icon = if object.attachment.mime.type_() == mime::IMAGE
+    {
+        OutlineIcon::Image
+    }
+    else if object.attachment.mime.type_() == mime::VIDEO
+    {
+        OutlineIcon::Video
+    }
+    else
+    {
+        OutlineIcon::FileText
+    };
 
     let contents = owned_html!
     {
@@ -178,7 +197,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 tr
                 {
                     td: "Title";
-                    td: object.title.clone().unwrap_or(String::new());
+                    td: Raw(object.title.clone().map(|m| m.get_html()).unwrap_or(String::new()));
                 }
             }
             @if object.notes.is_some()
@@ -186,7 +205,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 tr
                 {
                     td: "Notes";
-                    td: object.notes.clone().unwrap_or(String::new());
+                    td: Raw(object.notes.clone().map(|m| m.get_html()).unwrap_or(String::new()));
                 }
             }
 
@@ -292,7 +311,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
         }
     }.into_string().unwrap();
 
-    view::html_page(req, header_links, &title, OutlineIcon::Image, &contents)
+    view::html_page(req, header_links, title, icon, &contents)
 }
 
 fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<analyse::warning::Warning>)>, analyse::img::ImgAnalysisError>) -> Raw<String>

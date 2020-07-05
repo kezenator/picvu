@@ -234,8 +234,8 @@ impl ApiMessage for GetObjectsRequest
                 created_time: data::Date::from_db_fields(object.created_timestamp, object.created_offset)?,
                 modified_time: data::Date::from_db_fields(object.modified_timestamp, object.modified_offset)?,
                 activity_time: data::Date::from_db_fields(object.activity_timestamp, object.activity_offset)?,
-                title: object.title,
-                notes: object.notes,
+                title: data::TitleMarkdown::from_db_field(object.title)?,
+                notes: data::NotesMarkdown::from_db_field(object.notes)?,
                 rating: data::Rating::from_db_field(object.rating)?,
                 censor: data::Censor::from_db_field(object.censor)?,
                 location: location,
@@ -294,7 +294,7 @@ impl ApiMessage for AddObjectRequest
             tag_ids.insert(tag_id);
         }
 
-        let object = ops.add_object(
+        let object_id = ops.add_object(
             self.data.created_time.clone(),
             self.data.activity_time.clone(),
             self.data.title.clone(),
@@ -306,7 +306,7 @@ impl ApiMessage for AddObjectRequest
             self.data.ext_ref.clone())?;
 
         ops.add_attachment(
-            object.id,
+            object_id.to_db_field(),
             self.data.attachment.filename.clone(),
             self.data.attachment.created.clone(),
             self.data.attachment.modified.clone(),
@@ -318,10 +318,10 @@ impl ApiMessage for AddObjectRequest
 
         for tag_id in tag_ids
         {
-            ops.add_object_tag(object.id, tag_id)?;
+            ops.add_object_tag(object_id.to_db_field(), tag_id)?;
         }
 
-        Ok(AddObjectResponse{ object_id: data::ObjectId::from_db_field(object.id) })
+        Ok(AddObjectResponse{ object_id })
     }
 }
 
@@ -398,8 +398,8 @@ pub struct UpdateObjectRequest
 {
     pub object_id: data::ObjectId,
     pub activity_time: data::Date,
-    pub title: Option<String>,
-    pub notes: Option<String>,
+    pub title: Option<data::TitleMarkdown>,
+    pub notes: Option<data::NotesMarkdown>,
     pub rating: Option<data::Rating>,
     pub censor: data::Censor,
     pub location: Option<data::Location>,

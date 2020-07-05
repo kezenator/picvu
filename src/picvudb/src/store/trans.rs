@@ -339,7 +339,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<Object, Error>
+    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<data::ObjectId, Error>
     {
         let modified_time = data::Date::now();
         let created_time = created_time.unwrap_or(modified_time.clone());
@@ -356,8 +356,8 @@ impl<'a> WriteOps for Transaction<'a>
             modified_offset: modified_time.to_db_offset(),
             activity_timestamp: activity_time.to_db_timestamp(),
             activity_offset: activity_time.to_db_offset(),
-            title: title.clone(),
-            notes: notes.clone(),
+            title: title.clone().map(|m| m.get_markdown()),
+            notes: notes.clone().map(|m| m.get_markdown()),
             rating: rating.clone().map(|r| { r.to_db_field() }),
             censor: censor.to_db_field(),
             latitude: latitude,
@@ -381,8 +381,8 @@ impl<'a> WriteOps for Transaction<'a>
             let fts_insert_value = ObjectsFts
             {
                 id: new_id.new_id,
-                title: title.clone(),
-                notes: notes.clone(),
+                title: title.map(|m| m.get_search_text()),
+                notes: notes.map(|m| m.get_search_text()),
             };
 
             diesel::insert_into(schema::objects_fts::table)
@@ -406,29 +406,9 @@ impl<'a> WriteOps for Transaction<'a>
                 .execute(self.connection)?;
         }
 
-        // Return the created object
+        // Return the created object ID
 
-        let model_object = Object
-        {
-            id: new_id.new_id,
-            created_timestamp: created_time.to_db_timestamp(),
-            created_offset: created_time.to_db_offset(),
-            modified_timestamp: modified_time.to_db_timestamp(),
-            modified_offset: modified_time.to_db_offset(),
-            activity_timestamp: activity_time.to_db_timestamp(),
-            activity_offset: activity_time.to_db_offset(),
-            title: title,
-            notes: notes,
-            rating: rating.map(|r| { r.to_db_field() }),
-            censor: censor.to_db_field(),
-            latitude: latitude,
-            longitude: longitude,
-            tag_set: tag_set.to_db_field(),
-            ext_ref_type: ext_ref.clone().map(|e| e.to_db_field_type()),
-            ext_ref_id: ext_ref.clone().map(|e| e.to_db_field_id()),
-        };
-
-        Ok(model_object)
+        Ok(data::ObjectId::from_db_field(new_id.new_id))
     }
 
     fn add_attachment(&self, obj_id: i64, filename: String, created: data::Date, modified: data::Date, mime: String, orientation: Option<data::Orientation>, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>
@@ -443,8 +423,8 @@ impl<'a> WriteOps for Transaction<'a>
         let hash =
         {
             let mut hasher = Sha256::new();
-            hasher.input(&bytes);
-            format!("{}-sha256", base16::encode_lower(&hasher.result()))
+            hasher.update(&bytes);
+            format!("{}-sha256", base16::encode_lower(&hasher.finalize()))
         };
 
         let model_metadata = AttachmentMetadata
@@ -491,19 +471,23 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>
+    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>
     {
         let object = UpdateObjectId
         {
             id: obj_id,
         };
 
+        let modified = data::Date::now();
+
         let changeset = UpdateObjectChangeset
         {
+            modified_timestamp: modified.to_db_timestamp(),
+            modified_offset: modified.to_db_offset(),
             activity_timestamp: activity_time.to_db_timestamp(),
             activity_offset: activity_time.to_db_offset(),
-            title: title.clone(),
-            notes: notes.clone(),
+            title: title.clone().map(|m| m.get_markdown()),
+            notes: notes.clone().map(|m| m.get_markdown()),
             rating: rating.map(|r| r.to_db_field()),
             censor: censor.to_db_field(),
             latitude: location.clone().map(|l| l.latitude),
@@ -513,25 +497,39 @@ impl<'a> WriteOps for Transaction<'a>
         diesel::update(&object).set(changeset).execute(self.connection)?;
 
         // Update the associated indexes
+        // Always delete, then re-add if there is
+        // still data. The SQLite VIRTUAL TABLE implementations
+        // don't seem to handle diesel "update_into" very well.
+
+        // Full text search
+
+        {
+            use schema::objects_fts::dsl::*;
+
+            diesel::delete(objects_fts.filter(id.eq(obj_id)))
+                .execute(self.connection)?;
+        }
 
         if title.is_some() || notes.is_some()
         {
             let fts_insert_value = ObjectsFts
             {
                 id: obj_id,
-                title: title,
-                notes: notes,
+                title: title.map(|m| m.get_search_text()),
+                notes: notes.map(|m| m.get_search_text()),
             };
 
-            diesel::replace_into(schema::objects_fts::table)
+            diesel::insert_into(schema::objects_fts::table)
                 .values(vec![fts_insert_value])
                 .execute(self.connection)?;
         }
-        else
-        {
-            use schema::objects_fts::dsl::*;
 
-            diesel::delete(objects_fts.filter(id.eq(obj_id)))
+        // Location
+
+        {
+            use schema::objects_location::dsl::*;
+
+            diesel::delete(objects_location.filter(id.eq(obj_id)))
                 .execute(self.connection)?;
         }
 
@@ -546,15 +544,8 @@ impl<'a> WriteOps for Transaction<'a>
                 max_long: loc.longitude,
             };
 
-            diesel::replace_into(schema::objects_location::table)
+            diesel::insert_into(schema::objects_location::table)
                 .values(vec![location_insert_value])
-                .execute(self.connection)?;
-        }
-        else
-        {
-            use schema::objects_location::dsl::*;
-
-            diesel::delete(objects_location.filter(id.eq(obj_id)))
                 .execute(self.connection)?;
         }
 

@@ -71,6 +71,8 @@ pub struct UpdateObjectId
 #[changeset_options(treat_none_as_null="true")]
 pub struct UpdateObjectChangeset
 {
+    pub modified_timestamp: i64,
+    pub modified_offset: Option<i32>,
     pub activity_timestamp: i64,
     pub activity_offset: Option<i32>,
     pub title: Option<String>,

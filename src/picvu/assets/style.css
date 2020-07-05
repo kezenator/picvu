@@ -27,6 +27,14 @@ a:visited
     text-decoration: underline;
 }
 
+blockquote
+{
+    background: #F9F9F9;
+    border-left: 10px solid #CCC;
+    margin: 1.5em 10px;
+    padding: 1em 10px .1em 10px;
+}
+
 div.header
 {
     background: orange;

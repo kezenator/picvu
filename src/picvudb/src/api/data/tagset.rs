@@ -1,5 +1,4 @@
 use crate::ParseError;
-use crate::data::TagId;
 
 pub struct TagSet(Vec<i64>);
 
@@ -15,7 +14,7 @@ impl TagSet
         {
             Some(self.0
                 .iter()
-                .map(|id| TagId::from_db_field(*id).to_string())
+                .map(|id| id.to_string())
                 .collect::<Vec<_>>()
                 .join(" "))
         }
@@ -41,19 +40,19 @@ impl TagSet
             },
             Some(val) =>
             {
-                let mut vec_orig_order: Vec<TagId> = Vec::new();
+                let mut vec_orig_order: Vec<i64> = Vec::new();
                 for s in val.split(' ')
                 {
                     vec_orig_order.push(s.parse().map_err(|_| ParseError::new(format!("Invalid TagSet string: {:?}", val)))?);
                 }
                 
-                let vec_sorted: Vec<TagId> =
+                let vec_sorted: Vec<i64> =
                     vec_orig_order
                     .clone()
                     .drain(..)
                     .collect::<std::collections::BTreeSet<_>>()
                     .iter()
-                    .map(|t| t.clone())
+                    .map(|i| *i)
                     .collect();
 
                 if vec_sorted != vec_orig_order
@@ -61,7 +60,7 @@ impl TagSet
                     return Err(ParseError::new(format!("Invalid TagSet string: {:?}", val)))
                 }
 
-                Ok(TagSet(vec_sorted.iter().map(|t| t.to_db_field()).collect()))
+                Ok(TagSet(vec_sorted))
             },
         }
     }

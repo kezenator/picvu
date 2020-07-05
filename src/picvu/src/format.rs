@@ -117,8 +117,3 @@ pub fn query_to_string(query: &picvudb::data::get::GetObjectsQuery) -> String
         picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id } => format!("Tag {}", tag_id.to_string()),
     }
 }
-
-pub fn insert_zero_width_spaces(value: String) -> String
-{
-    value.replace("_", "_\u{200B}")
-}

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
-use horrorshow::{owned_html, Template};
+use horrorshow::{owned_html, Raw, Template};
 
 use crate::icons::OutlineIcon;
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
@@ -98,8 +98,8 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
     };
 
     let activity_time = picvudb::data::Date::from_rfc3339(&form.activity)?;
-    let title = if form.title.is_empty() { None } else { Some(form.title.clone()) };
-    let notes = if form.notes.is_empty() { None } else { Some(form.notes.clone()) };
+    let title = if form.title.is_empty() { None } else { Some(picvudb::data::TitleMarkdown::parse(form.title.clone())?) };
+    let notes = if form.notes.is_empty() { None } else { Some(picvudb::data::NotesMarkdown::parse(form.notes.clone())?) };
 
     let rating =
     {
@@ -145,7 +145,13 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
 
 fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
-    let title = object.title.clone().unwrap_or(format!("Object {}", object.id.to_string()));
+    let filename = object.attachment.filename.clone();
+
+    let title = view::Title
+    {
+        text: object.title.clone().map(|m| m.get_display_text()).unwrap_or(filename.clone()),
+        html: Raw(object.title.clone().map(|m| m.get_html()).unwrap_or(owned_html!{ : filename.clone() }.into_string().unwrap())),
+    };
 
     let contents = owned_html!
     {
@@ -180,7 +186,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Title";
                     td
                     {
-                        input(type="text", name="title", value=object.title.clone().unwrap_or_default());
+                        input(type="text", name="title", value=object.title.clone().map(|m| m.get_markdown()).unwrap_or_default());
                     }
                 }
 
@@ -189,7 +195,10 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Notes";
                     td
                     {
-                        input(type="text", name="notes", value=object.notes.clone().unwrap_or_default());
+                        textarea(name="notes", rows=10, cols=60)
+                        {
+                            : object.notes.clone().map(|m| m.get_markdown()).unwrap_or_default();
+                        }
                     }
                 }
 
@@ -259,5 +268,5 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
         }
     }.into_string().unwrap();
 
-    view::html_page(req, header_links, &title, OutlineIcon::Edit, &contents)
+    view::html_page(req, header_links, title, OutlineIcon::Edit, &contents)
 }

@@ -20,6 +20,7 @@ pub enum OutlineIcon
     Star,
     Sun,
     User,
+    Video,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +79,7 @@ impl OutlineIcon
             OutlineIcon::Star => "star",
             OutlineIcon::Sun => "sun",
             OutlineIcon::User => "user",
+            OutlineIcon::Video => "video",
         };
 
         let size = match size

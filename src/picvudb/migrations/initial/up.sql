@@ -68,9 +68,7 @@ CREATE VIRTUAL TABLE objects_fts USING fts5(
   title,
   notes,
   tokenize = 'porter unicode61',
-  prefix = 3,
-  content = objects,
-  content_rowid = id);
+  prefix = 3);
 
 CREATE VIRTUAL TABLE objects_location USING rtree(
   id,
@@ -106,7 +104,5 @@ CREATE VIRTUAL TABLE tags_fts USING fts5(
   tag_id,
   tag_name,
   tokenize = 'porter unicode61',
-  prefix = 3,
-  content = tags,
-  content_rowid = tag_id
+  prefix = 3
 );

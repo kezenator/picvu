@@ -14,6 +14,26 @@ use horrorshow::{owned_html, Raw, Template};
 use crate::icons::{Icon, IconSize, OutlineIcon};
 use crate::pages::HeaderLinkCollection;
 
+pub struct Title
+{
+    pub text: String,
+    pub html: Raw<String>,
+}
+
+impl<T> From<T> for Title
+    where T: Into<String>
+{
+    fn from(s: T) -> Self
+    {
+        let text: String = s.into();
+        let text2 = text.clone();
+
+        let html = Raw(owned_html!{ : text2 }.into_string().unwrap());
+
+        Title { text, html }
+    }
+}
+
 pub fn err<T>(builder: HttpResponseBuilder, err: T) -> HttpResponse
     where T: Debug
 {
@@ -56,8 +76,10 @@ pub fn binary(bytes: Vec<u8>, filename: String, mime: mime::Mime, etag: String) 
     .body(bytes)
 }
 
-pub fn html_response(builder: HttpResponseBuilder, title: &str, body: &str) -> HttpResponse
+pub fn html_response<T: Into<Title>>(builder: HttpResponseBuilder, title: T, body: &str) -> HttpResponse
 {
+    let title: Title = title.into();
+
     let mut builder = builder;
 
     let body = owned_html!
@@ -71,7 +93,7 @@ pub fn html_response(builder: HttpResponseBuilder, title: &str, body: &str) -> H
                 meta(charset="utf-8");
                 link(rel="stylesheet", href="/assets/style.css");
 
-                title : title
+                title : title.html
             }
             body
             {
@@ -88,18 +110,22 @@ pub fn html_response(builder: HttpResponseBuilder, title: &str, body: &str) -> H
         .body(body.to_string())
 }
 
-pub fn html_page<I: Into<Icon>>(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, icon: I, content: &str) -> HttpResponse
+pub fn html_page<T: Into<Title>, I: Into<Icon>>(req: &HttpRequest, header_links: &HeaderLinkCollection, title: T, icon: I, content: &str) -> HttpResponse
 {
+    let title: Title = title.into();
+    let title_text = title.text.clone();
+
     let body = owned_html!{
-        : header(title, icon.into(), req, header_links);
+        : header(&title, icon.into(), req, header_links);
         : Raw(content)
     }.into_string().unwrap();
 
-    html_response(HttpResponse::Ok(), title, &body)
+    html_response(HttpResponse::Ok(), &title_text, &body)
 }
 
-pub fn header<I: Into<Icon>>(title: &str, icon: I, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
+pub fn header<I: Into<Icon>>(title: &Title, icon: I, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
 {
+    let title = title.clone();
     let icon: Icon = icon.into();
 
     let html = owned_html!{
@@ -109,7 +135,7 @@ pub fn header<I: Into<Icon>>(title: &str, icon: I, req: &HttpRequest, header_lin
             h1
             {
                 : icon.render(IconSize::Size32x32);
-                : title;
+                : &title.html;
             }
 
             div(class="header-links")

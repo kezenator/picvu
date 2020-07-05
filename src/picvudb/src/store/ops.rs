@@ -31,9 +31,9 @@ pub trait ReadOps
 pub trait WriteOps: ReadOps
 {
     fn set_properties(&self, properties: &HashMap<String, String>) -> Result<(), Error>;
-    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<Object, Error>;
+    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<data::ObjectId, Error>;
     fn add_attachment(&self, obj_id: i64, filename: String, created: data::Date, modified: data::Date, mime: String, orientation: Option<data::Orientation>, dimensions: Option<data::Dimensions>, duration: Option<data::Duration>, bytes: Vec<u8>) -> Result<(), Error>;
-    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<String>, notes: Option<String>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>;
+    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>;
     fn find_or_add_tag(&self, name: String, kind: data::TagKind, rating: Option<data::Rating>, censor: data::Censor) -> Result<i64, Error>;
     fn add_object_tag(&self, obj_id: i64, tag_id: i64) -> Result<(), Error>;
 }

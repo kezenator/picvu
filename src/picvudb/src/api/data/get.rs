@@ -1,4 +1,4 @@
-use crate::api::data::{Censor, Date, Dimensions, Duration, ExternalReference, Location, ObjectId, Orientation, Rating, TagId, TagKind};
+use crate::api::data::{Censor, Date, Dimensions, Duration, ExternalReference, Location, NotesMarkdown, ObjectId, Orientation, Rating, TagId, TagKind, TitleMarkdown};
 
 #[derive(Debug, Clone)]
 pub struct AttachmentMetadata
@@ -31,8 +31,8 @@ pub struct ObjectMetadata
     pub created_time: Date,
     pub modified_time: Date,
     pub activity_time: Date,
-    pub title: Option<String>,
-    pub notes: Option<String>,
+    pub title: Option<TitleMarkdown>,
+    pub notes: Option<NotesMarkdown>,
     pub rating: Option<Rating>,
     pub censor: Censor,
     pub location: Option<Location>,

@@ -11,7 +11,7 @@ pub struct ImportOptions
 {
     pub assume_timezone: Option<ExplicitTimezone>,
     pub force_timezone: Option<ExplicitTimezone>,
-    pub assume_notes: Option<String>,
+    pub assume_notes: Option<picvudb::data::NotesMarkdown>,
     pub assume_location: Option<picvudb::data::Location>,
 }
 
@@ -112,12 +112,18 @@ pub fn create_add_object_for_import(
             // If the item has a title that's different to
             // the file name, then we'll use it.
 
-            title = Some(metadata.title);
+            if let Ok(markdown) = picvudb::data::TitleMarkdown::parse(metadata.title)
+            {
+                title = Some(markdown);
+            }
         }
 
         if !metadata.description.is_empty()
         {
-            notes = Some(metadata.description);
+            if let Ok(markdown) = picvudb::data::NotesMarkdown::parse(metadata.description)
+            {
+                notes = Some(markdown);
+            }
         }
 
         // Google Photos Takeout always provides timestamps in UTC
