@@ -14,7 +14,6 @@ pub enum OutlineIcon
     List,
     Location,
     Login,
-    PlayCircle,
     Search,
     Settings,
     Star,
@@ -30,6 +29,9 @@ pub enum ColoredIcon
     Peach,
     Eggplant,
     EvilGrin,
+    Memo,
+    Play,
+    RoundPushpin,
     Star,
 }
 
@@ -53,11 +55,6 @@ impl OutlineIcon
         self.render_internal(size, "#000000")
     }
 
-    pub fn render_white(&self, size: IconSize) -> Raw<String>
-    {
-        self.render_internal(size, "#FFFFFF")
-    }
-
     fn render_internal(&self, size: IconSize, color: &str) -> Raw<String>
     {
         let name = match self
@@ -73,7 +70,6 @@ impl OutlineIcon
             OutlineIcon::List => "list",
             OutlineIcon::Location => "map-pin",
             OutlineIcon::Login => "log-in",
-            OutlineIcon::PlayCircle => "play-circle",
             OutlineIcon::Search => "search",
             OutlineIcon::Settings => "settings",
             OutlineIcon::Star => "star",
@@ -110,6 +106,9 @@ impl ColoredIcon
             ColoredIcon::Peach => "&#x1F351;",
             ColoredIcon::Eggplant => "&#x1F346;",
             ColoredIcon::EvilGrin => "&#x1F608;",
+            ColoredIcon::Memo => "&#x1F4DD;",
+            ColoredIcon::Play => "&#x25B6;",
+            ColoredIcon::RoundPushpin => "&#x1F4CD;",
             ColoredIcon::Star => "&#x2B50;",
         };
 

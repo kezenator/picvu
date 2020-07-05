@@ -177,6 +177,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                     }
                 }
             }
+
             tr
             {
                 td: "Created";
@@ -192,20 +193,13 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 td: "Activity";
                 td: format::date_to_str(&object.activity_time, &now);
             }
+
             @if object.title.is_some()
             {
                 tr
                 {
                     td: "Title";
                     td: Raw(object.title.clone().map(|m| m.get_html()).unwrap_or(String::new()));
-                }
-            }
-            @if object.notes.is_some()
-            {
-                tr
-                {
-                    td: "Notes";
-                    td: Raw(object.notes.clone().map(|m| m.get_html()).unwrap_or(String::new()));
                 }
             }
 
@@ -285,6 +279,15 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                             }
                         }
                     }
+                }
+            }
+
+            @if object.notes.is_some()
+            {
+                tr
+                {
+                    td: "Notes";
+                    td: Raw(object.notes.clone().map(|m| m.get_html()).unwrap_or(String::new()));
                 }
             }
 

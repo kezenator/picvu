@@ -184,11 +184,16 @@ div.object-listing-title
     text-align: center;
 }
 
-.details-table
+table
 {
     border-collapse: collapse;
     margin: 0.4em;
     padding: none;
+}
+
+td, th
+{
+    vertical-align: top;
 }
 
 .details-table th

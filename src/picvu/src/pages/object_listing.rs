@@ -332,17 +332,17 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
                             {
                                 @if object.title.is_some() || object.notes.is_some()
                                 {
-                                    : OutlineIcon::FileText.render_white(IconSize::Size16x16);
+                                    : ColoredIcon::Memo.render(IconSize::Size16x16);
                                 }
 
                                 @if object.location.is_some()
                                 {
-                                    : OutlineIcon::Location.render_white(IconSize::Size16x16);
+                                    : ColoredIcon::RoundPushpin.render(IconSize::Size16x16);
                                 }
 
                                 @if object.rating.is_some()
                                 {
-                                    : OutlineIcon::Star.render_white(IconSize::Size16x16);
+                                    : ColoredIcon::Star.render(IconSize::Size16x16);
                                 }
 
                                 : (match object.censor
@@ -355,7 +355,8 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
 
                                 @if let Some(duration) = &object.attachment.duration
                                 {
-                                    : OutlineIcon::PlayCircle.render_white(IconSize::Size16x16);
+                                    : ColoredIcon::Play.render(IconSize::Size16x16);
+                                    : " ";
                                     : duration.to_string();
                                 }
                             }
@@ -436,11 +437,11 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
                     {
                         @if object.title.is_some() || object.notes.is_some()
                         {
-                            : OutlineIcon::FileText.render(IconSize::Size16x16);
+                            : ColoredIcon::Memo.render(IconSize::Size16x16);
                         }
                         @if object.rating.is_some()
                         {
-                            : OutlineIcon::Star.render(IconSize::Size16x16);
+                            : ColoredIcon::Star.render(IconSize::Size16x16);
                         }
 
                         : (match object.censor
