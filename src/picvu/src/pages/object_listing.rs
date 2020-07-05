@@ -330,7 +330,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
                         {
                             div(class="object-listing-icons", style=icons_style(object))
                             {
-                                @if object.title.is_some() || object.notes.is_some()
+                                @if object.notes.is_some()
                                 {
                                     : ColoredIcon::Memo.render(IconSize::Size16x16);
                                 }
@@ -435,7 +435,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
 
                     td
                     {
-                        @if object.title.is_some() || object.notes.is_some()
+                        @if object.notes.is_some()
                         {
                             : ColoredIcon::Memo.render(IconSize::Size16x16);
                         }
