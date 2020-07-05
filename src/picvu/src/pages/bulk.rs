@@ -4,7 +4,7 @@ use horrorshow::{owned_html, Template};
 
 use crate::analyse;
 use crate::bulk;
-use crate::icons::Icon;
+use crate::icons::OutlineIcon;
 use crate::pages;
 use crate::pages::{PageResources, PageResourcesBuilder};
 use crate::State;
@@ -28,7 +28,7 @@ impl PageResources for BulkPage
     fn page_resources(builder: &mut PageResourcesBuilder)
     {
         builder
-            .add_header_link("/view/bulk_import", "Import", Icon::Import, 600)
+            .add_header_link("/view/bulk_import", "Import", OutlineIcon::Import, 600)
             .route_view("/view/bulk_import", web::get().to(get_bulk_import))
             .route_other("/view/bulk-progress", web::get().to(get_bulk_progress))
             .route_other("/form/bulk_import", web::post().to(post_bulk_import))
@@ -172,7 +172,7 @@ fn get_bulk_import(state: web::Data<State>, req: HttpRequest) -> HttpResponse
         &req,
         &state.header_links,
         "Import",
-        Icon::Import,
+        OutlineIcon::Import,
         &contents)
 }
 
@@ -235,7 +235,7 @@ fn get_bulk_progress(state: web::Data<State>, req: HttpRequest) -> HttpResponse
                 
             }.into_string().unwrap();
 
-            view::html_page(&req, &state.header_links, "Bulk Operations", Icon::FilePlus, &contents)
+            view::html_page(&req, &state.header_links, "Bulk Operations", OutlineIcon::FilePlus, &contents)
         },
     }
 }

@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use horrorshow::{owned_html, Raw, Template};
 
-use crate::icons::{Icon, IconSize};
+use crate::icons::{ColoredIcon, IconSize, OutlineIcon};
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -152,7 +152,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                     {
                         a(href=pages::edit_object::EditObjectPage::path_for(&object.id))
                         {
-                            : Icon::Edit.render(IconSize::Size16x16);
+                            : OutlineIcon::Edit.render(IconSize::Size16x16);
                             : "Edit";
                         }
                     }
@@ -193,13 +193,37 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
             tr
             {
                 td: "Rating";
-                td: object.rating.clone().map_or("None".to_owned(), |r| { r.to_string() });
+                td
+                {
+                    @if let Some(rating) = &object.rating
+                    {
+                        @for _ in 0..rating.num_stars()
+                        {
+                            : ColoredIcon::Star.render(IconSize::Size16x16);
+                        }
+                        : " ";
+                    }
+
+                    : object.rating.clone().map_or("None".to_owned(), |r| { r.to_string() });
+                }
             }
 
             tr
             {
                 td: "Censor";
-                td: object.censor.to_string();
+                td
+                {
+                    : (match object.censor
+                        {
+                            picvudb::data::Censor::FamilyFriendly => ColoredIcon::ManWomanBoy,
+                            picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach,
+                            picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant,
+                            picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin,
+                        }).render(IconSize::Size16x16);
+
+                    : " ";
+                    : object.censor.to_string();
+                }
             }
 
             @if !object.tags.is_empty()
@@ -216,15 +240,29 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                             {
                                 : (match tag.kind
                                 {
-                                    picvudb::data::TagKind::Activity => Icon::Sun,
-                                    picvudb::data::TagKind::Event => Icon::Calendar,
-                                    picvudb::data::TagKind::Label => Icon::Label,
-                                    picvudb::data::TagKind::List => Icon::List,
-                                    picvudb::data::TagKind::Location => Icon::Location,
-                                    picvudb::data::TagKind::Person => Icon::User,
+                                    picvudb::data::TagKind::Activity => OutlineIcon::Sun,
+                                    picvudb::data::TagKind::Event => OutlineIcon::Calendar,
+                                    picvudb::data::TagKind::Label => OutlineIcon::Label,
+                                    picvudb::data::TagKind::List => OutlineIcon::List,
+                                    picvudb::data::TagKind::Location => OutlineIcon::Location,
+                                    picvudb::data::TagKind::Person => OutlineIcon::User,
                                 }).render(IconSize::Size16x16);
 
-                                : format!("{} ({:?}, {:?}, {:?})", tag.name, tag.kind, tag.rating, tag.censor);
+                                @if tag.rating.is_some()
+                                {
+                                    : OutlineIcon::Star.render(IconSize::Size16x16);
+                                }
+
+                                : (match tag.censor
+                                {
+                                    picvudb::data::Censor::FamilyFriendly => Raw(String::new()),
+                                    picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach.render(IconSize::Size16x16),
+                                    picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant.render(IconSize::Size16x16),
+                                    picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin.render(IconSize::Size16x16),
+                                });
+
+                                : " ";
+                                : &tag.name;
                             }
                         }
                     }
@@ -254,7 +292,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
         }
     }.into_string().unwrap();
 
-    view::html_page(req, header_links, &title, Icon::Image, &contents)
+    view::html_page(req, header_links, &title, OutlineIcon::Image, &contents)
 }
 
 fn exif_details(exif: &Result<Option<(analyse::img::ImgAnalysis, Vec<analyse::warning::Warning>)>, analyse::img::ImgAnalysisError>) -> Raw<String>

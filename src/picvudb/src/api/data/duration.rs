@@ -51,6 +51,13 @@ impl ToString for Duration
         let mins = (self.0 / 60) % 60;
         let secs = self.0 % 60;
 
-        format!("{}:{:02}:{:02}", hours, mins, secs)
+        if hours == 0
+        {
+            format!("{}:{:02}", mins, secs)
+        }
+        else
+        {
+            format!("{}:{:02}:{:02}", hours, mins, secs)
+        }
     }
 }

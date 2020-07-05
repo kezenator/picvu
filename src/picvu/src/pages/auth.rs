@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use actix_web::{web, HttpResponse};
 
-use crate::icons::Icon;
+use crate::icons::OutlineIcon;
 use crate::pages::{PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::pages;
@@ -25,7 +25,7 @@ impl PageResources for AuthPage
     fn page_resources(builder: &mut PageResourcesBuilder)
     {
         builder
-            .add_header_link("/auth/google/login", "Auth", Icon::Login, 500)
+            .add_header_link("/auth/google/login", "Auth", OutlineIcon::Login, 500)
             .route_view("/auth/google/login", web::get().to(get_auth_login))
             .route_other("/auth/google/callback", web::get().to(get_auth_callback))
             .route_other("/auth/google/token", web::get().to(get_auth_token));

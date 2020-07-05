@@ -11,7 +11,7 @@ use actix_web::http::header::{
 
 use horrorshow::{owned_html, Raw, Template};
 
-use crate::icons::{Icon, IconSize};
+use crate::icons::{Icon, IconSize, OutlineIcon};
 use crate::pages::HeaderLinkCollection;
 
 pub fn err<T>(builder: HttpResponseBuilder, err: T) -> HttpResponse
@@ -88,18 +88,20 @@ pub fn html_response(builder: HttpResponseBuilder, title: &str, body: &str) -> H
         .body(body.to_string())
 }
 
-pub fn html_page(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, icon: Icon, content: &str) -> HttpResponse
+pub fn html_page<I: Into<Icon>>(req: &HttpRequest, header_links: &HeaderLinkCollection, title: &str, icon: I, content: &str) -> HttpResponse
 {
     let body = owned_html!{
-        : header(title, icon, req, header_links);
+        : header(title, icon.into(), req, header_links);
         : Raw(content)
     }.into_string().unwrap();
 
     html_response(HttpResponse::Ok(), title, &body)
 }
 
-pub fn header(title: &str, icon: Icon, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
+pub fn header<I: Into<Icon>>(title: &str, icon: I, req: &HttpRequest, header_links: &HeaderLinkCollection) -> Raw<String>
 {
+    let icon: Icon = icon.into();
+
     let html = owned_html!{
 
         div(class="header")
@@ -124,7 +126,7 @@ pub fn header(title: &str, icon: Icon, req: &HttpRequest, header_links: &HeaderL
 
                 form(method="GET", action=crate::pages::search::SearchPage::path(), enctype="application/x-www-form-urlencoded")
                 {
-                    : Icon::Search.render(IconSize::Size16x16);
+                    : OutlineIcon::Search.render(IconSize::Size16x16);
                     input(type="search", name="q");
                     input(type="submit", value="Search");
                 }

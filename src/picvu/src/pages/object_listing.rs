@@ -4,7 +4,7 @@ use horrorshow::{owned_html, Raw, Template};
 
 use picvudb::msgs::GetObjectsResponse;
 
-use crate::icons::{Icon, IconSize};
+use crate::icons::{ColoredIcon, Icon, IconSize, OutlineIcon};
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -139,14 +139,14 @@ impl ObjectListingPage
     {
         match query
         {
-            picvudb::data::get::GetObjectsQuery::ByActivityDesc => Icon::Calendar,
-            picvudb::data::get::GetObjectsQuery::ByModifiedDesc => Icon::List,
-            picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => Icon::FilePlus,
-            picvudb::data::get::GetObjectsQuery::ByObjectId(_) => Icon::Edit,
-            picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ .. } => Icon::Location,
-            picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ .. } => Icon::Search,
-            picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ .. } => Icon::Label,
-        }
+            picvudb::data::get::GetObjectsQuery::ByActivityDesc => OutlineIcon::Calendar,
+            picvudb::data::get::GetObjectsQuery::ByModifiedDesc => OutlineIcon::List,
+            picvudb::data::get::GetObjectsQuery::ByAttachmentSizeDesc => OutlineIcon::FilePlus,
+            picvudb::data::get::GetObjectsQuery::ByObjectId(_) => OutlineIcon::Edit,
+            picvudb::data::get::GetObjectsQuery::NearLocationByActivityDesc{ .. } => OutlineIcon::Location,
+            picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ .. } => OutlineIcon::Search,
+            picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ .. } => OutlineIcon::Label,
+        }.into()
     }
 }
 
@@ -155,9 +155,9 @@ impl PageResources for ObjectListingPage
     fn page_resources(builder: &mut PageResourcesBuilder)
     {
         builder
-            .add_header_link("/view/objects/by_activity_desc", "Calendar", Icon::Calendar, 0)
-            .add_header_link("/view/objects/by_modified_desc", "Recently Modified", Icon::List, 1)
-            .add_header_link("/view/objects/by_size_desc", "Largest Attachments", Icon::FilePlus, 2)
+            .add_header_link("/view/objects/by_activity_desc", "Calendar", OutlineIcon::Calendar, 0)
+            .add_header_link("/view/objects/by_modified_desc", "Recently Modified", OutlineIcon::List, 1)
+            .add_header_link("/view/objects/by_size_desc", "Largest Attachments", OutlineIcon::FilePlus, 2)
             .route_view("/view/objects/by_modified_desc", web::get().to(objects_by_modified_desc))
             .route_view("/view/objects/by_activity_desc", web::get().to(objects_by_activity_desc))
             .route_view("/view/objects/by_size_desc", web::get().to(objects_by_size_desc))
@@ -292,6 +292,15 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
     let title = format::query_to_string(&resp.query);
     let icon = ObjectListingPage::icon(&resp.query);
 
+    let icons_style = |o: &picvudb::data::get::ObjectMetadata|
+    {
+        let dimensions = o.attachment.dimensions.clone().map(|d| d.resize_to_max_dimension(128));
+        let width = dimensions.clone().map_or("100%".to_owned(), |d| format!("{}px", d.width));
+        let height = dimensions.map_or("100%".to_owned(), |d| format!("{}px", d.height));
+
+        format!("width: {};height: {};", width, height)
+    };
+
     let mut cur_heading = String::new();
 
     let contents = owned_html!{
@@ -319,9 +328,42 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
                     {
                         a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
                         {
+                            div(class="object-listing-icons", style=icons_style(object))
+                            {
+                                @if object.title.is_some() || object.notes.is_some()
+                                {
+                                    : OutlineIcon::FileText.render_white(IconSize::Size16x16);
+                                }
+
+                                @if object.location.is_some()
+                                {
+                                    : OutlineIcon::Location.render_white(IconSize::Size16x16);
+                                }
+
+                                @if object.rating.is_some()
+                                {
+                                    : OutlineIcon::Star.render_white(IconSize::Size16x16);
+                                }
+
+                                : (match object.censor
+                                    {
+                                        picvudb::data::Censor::FamilyFriendly => Raw(String::new()),
+                                        picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach.render(IconSize::Size16x16),
+                                        picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant.render(IconSize::Size16x16),
+                                        picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin.render(IconSize::Size16x16),
+                                    });
+
+                                @if let Some(duration) = &object.attachment.duration
+                                {
+                                    : OutlineIcon::PlayCircle.render_white(IconSize::Size16x16);
+                                    : duration.to_string();
+                                }
+                            }
+                            
                             : pages::attachments::AttachmentsPage::raw_html_for_thumbnail(&object, 128, false);
                         }
                     }
+
                     div(class="object-listing-title")
                     {
                         : format::insert_zero_width_spaces(object.title.clone().unwrap_or(object.attachment.filename.clone()));
@@ -354,6 +396,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
             {
                 th: "Title";
                 th: "Activity";
+                th: "Info";
                 th: "Size";
                 th: "Mime";
                 th: "Dimensions";
@@ -372,7 +415,29 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
                             : object.title.clone().unwrap_or(object.attachment.filename.clone())
                         }
                     }
+
                     td: format::date_to_str(&object.activity_time, &now);
+
+                    td
+                    {
+                        @if object.title.is_some() || object.notes.is_some()
+                        {
+                            : OutlineIcon::FileText.render(IconSize::Size16x16);
+                        }
+                        @if object.rating.is_some()
+                        {
+                            : OutlineIcon::Star.render(IconSize::Size16x16);
+                        }
+
+                        : (match object.censor
+                            {
+                                picvudb::data::Censor::FamilyFriendly => Raw(String::new()),
+                                picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach.render(IconSize::Size16x16),
+                                picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant.render(IconSize::Size16x16),
+                                picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin.render(IconSize::Size16x16),
+                            });
+                    }
+
                     td: format::bytes_to_string(object.attachment.size);
                     td: object.attachment.mime.to_string();
                     td: object.attachment.dimensions.clone().map(|d| d.to_string()).unwrap_or_default();
@@ -504,14 +569,14 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjects
             a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::ThumbnailsGrid, this_page_offset, page_size),
                 class=(if list_type == ViewObjectsListType::ThumbnailsGrid { "pagination-link pagination-selected" } else { "pagination-link" }))
             {
-                : Icon::Image.render(IconSize::Size16x16);
+                : OutlineIcon::Image.render(IconSize::Size16x16);
                 : " Thumbnails ";
             }
 
             a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::DetailsTable, this_page_offset, page_size),
                 class=(if list_type == ViewObjectsListType::DetailsTable { "pagination-link pagination-selected" } else { "pagination-link" }))
             {
-                : Icon::List.render(IconSize::Size16x16);
+                : OutlineIcon::List.render(IconSize::Size16x16);
                 : " Details ";
             }
         }

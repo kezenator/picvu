@@ -74,12 +74,12 @@ impl PageResourcesBuilder
         }
     }
 
-    pub fn add_header_link(&mut self, path: &str, label: &str, icon: Icon, order: isize) -> &mut Self
+    pub fn add_header_link<I: Into<Icon>>(&mut self, path: &str, label: &str, icon: I, order: isize) -> &mut Self
     {
         let path = path.to_owned();
         let label = label.to_owned();
 
-        self.header_links.insert(path, label, icon, order);
+        self.header_links.insert(path, label, icon.into(), order);
         self
     }
 

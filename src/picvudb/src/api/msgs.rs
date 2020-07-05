@@ -226,6 +226,7 @@ impl ApiMessage for GetObjectsRequest
                     });
                 }
             }
+            tags.sort_by(|a, b| a.name.cmp(&b.name));
 
             results.push(data::get::ObjectMetadata
             {

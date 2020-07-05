@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 
 use crate::bulk;
-use crate::icons::Icon;
+use crate::icons::OutlineIcon;
 use crate::pages::{PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::pages;
@@ -17,7 +17,7 @@ impl PageResources for SyncPage
     fn page_resources(builder: &mut PageResourcesBuilder)
     {
         builder
-            .add_header_link("/sync/start", "Sync", Icon::CloudUpload, 600)
+            .add_header_link("/sync/start", "Sync", OutlineIcon::CloudUpload, 600)
             .route_view("/sync/start", web::get().to(get_sync_start));
     }
 }
