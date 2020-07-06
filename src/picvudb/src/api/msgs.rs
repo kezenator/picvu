@@ -269,6 +269,80 @@ pub struct GetObjectsResponse
 }
 
 #[derive(Debug)]
+pub struct GetTagRequest
+{
+    pub tag_id: data::TagId,
+}
+
+impl ApiMessage for GetTagRequest
+{
+    type Response = GetTagResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        let tag_data = ops.get_tag(self.tag_id.to_db_field())?;
+
+        let tag = data::get::TagMetadata
+        {
+            tag_id: data::TagId::from_db_field(tag_data.tag_id),
+            name: tag_data.tag_name,
+            kind: data::TagKind::from_db_field(tag_data.tag_kind)?,
+            rating: data::Rating::from_db_field(tag_data.tag_rating)?,
+            censor: data::Censor::from_db_field(tag_data.tag_censor)?,
+        };
+
+        Ok(GetTagResponse{ tag })
+    }
+}
+
+#[derive(Debug)]
+pub struct GetTagResponse
+{
+    pub tag: data::get::TagMetadata,
+}
+
+#[derive(Debug)]
+pub struct SearchTagsRequest
+{
+    pub search: String,
+}
+
+impl ApiMessage for SearchTagsRequest
+{
+    type Response = SearchTagsResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        let db_tags = ops.get_tags_for_text_search(&self.search)?;
+
+        let mut tags = Vec::new();
+        tags.reserve(db_tags.len());
+
+        for tag_data in db_tags
+        {
+            tags.push(data::get::TagMetadata
+            {
+                tag_id: data::TagId::from_db_field(tag_data.tag_id),
+                name: tag_data.tag_name,
+                kind: data::TagKind::from_db_field(tag_data.tag_kind)?,
+                rating: data::Rating::from_db_field(tag_data.tag_rating)?,
+                censor: data::Censor::from_db_field(tag_data.tag_censor)?,
+            });
+        }
+
+        Ok(SearchTagsResponse{ tags })
+    }
+}
+
+#[derive(Debug)]
+pub struct SearchTagsResponse
+{
+    pub tags: Vec<data::get::TagMetadata>,
+}
+
+#[derive(Debug)]
 pub struct AddObjectRequest
 {
     pub data: data::add::ObjectData,

@@ -26,6 +26,7 @@ pub trait ReadOps
     fn get_attachment_data(&self, obj_id: i64) -> Result<Option<Vec<u8>>, Error>;
 
     fn get_tag(&self, tag_id: i64) -> Result<Tag, Error>;
+    fn get_tags_for_text_search(&self, search: &str) -> Result<Vec<Tag>, Error>;
 }
 
 pub trait WriteOps: ReadOps

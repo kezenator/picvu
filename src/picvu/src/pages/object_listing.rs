@@ -204,8 +204,32 @@ pub async fn object_query(state: web::Data<State>, options: &ListViewOptionsForm
             response.pagination_response.page_size)));
     }
 
+    let tags = if let picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{search} = &response.query
+    {
+        let tags_msg = picvudb::msgs::SearchTagsRequest{ search: search.clone() };
+
+        state.db.send(tags_msg).await??.tags
+    }
+    else
+    {
+        Vec::new()
+    };
+
+    let search_tag = if let picvudb::data::get::GetObjectsQuery::TagByActivityDesc{tag_id} = &response.query
+    {
+        let get_tag_msg = picvudb::msgs::GetTagRequest{ tag_id: tag_id.clone() };
+
+        Some(state.db.send(get_tag_msg).await??.tag)
+    }
+    else
+    {
+        None
+    };
+
     Ok(render_object_listing(
         response,
+        tags,
+        search_tag,
         options.list_type.unwrap_or(ViewObjectsListType::ThumbnailsGrid),
         &req,
         &state.header_links))
@@ -278,19 +302,33 @@ async fn objects_by_tag(state: web::Data<State>, query: web::Query<TagListViewOp
     object_query(state, &options, query, req).await
 }
 
-pub fn render_object_listing(resp: GetObjectsResponse, list_type: ViewObjectsListType, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
+pub fn render_object_listing(resp: GetObjectsResponse, tags: Vec<picvudb::data::get::TagMetadata>, search_tag: Option<picvudb::data::get::TagMetadata>, list_type: ViewObjectsListType, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     match list_type
     {
-        ViewObjectsListType::DetailsTable => render_objects_details(resp, req, header_links),
-        ViewObjectsListType::ThumbnailsGrid => render_objects_thumbnails(resp, req, header_links),
+        ViewObjectsListType::DetailsTable => render_objects_details(resp, tags, search_tag, req, header_links),
+        ViewObjectsListType::ThumbnailsGrid => render_objects_thumbnails(resp, tags, search_tag, req, header_links),
     }
 }
 
-pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
+pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::data::get::TagMetadata>, search_tag: Option<picvudb::data::get::TagMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
-    let title = format::query_to_string(&resp.query);
-    let icon = ObjectListingPage::icon(&resp.query);
+    let mut title = format::query_to_string(&resp.query);
+    let mut icon = ObjectListingPage::icon(&resp.query);
+
+    if let Some(tag) = search_tag
+    {
+        title = format!("Tagged: {}", tag.name);
+        icon = match tag.kind
+        {
+            picvudb::data::TagKind::Activity => OutlineIcon::Sun,
+            picvudb::data::TagKind::Event => OutlineIcon::Calendar,
+            picvudb::data::TagKind::Label => OutlineIcon::Label,
+            picvudb::data::TagKind::List => OutlineIcon::List,
+            picvudb::data::TagKind::Location => OutlineIcon::Location,
+            picvudb::data::TagKind::Person => OutlineIcon::User,
+        }.into();
+    }
 
     let icons_style = |o: &picvudb::data::get::ObjectMetadata|
     {
@@ -305,10 +343,57 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
 
     let contents = owned_html!{
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone(), true));
+        : (pagination(resp.query.clone(), tags.len(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone(), true));
 
         div(class="object-listing")
         {
+            @if resp.pagination_response.offset == 0
+            {
+                @if !tags.is_empty()
+                {
+                    h2(class="object-listing-group")
+                    {
+                        : "Tags";
+                    }
+
+                    div(class="object-listing-tags")
+                    {
+                        @for tag in tags.iter()
+                        {
+                            a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }),
+                                class="tag")
+                            {
+                                : (match tag.kind
+                                {
+                                    picvudb::data::TagKind::Activity => OutlineIcon::Sun,
+                                    picvudb::data::TagKind::Event => OutlineIcon::Calendar,
+                                    picvudb::data::TagKind::Label => OutlineIcon::Label,
+                                    picvudb::data::TagKind::List => OutlineIcon::List,
+                                    picvudb::data::TagKind::Location => OutlineIcon::Location,
+                                    picvudb::data::TagKind::Person => OutlineIcon::User,
+                                }).render(IconSize::Size16x16);
+
+                                @if tag.rating.is_some()
+                                {
+                                    : OutlineIcon::Star.render(IconSize::Size16x16);
+                                }
+
+                                : (match tag.censor
+                                {
+                                    picvudb::data::Censor::FamilyFriendly => Raw(String::new()),
+                                    picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach.render(IconSize::Size16x16),
+                                    picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant.render(IconSize::Size16x16),
+                                    picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin.render(IconSize::Size16x16),
+                                });
+
+                                : " ";
+                                : &tag.name;
+                            }
+                        }
+                    }
+                }
+            }
+
             @for object in resp.objects.iter()
             {
                 @if let this_heading = get_heading(object, &resp.query)
@@ -380,23 +465,37 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, req: &HttpRequest, he
             }
         }
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone(), false));
+        : (pagination(resp.query.clone(), tags.len(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone(), false));
 
     }.into_string().unwrap();
 
     view::html_page(req, header_links, &title, icon, &contents)
 }
 
-pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
+pub fn render_objects_details(resp: GetObjectsResponse, tags: Vec<picvudb::data::get::TagMetadata>, search_tag: Option<picvudb::data::get::TagMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     let now = picvudb::data::Date::now();
 
-    let title = format::query_to_string(&resp.query);
-    let icon = ObjectListingPage::icon(&resp.query);
+    let mut title = format::query_to_string(&resp.query);
+    let mut icon = ObjectListingPage::icon(&resp.query);
+
+    if let Some(tag) = search_tag
+    {
+        title = format!("Tagged: {}", tag.name);
+        icon = match tag.kind
+        {
+            picvudb::data::TagKind::Activity => OutlineIcon::Sun,
+            picvudb::data::TagKind::Event => OutlineIcon::Calendar,
+            picvudb::data::TagKind::Label => OutlineIcon::Label,
+            picvudb::data::TagKind::List => OutlineIcon::List,
+            picvudb::data::TagKind::Location => OutlineIcon::Location,
+            picvudb::data::TagKind::Person => OutlineIcon::User,
+        }.into();
+    }
 
     let contents = owned_html!{
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone(), true));
+        : (pagination(resp.query.clone(), tags.len(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone(), true));
 
         table(class="details-table")
         {
@@ -410,6 +509,54 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
                 th: "Dimensions";
                 th: "Duration";
                 th: "Location";
+            }
+
+            @if resp.pagination_response.offset == 0
+            {
+                @for tag in tags.iter()
+                {
+                    tr
+                    {
+                        td
+                        {
+                            : "Tag ";
+                            a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }))
+                            {
+                                : (match tag.kind
+                                    {
+                                        picvudb::data::TagKind::Activity => OutlineIcon::Sun,
+                                        picvudb::data::TagKind::Event => OutlineIcon::Calendar,
+                                        picvudb::data::TagKind::Label => OutlineIcon::Label,
+                                        picvudb::data::TagKind::List => OutlineIcon::List,
+                                        picvudb::data::TagKind::Location => OutlineIcon::Location,
+                                        picvudb::data::TagKind::Person => OutlineIcon::User,
+                                    }).render(IconSize::Size16x16);
+                                : &tag.name
+                            }
+                        }
+                        td {}
+                        td
+                        {
+                            @if tag.rating.is_some()
+                            {
+                                : ColoredIcon::Star.render(IconSize::Size16x16);
+                            }
+    
+                            : (match tag.censor
+                                {
+                                    picvudb::data::Censor::FamilyFriendly => Raw(String::new()),
+                                    picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach.render(IconSize::Size16x16),
+                                    picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant.render(IconSize::Size16x16),
+                                    picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin.render(IconSize::Size16x16),
+                                });
+                        }
+                        td {}
+                        td {}
+                        td {}
+                        td {}
+                        td {}
+                    }
+                }
             }
 
             @for object in resp.objects.iter()
@@ -462,7 +609,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, req: &HttpRequest, heade
             }
         }
 
-        : (pagination(resp.query.clone(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone(), false));
+        : (pagination(resp.query.clone(), tags.len(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone(), false));
 
     }.into_string().unwrap();
 
@@ -522,7 +669,7 @@ fn should_print_page(page: u64, cur_page: u64, last_page: u64) -> bool
     }
 }
 
-fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjectsListType, response: picvudb::data::get::PaginationResponse, top: bool) -> Raw<String>
+fn pagination(query: picvudb::data::get::GetObjectsQuery, num_tags: usize, list_type: ViewObjectsListType, response: picvudb::data::get::PaginationResponse, top: bool) -> Raw<String>
 {
     let this_page_offset = response.offset;
     let page_size = response.page_size;
@@ -578,7 +725,14 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, list_type: ViewObjects
 
             div(class="pagination-summary")
             {
-                : (format!("Total: {} objects ", total));
+                : (format!("Total: {} objects", total));
+
+                @if num_tags != 0
+                {
+                    : format!(", {} tags", num_tags);
+                }
+
+                : " ";
             }
 
             a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::ThumbnailsGrid, this_page_offset, page_size),

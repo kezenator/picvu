@@ -89,13 +89,22 @@ impl<'a> ReadOps for Transaction<'a>
 
     fn get_num_objects_for_text_search(&self, search: &str) -> Result<u64, Error>
     {
-        use schema::objects_fts::dsl::*;
-        use diesel::dsl::count_star;
+        let fts5_search = search.to_owned();
+        let fts5_search = fts5_search.replace('\"', "\"\"");
+        let fts5_search = format!("\"{}\"", fts5_search);
 
-        let num: u64 = objects_fts
-            .select(count_star())
-            .filter(title.fts_match(search)
-                .or(notes.fts_match(search)))
+        let num = schema::objects::table
+            .select(diesel::dsl::count_star())
+            .filter(
+                schema::objects::id.eq_any(
+                    schema::objects_fts::table
+                    .select(schema::objects_fts::id)
+                    .filter(schema::objects_fts::dsl::title.fts_match(&fts5_search)
+                        .or(schema::objects_fts::dsl::notes.fts_match(&fts5_search))))
+                .or(schema::objects::id.eq_any(
+                    schema::attachments_metadata::table
+                    .select(schema::attachments_metadata::obj_id)
+                    .filter(schema::attachments_metadata::dsl::filename.eq(search)))))
             .first::<i64>(self.connection)?
             .to_u64()
             .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 objects in database".to_owned() })?;
@@ -206,11 +215,21 @@ impl<'a> ReadOps for Transaction<'a>
 
     fn get_objects_for_text_search(&self, search: &str, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
     {
-        use schema::objects_fts::dsl::*;
+        let fts5_search = search.to_owned();
+        let fts5_search = fts5_search.replace('\"', "\"\"");
+        let fts5_search = format!("\"{}\"", fts5_search);
 
         let results = schema::objects::table
-            .filter(schema::objects::id.eq_any(
-                    schema::objects_fts::table.select(schema::objects_fts::id).filter(title.fts_match(search).or(notes.fts_match(search)))))
+            .filter(
+                schema::objects::id.eq_any(
+                    schema::objects_fts::table
+                    .select(schema::objects_fts::id)
+                    .filter(schema::objects_fts::dsl::title.fts_match(&fts5_search)
+                        .or(schema::objects_fts::dsl::notes.fts_match(&fts5_search))))
+                .or(schema::objects::id.eq_any(
+                    schema::attachments_metadata::table
+                    .select(schema::attachments_metadata::obj_id)
+                    .filter(schema::attachments_metadata::dsl::filename.eq(search)))))
             .order_by(schema::objects::activity_timestamp.desc())
             .offset(offset as i64)
             .limit(page_size as i64)
@@ -307,6 +326,24 @@ impl<'a> ReadOps for Transaction<'a>
                 Err(Error::DatabaseConsistencyError{ msg: format!("Tag ID {} has no stored data", tag_id) })
             },
         }
+    }
+
+    fn get_tags_for_text_search(&self, search: &str) -> Result<Vec<Tag>, Error>
+    {
+        let fts5_search = search.to_owned();
+        let fts5_search = fts5_search.replace('\"', "\"\"");
+        let fts5_search = format!("\"{}\"", fts5_search);
+
+        let results = schema::tags::table
+            .filter(
+                schema::tags::tag_id.eq_any(
+                    schema::tags_fts::table
+                    .select(schema::tags_fts::tag_id)
+                    .filter(schema::tags_fts::dsl::tag_name.fts_match(&fts5_search))))
+            .order_by(schema::tags::tag_name.asc())
+            .load::<Tag>(self.connection)?;
+
+        Ok(results)
     }
 }
 

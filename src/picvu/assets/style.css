@@ -149,6 +149,12 @@ h2.object-listing-group
     margin-bottom: 0.4em;
 }
 
+div.object-listing-tags
+{
+    width: 100%;
+    flex-basis: 100%;
+}
+
 div.object-listing-entry
 {
     width: 150px;
