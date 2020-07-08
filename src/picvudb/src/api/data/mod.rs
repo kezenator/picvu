@@ -1,5 +1,6 @@
 mod censor;
 mod date;
+mod daterange;
 mod dimensions;
 mod duration;
 mod extref;
@@ -15,6 +16,7 @@ mod tagset;
 
 pub use censor::Censor;
 pub use date::Date;
+pub use daterange::DateRange;
 pub use dimensions::Dimensions;
 pub use duration::Duration;
 pub use extref::ExternalReference;

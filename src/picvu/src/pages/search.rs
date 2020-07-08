@@ -44,6 +44,15 @@ async fn get_search(form: web::Query<SearchForm>) -> HttpResponse
 
         view::redirect(pages::object_listing::ObjectListingPage::path(query))
     }
+    else if let Ok(date_range) = form.q.parse()
+    {
+        // If we can decode the query as a DateRange, then
+        // redirect to the date page.
+
+        let query = picvudb::data::get::GetObjectsQuery::ActivityDateRangeByActivityDesc{ date_range };
+
+        view::redirect(pages::object_listing::ObjectListingPage::path(query))
+    }
     else
     {
         // Just treat it as a standard text search

@@ -13,6 +13,7 @@ pub trait ReadOps
     fn get_num_objects_near_location(&self, latitude: f64, longitude: f64, radius_meters: f64) -> Result<u64, Error>;
     fn get_num_objects_for_text_search(&self, search: &str) -> Result<u64, Error>;
     fn get_num_objects_with_tag(&self, tag: i64) -> Result<u64, Error>;
+    fn get_num_objects_in_activity_date_range(&self, date_range: &data::DateRange) -> Result<u64, Error>;
 
     fn get_object_by_id(&self, obj_id: i64) -> Result<Option<Object>, Error>;
     fn get_objects_by_activity_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
@@ -21,6 +22,7 @@ pub trait ReadOps
     fn get_objects_near_location_by_activity_desc(&self, latitude: f64, longitude: f64, radius_meters: f64, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
     fn get_objects_for_text_search(&self, search: &str, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
     fn get_objects_with_tag_by_activity_desc(&self, tag_id: i64, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
+    fn get_objects_in_activity_date_range(&self, date_range: &data::DateRange, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
 
     fn get_attachment_metadata(&self, obj_id: i64) -> Result<Option<AttachmentMetadata>, Error>;
     fn get_attachment_data(&self, obj_id: i64) -> Result<Option<Vec<u8>>, Error>;

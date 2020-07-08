@@ -1,4 +1,4 @@
-use crate::api::data::{Censor, Date, Dimensions, Duration, ExternalReference, Location, NotesMarkdown, ObjectId, Orientation, Rating, TagId, TagKind, TitleMarkdown};
+use crate::api::data::{Censor, Date, DateRange, Dimensions, Duration, ExternalReference, Location, NotesMarkdown, ObjectId, Orientation, Rating, TagId, TagKind, TitleMarkdown};
 
 #[derive(Debug, Clone)]
 pub struct AttachmentMetadata
@@ -66,4 +66,5 @@ pub enum GetObjectsQuery
     NearLocationByActivityDesc{ location: Location, radius_meters: f64 },
     TitleNotesSearchByActivityDesc{ search: String },
     TagByActivityDesc{ tag_id: TagId },
+    ActivityDateRangeByActivityDesc{ date_range: DateRange },
 }

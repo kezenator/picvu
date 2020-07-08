@@ -127,6 +127,30 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(num)
     }
 
+    fn get_num_objects_in_activity_date_range(&self, date_range: &data::DateRange) -> Result<u64, Error>
+    {
+        use diesel::dsl::count_star;
+
+        let start_ts_utc = date_range.start.first_timestamp_utc_false_positive().unwrap().timestamp();
+        let start_ts_local = date_range.start.first_timestamp_after_local_adjust().unwrap().timestamp();
+        let end_ts_utc = date_range.end.last_timestamp_utc_false_positive().unwrap().timestamp();
+        let end_ts_local = date_range.end.last_timestamp_after_local_adjust().unwrap().timestamp();
+
+        let num = schema::objects::table
+            .select(count_star())
+            .filter(
+                schema::objects::activity_timestamp.ge(start_ts_utc)
+                .and(schema::objects::activity_timestamp.le(end_ts_utc))
+                .and((schema::objects::activity_timestamp + coalesce(schema::objects::activity_offset, 36000)).ge(start_ts_local))
+                .and((schema::objects::activity_timestamp + coalesce(schema::objects::activity_offset, 36000)).le(end_ts_local)))
+            .order_by(schema::objects::activity_timestamp.desc())
+            .first::<i64>(self.connection)?
+            .to_u64()
+            .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 objects in database".to_owned() })?;
+    
+        Ok(num)
+    }
+
     fn get_object_by_id(&self, obj_id: i64) -> Result<Option<Object>, Error>
     {
         use schema::objects::dsl::*;
@@ -243,6 +267,27 @@ impl<'a> ReadOps for Transaction<'a>
         let results = schema::objects::table
             .filter(schema::objects::id.eq_any(
                     schema::object_tags::table.select(schema::object_tags::obj_id).filter(schema::object_tags::tag_id.eq(tag_id))))
+            .order_by(schema::objects::activity_timestamp.desc())
+            .offset(offset as i64)
+            .limit(page_size as i64)
+            .load::<Object>(self.connection)?;
+    
+        Ok(results)
+    }
+
+    fn get_objects_in_activity_date_range(&self, date_range: &data::DateRange, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    {
+        let start_ts_utc = date_range.start.first_timestamp_utc_false_positive().unwrap().timestamp();
+        let start_ts_local = date_range.start.first_timestamp_after_local_adjust().unwrap().timestamp();
+        let end_ts_utc = date_range.end.last_timestamp_utc_false_positive().unwrap().timestamp();
+        let end_ts_local = date_range.end.last_timestamp_after_local_adjust().unwrap().timestamp();
+
+        let results = schema::objects::table
+            .filter(
+                schema::objects::activity_timestamp.ge(start_ts_utc)
+                .and(schema::objects::activity_timestamp.le(end_ts_utc))
+                .and((schema::objects::activity_timestamp + coalesce(schema::objects::activity_offset, 36000)).ge(start_ts_local))
+                .and((schema::objects::activity_timestamp + coalesce(schema::objects::activity_offset, 36000)).le(end_ts_local)))
             .order_by(schema::objects::activity_timestamp.desc())
             .offset(offset as i64)
             .limit(page_size as i64)
