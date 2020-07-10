@@ -13,6 +13,7 @@ pub mod object_listing;
 pub mod search;
 pub mod setup;
 pub mod sync;
+pub mod tags;
 
 pub struct HeaderLink
 {

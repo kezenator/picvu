@@ -347,22 +347,7 @@ pub fn render_object_listing(resp: GetObjectsResponse, tags: Vec<picvudb::data::
 
 pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::data::get::TagMetadata>, search_tag: Option<picvudb::data::get::TagMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
-    let mut title = format::query_to_string(&resp.query);
-    let mut icon = ObjectListingPage::icon(&resp.query);
-
-    if let Some(tag) = search_tag
-    {
-        title = format!("Tagged: {}", tag.name);
-        icon = match tag.kind
-        {
-            picvudb::data::TagKind::Activity => OutlineIcon::Sun,
-            picvudb::data::TagKind::Event => OutlineIcon::Calendar,
-            picvudb::data::TagKind::Label => OutlineIcon::Label,
-            picvudb::data::TagKind::List => OutlineIcon::List,
-            picvudb::data::TagKind::Location => OutlineIcon::Location,
-            picvudb::data::TagKind::Person => OutlineIcon::User,
-        }.into();
-    }
+    let (title, icon) = get_title_and_icon(&resp.query, &search_tag);
 
     let icons_style = |o: &picvudb::data::get::ObjectMetadata|
     {
@@ -376,6 +361,8 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
     let mut cur_heading = String::new();
 
     let contents = owned_html!{
+
+        : get_query_commands(&resp.query);
 
         : (pagination(resp.query.clone(), tags.len(), ViewObjectsListType::ThumbnailsGrid, resp.pagination_response.clone(), true));
 
@@ -510,24 +497,11 @@ pub fn render_objects_details(resp: GetObjectsResponse, tags: Vec<picvudb::data:
 {
     let now = picvudb::data::Date::now();
 
-    let mut title = format::query_to_string(&resp.query);
-    let mut icon = ObjectListingPage::icon(&resp.query);
-
-    if let Some(tag) = search_tag
-    {
-        title = format!("Tagged: {}", tag.name);
-        icon = match tag.kind
-        {
-            picvudb::data::TagKind::Activity => OutlineIcon::Sun,
-            picvudb::data::TagKind::Event => OutlineIcon::Calendar,
-            picvudb::data::TagKind::Label => OutlineIcon::Label,
-            picvudb::data::TagKind::List => OutlineIcon::List,
-            picvudb::data::TagKind::Location => OutlineIcon::Location,
-            picvudb::data::TagKind::Person => OutlineIcon::User,
-        }.into();
-    }
+    let (title, icon) = get_title_and_icon(&resp.query, &search_tag);
 
     let contents = owned_html!{
+
+        : get_query_commands(&resp.query);
 
         : (pagination(resp.query.clone(), tags.len(), ViewObjectsListType::DetailsTable, resp.pagination_response.clone(), true));
 
@@ -650,6 +624,56 @@ pub fn render_objects_details(resp: GetObjectsResponse, tags: Vec<picvudb::data:
     view::html_page(req, header_links, &title, icon, &contents)
 }
 
+fn get_title_and_icon(query: &picvudb::data::get::GetObjectsQuery, search_tag: &Option<picvudb::data::get::TagMetadata>) -> (String, Icon)
+{
+    let mut title = format::query_to_string(query);
+    let mut icon = ObjectListingPage::icon(query);
+
+    if let Some(tag) = search_tag
+    {
+        title = format!("Tagged: {}", tag.name);
+        icon = match tag.kind
+        {
+            picvudb::data::TagKind::Activity => OutlineIcon::Sun,
+            picvudb::data::TagKind::Event => OutlineIcon::Calendar,
+            picvudb::data::TagKind::Label => OutlineIcon::Label,
+            picvudb::data::TagKind::List => OutlineIcon::List,
+            picvudb::data::TagKind::Location => OutlineIcon::Location,
+            picvudb::data::TagKind::Person => OutlineIcon::User,
+        }.into();
+    }
+
+    (title, icon)
+}
+
+fn get_query_commands(query: &picvudb::data::get::GetObjectsQuery) -> Raw<String>
+{
+    if let picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id } = query
+    {
+        return Raw(owned_html!
+        {
+            div(class="cmdbar cmdbar-top")
+            {
+                a(href=pages::tags::EditTagPage::edit_path(tag_id), class="cmdbar-link")
+                {
+                    : OutlineIcon::Edit.render(IconSize::Size16x16);
+                    : " Edit Tag"
+                }
+                a(href="/", class="cmdbar-link")
+                {
+                    : OutlineIcon::Delete.render(IconSize::Size16x16);
+                    : " Delete Tag"
+                }
+                div(class="cmdbar-summary")
+                {
+                }
+            }
+        }.into_string().unwrap());
+    }
+
+    Raw(String::new())
+}
+
 fn get_heading(object: &picvudb::data::get::ObjectMetadata, query: &picvudb::data::get::GetObjectsQuery) -> String
 {
     match query
@@ -732,7 +756,7 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, num_tags: usize, list_
 
     let result: String = owned_html!
     {
-        div(class=(if top { "pagination pagination-top" } else { "pagination pagination-bottom" }))
+        div(class=(if top { "cmdbar cmdbar-top" } else { "cmdbar cmdbar-bottom" }))
         {
             @for page in pages.iter()
             {
@@ -741,7 +765,7 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, num_tags: usize, list_
                     : ({ done_elipsis = false; ""});
 
                     a(href=ObjectListingPage::path_with_options(query.clone(), list_type, (*page - 1) * page_size, page_size),
-                        class=(if cur_page == *page { "pagination-link pagination-selected" } else { "pagination-link" }))
+                        class=(if cur_page == *page { "cmdbar-link cmdbar-selected" } else { "cmdbar-link" }))
                     {
                         : (format!("{}, ", page));
                     }
@@ -750,7 +774,7 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, num_tags: usize, list_
                 {
                     @if !done_elipsis
                     {
-                        div(class="pagination-elipsis")
+                        div(class="cmdbar-elipsis")
                         {
                             : ({ done_elipsis = true; "..." });
                         }
@@ -758,7 +782,7 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, num_tags: usize, list_
                 }
             }
 
-            div(class="pagination-summary")
+            div(class="cmdbar-summary")
             {
                 : (format!("Total: {} objects", total));
 
@@ -771,14 +795,14 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, num_tags: usize, list_
             }
 
             a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::ThumbnailsGrid, this_page_offset, page_size),
-                class=(if list_type == ViewObjectsListType::ThumbnailsGrid { "pagination-link pagination-selected" } else { "pagination-link" }))
+                class=(if list_type == ViewObjectsListType::ThumbnailsGrid { "cmdbar-link cmdbar-selected" } else { "cmdbar-link" }))
             {
                 : OutlineIcon::Image.render(IconSize::Size16x16);
                 : " Thumbnails ";
             }
 
             a(href=ObjectListingPage::path_with_options(query.clone(), ViewObjectsListType::DetailsTable, this_page_offset, page_size),
-                class=(if list_type == ViewObjectsListType::DetailsTable { "pagination-link pagination-selected" } else { "pagination-link" }))
+                class=(if list_type == ViewObjectsListType::DetailsTable { "cmdbar-link cmdbar-selected" } else { "cmdbar-link" }))
             {
                 : OutlineIcon::List.render(IconSize::Size16x16);
                 : " Details ";

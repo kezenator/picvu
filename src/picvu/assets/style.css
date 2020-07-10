@@ -69,7 +69,7 @@ div.header-links form
     display: inline;
 }
 
-div.pagination
+div.cmdbar
 {
     margin: 0px;
     padding: 0px;
@@ -80,19 +80,19 @@ div.pagination
     background-color: lightgrey;
 }
 
-div.pagination-top
+div.cmdbar-top
 {
     border-bottom: solid 1px black;
 }
 
-div.pagination-bottom
+div.cmdbar-bottom
 {
     border-top: solid 1px black;
     border-bottom: solid 1px black;
     margin-top: 0.6em;
 }
 
-div.pagination a
+div.cmdbar a
 {
     box-sizing: border-box;
     margin: 0px;
@@ -100,18 +100,18 @@ div.pagination a
     color: black;
 }
 
-div.pagination a:hover
+div.cmdbar a:hover
 {
     background-color: slategrey;
     color: white !important;
 }
 
-.pagination-link
+.cmdbar-link
 {
     flex-basis: auto;
 }
 
-.pagination-elipsis
+.cmdbar-elipsis
 {
     flex-basis: auto;
     flex-grow: 100;
@@ -119,7 +119,7 @@ div.pagination a:hover
     text-align: center;
 }
 
-.pagination-summary
+.cmdbar-summary
 {
     flex-basis: auto;
     flex-grow: 100;
@@ -127,7 +127,7 @@ div.pagination a:hover
     text-align: right;
 }
 
-.pagination-selected
+.cmdbar-selected
 {
     background-color: slategrey;
     color: white !important;

@@ -634,6 +634,62 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
+    fn update_tag(&self, tag_id: data::TagId, name: String, rating: Option<data::Rating>, censor: data::Censor, kind: data::TagKind) -> Result<(), Error>
+    {
+        // First, check there's no other tag with this name
+
+        match schema::tags::table.filter(schema::tags::tag_name.eq(name.clone())).get_result::<Tag>(self.connection).optional()?
+        {
+            Some(tag) =>
+            {
+                if tag.tag_id != tag_id.to_db_field()
+                {
+                    return Err(Error::DatabaseConsistencyError{ msg: format!("There is already another tag with the name {:?}", name) });
+                }
+            },
+            None =>
+            {
+                // OK!
+            },
+        }
+
+        // Update the tag
+
+        let tag = UpdateTagId
+        {
+            tag_id: tag_id.to_db_field(),
+        };
+
+        let changeset = UpdateTagChangeset
+        {
+            tag_name: name.clone(),
+            tag_rating: rating.map(|r| r.to_db_field()),
+            tag_censor: censor.to_db_field(),
+            tag_kind: kind.to_db_field(),
+        };
+
+        diesel::update(&tag).set(changeset).execute(self.connection)?;
+
+        // Update the full-text search
+
+        {
+            diesel::delete(schema::tags_fts::table.filter(schema::tags_fts::dsl::tag_id.eq(tag_id.to_db_field())))
+                .execute(self.connection)?;
+
+            let fts_insert_value = TagsFts
+            {
+                tag_id: tag_id.to_db_field(),
+                tag_name: name.clone(),
+            };
+
+            diesel::insert_into(schema::tags_fts::table)
+                .values(vec![fts_insert_value])
+                .execute(self.connection)?;
+        }
+
+        Ok(())
+    }
+
     fn find_or_add_tag(&self, name: String, kind: data::TagKind, rating: Option<data::Rating>, censor: data::Censor) -> Result<i64, Error>
     {
         match schema::tags::table.filter(schema::tags::tag_name.eq(name.clone())).get_result::<Tag>(self.connection).optional()?

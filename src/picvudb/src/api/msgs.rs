@@ -505,3 +505,36 @@ impl ApiMessage for UpdateObjectRequest
 pub struct UpdateObjectResponse
 {
 }
+
+#[derive(Debug)]
+pub struct UpdateTagRequest
+{
+    pub tag_id: data::TagId,
+    pub name: String,
+    pub rating: Option<data::Rating>,
+    pub censor: data::Censor,
+    pub kind: data::TagKind,
+}
+
+impl ApiMessage for UpdateTagRequest
+{
+    type Response = UpdateTagResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        ops.update_tag(
+            self.tag_id.clone(),
+            self.name.clone(),
+            self.rating.clone(),
+            self.censor.clone(),
+            self.kind.clone())?;
+
+        Ok(UpdateTagResponse{})
+    }
+}
+
+#[derive(Debug)]
+pub struct UpdateTagResponse
+{
+}

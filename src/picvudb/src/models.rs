@@ -172,3 +172,22 @@ pub struct TagsFts
     pub tag_id: i64,
     pub tag_name: String,
 }
+
+#[derive(Identifiable)]
+#[table_name="tags"]
+#[primary_key(tag_id)]
+pub struct UpdateTagId
+{
+    pub tag_id: i64,
+}
+
+#[derive(AsChangeset)]
+#[table_name="tags"]
+#[changeset_options(treat_none_as_null="true")]
+pub struct UpdateTagChangeset
+{
+    pub tag_name: String,
+    pub tag_rating: Option<i32>,
+    pub tag_censor: i32,
+    pub tag_kind: i32,
+}
