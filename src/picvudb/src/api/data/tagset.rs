@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::ParseError;
 
 pub struct TagSet(Vec<i64>);
@@ -25,7 +27,19 @@ impl TagSet
         &self.0
     }
 
-    pub(crate) fn from_db_set(val: &std::collections::BTreeSet<i64>) -> Self
+    pub(crate) fn to_db_set(&self) -> BTreeSet<i64>
+    {
+        let mut result = BTreeSet::new();
+
+        for tag_id in &self.0
+        {
+            result.insert(*tag_id);
+        }
+
+        result
+    }
+
+    pub(crate) fn from_db_set(val: &BTreeSet<i64>) -> Self
     {
         TagSet(val.iter().map(|t| *t).collect())
     }
@@ -50,7 +64,7 @@ impl TagSet
                     vec_orig_order
                     .clone()
                     .drain(..)
-                    .collect::<std::collections::BTreeSet<_>>()
+                    .collect::<BTreeSet<_>>()
                     .iter()
                     .map(|i| *i)
                     .collect();

@@ -538,3 +538,71 @@ impl ApiMessage for UpdateTagRequest
 pub struct UpdateTagResponse
 {
 }
+
+#[derive(Debug)]
+pub struct UpdateObjectTagsRequest
+{
+    pub object_id: data::ObjectId,
+    pub remove: Vec<data::TagId>,
+    pub add: Vec<data::add::Tag>,
+}
+
+impl ApiMessage for UpdateObjectTagsRequest
+{
+    type Response = UpdateObjectTagsResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        // First, get the object
+
+        let object = match ops.get_object_by_id(self.object_id.to_db_field())?
+        {
+            None => return Err(Error::DatabaseConsistencyError{ msg: format!("Object {:?} doesn't exist", self.object_id) }),
+            Some(object) => object,
+        };
+
+        let orig_tag_set = data::TagSet::from_db_field(object.tag_set)?.to_db_set();
+        let mut new_tag_set = orig_tag_set.clone();
+
+        // Remove the specified tags from the object,
+        // deleting the tag if this is the last object
+        // that has the tag
+
+        for tag_id in &self.remove
+        {
+            if new_tag_set.contains(&tag_id.to_db_field())
+            {
+                ops.remove_object_tag(self.object_id.to_db_field(), tag_id.to_db_field())?;
+
+                if ops.get_num_objects_with_tag(tag_id.to_db_field())? == 0
+                {
+                    ops.delete_tag(tag_id)?;
+                }
+
+                new_tag_set.remove(&tag_id.to_db_field());
+            }
+        }
+
+        // Add the new tags that have been requested
+
+        for tag in &self.add
+        {
+            let tag_id = ops.find_or_add_tag(tag.name.clone(), tag.kind.clone(), tag.rating.clone(), tag.censor.clone())?;
+
+            new_tag_set.insert(tag_id);
+        }
+
+        // Finally, update the TagSet and ModifiedDate
+        // of the object
+
+        ops.update_object_tagset(self.object_id.to_db_field(), data::TagSet::from_db_set(&new_tag_set))?;
+
+        Ok(UpdateObjectTagsResponse{})
+    }
+}
+
+#[derive(Debug)]
+pub struct UpdateObjectTagsResponse
+{
+}

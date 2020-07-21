@@ -634,6 +634,27 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
+    fn update_object_tagset(&self, obj_id: i64, tag_set: data::TagSet) -> Result<(), Error>
+    {
+        let object = UpdateObjectId
+        {
+            id: obj_id,
+        };
+
+        let modified = data::Date::now();
+
+        let changeset = UpdateObjectTagsetChangeset
+        {
+            modified_timestamp: modified.to_db_timestamp(),
+            modified_offset: modified.to_db_offset(),
+            tag_set: tag_set.to_db_field(),
+        };
+
+        diesel::update(&object).set(changeset).execute(self.connection)?;
+
+        Ok(())
+    }
+
     fn update_tag(&self, tag_id: data::TagId, name: String, rating: Option<data::Rating>, censor: data::Censor, kind: data::TagKind) -> Result<(), Error>
     {
         // First, check there's no other tag with this name
@@ -690,6 +711,30 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
+    fn delete_tag(&self, tag_id: &data::TagId) -> Result<(), Error>
+    {
+        // First, check there's no other tag with this name
+
+        if schema::object_tags::table
+            .filter(schema::object_tags::tag_id.eq(tag_id.to_db_field()))
+            .load::<ObjectTags>(self.connection)?
+            .len() != 0
+        {
+            return Err(Error::DatabaseConsistencyError{ msg: format!("Tag {:?} can't be deleted - some objects are still tagged with it", tag_id) });
+        }
+
+        // Delete the tag
+        // and the Full-Text-Search entry
+
+        diesel::delete(schema::tags::table.filter(schema::tags::dsl::tag_id.eq(tag_id.to_db_field())))
+            .execute(self.connection)?;
+
+        diesel::delete(schema::tags_fts::table.filter(schema::tags_fts::dsl::tag_id.eq(tag_id.to_db_field())))
+            .execute(self.connection)?;
+
+        Ok(())
+    }
+
     fn find_or_add_tag(&self, name: String, kind: data::TagKind, rating: Option<data::Rating>, censor: data::Censor) -> Result<i64, Error>
     {
         match schema::tags::table.filter(schema::tags::tag_name.eq(name.clone())).get_result::<Tag>(self.connection).optional()?
@@ -741,6 +786,17 @@ impl<'a> WriteOps for Transaction<'a>
         diesel::insert_into(schema::object_tags::table)
             .values(&entry)
             .execute(self.connection)?;
+
+        Ok(())
+    }
+
+    fn remove_object_tag(&self, obj_id: i64, tag_id: i64) -> Result<(), Error>
+    {
+        diesel::delete(
+            schema::object_tags::table.filter(
+                schema::object_tags::dsl::obj_id.eq(obj_id)
+                .and(schema::object_tags::dsl::tag_id.eq(tag_id))))
+        .execute(self.connection)?;
 
         Ok(())
     }

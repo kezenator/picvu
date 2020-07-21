@@ -3,6 +3,7 @@ use horrorshow::{owned_html, Raw, Template};
 #[derive(Debug, Clone)]
 pub enum OutlineIcon
 {
+    AlertTriangle,
     Calendar,
     CloudUpload,
     Edit,
@@ -60,6 +61,7 @@ impl OutlineIcon
     {
         let name = match self
         {
+            OutlineIcon::AlertTriangle => "alert-triangle",
             OutlineIcon::Calendar => "calendar",
             OutlineIcon::CloudUpload => "upload-cloud",
             OutlineIcon::Edit => "edit",

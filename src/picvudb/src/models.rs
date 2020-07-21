@@ -83,6 +83,16 @@ pub struct UpdateObjectChangeset
     pub longitude: Option<f64>,
 }
 
+#[derive(AsChangeset)]
+#[table_name="objects"]
+#[changeset_options(treat_none_as_null="true")]
+pub struct UpdateObjectTagsetChangeset
+{
+    pub modified_timestamp: i64,
+    pub modified_offset: Option<i32>,
+    pub tag_set: Option<String>,
+}
+
 #[derive(Queryable)]
 #[derive(Insertable)]
 #[table_name="attachments_metadata"]

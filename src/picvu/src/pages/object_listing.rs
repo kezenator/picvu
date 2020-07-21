@@ -654,12 +654,12 @@ fn get_query_commands(query: &picvudb::data::get::GetObjectsQuery) -> Raw<String
         {
             div(class="cmdbar cmdbar-top")
             {
-                a(href=pages::tags::EditTagPage::edit_path(tag_id), class="cmdbar-link")
+                a(href=pages::tags::TagPages::edit_path(tag_id), class="cmdbar-link")
                 {
                     : OutlineIcon::Edit.render(IconSize::Size16x16);
                     : " Edit Tag"
                 }
-                a(href="/", class="cmdbar-link")
+                a(href=pages::tags::TagPages::delete_path(tag_id), class="cmdbar-link")
                 {
                     : OutlineIcon::Delete.render(IconSize::Size16x16);
                     : " Delete Tag"

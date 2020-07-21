@@ -1,9 +1,13 @@
 use snafu::Snafu;
 use snafu::IntoError;
 
+use crate::connection::DbConnectionError;
+
 #[derive(Debug, Snafu)]
 pub enum Error
 {
+    #[snafu(display("PicVu connection error: {:?}", source))]
+    ConnectionError { source: DbConnectionError },
     #[snafu(display("SQLite Database Error: {:?}", source))]
     SqliteDatabaseError { source: diesel::result::Error },
     #[snafu(display("Database Consistency Error: {}", msg))]
@@ -14,6 +18,12 @@ pub enum Error
     DataParseError { source: ParseError },
 }
 
+impl From<DbConnectionError> for Error
+{
+    fn from(source: DbConnectionError) -> Self {
+        ConnectionError{}.into_error(source)
+    }
+}
 impl From<diesel::result::Error> for Error
 {
     fn from(source: diesel::result::Error) -> Self {
