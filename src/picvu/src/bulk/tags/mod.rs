@@ -53,15 +53,10 @@ impl BulkOperation for DeleteTagBulkOp
                 {
                     let query = picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag_id.clone() };
 
-                    let num_objects = store.write_transaction(|ops|
-                        {
-                            picvudb::msgs::GetNumObjectsRequest{ query: query.clone() }.execute(ops)
-                        })?.num_objects;
-
                     let msg = picvudb::msgs::GetObjectsRequest
                     {
                         query: query.clone(),
-                        pagination: picvudb::data::get::PaginationRequest{ offset: 0, page_size: num_objects },
+                        pagination: None,
                     };
 
                     let results = store.write_transaction(|ops|

@@ -83,15 +83,10 @@ impl BulkOperation for GooglePhotosSync
 
                 let objects =
                 {
-                    let stats = store.write_transaction(|ops|
-                        {
-                            picvudb::msgs::GetStatisticsRequest{}.execute(ops)
-                        })?;
-
                     let msg = picvudb::msgs::GetObjectsRequest
                     {
                         query: picvudb::data::get::GetObjectsQuery::ByActivityDesc,
-                        pagination: picvudb::data::get::PaginationRequest{ offset: 0, page_size: stats.num_objects },
+                        pagination: None,
                     };
 
                     let results = store.write_transaction(|ops|

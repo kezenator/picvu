@@ -123,7 +123,7 @@ pub struct GetNumObjectsResponse
 pub struct GetObjectsRequest
 {
     pub query: data::get::GetObjectsQuery,
-    pub pagination: data::get::PaginationRequest,
+    pub pagination: Option<data::get::PaginationRequest>,
 }
 
 impl ApiMessage for GetObjectsRequest
@@ -138,7 +138,7 @@ impl ApiMessage for GetObjectsRequest
             .num_objects;
 
         // Fix up the pagination request
-        let mut pagination = self.pagination.clone();
+        let mut pagination = self.pagination.clone().unwrap_or(data::get::PaginationRequest{ offset: 0, page_size: num_objects });
         {
             if pagination.page_size < 10
             {
@@ -266,7 +266,7 @@ pub struct GetObjectsResponse
 {
     pub objects: Vec<data::get::ObjectMetadata>,
     pub query: data::get::GetObjectsQuery,
-    pub pagination_request: data::get::PaginationRequest,
+    pub pagination_request: Option<data::get::PaginationRequest>,
     pub pagination_response: data::get::PaginationResponse,
 }
 

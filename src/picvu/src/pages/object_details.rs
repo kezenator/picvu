@@ -36,16 +36,11 @@ async fn get_object_details(state: web::Data<State>, object_id: web::Path<String
     let object_id = picvudb::data::ObjectId::try_new(object_id.to_string())?;
 
     let query = picvudb::data::get::GetObjectsQuery::ByObjectId(object_id);
-    let pagination = picvudb::data::get::PaginationRequest
-    {
-        offset: 0,
-        page_size: 25,
-    };
 
     let msg = picvudb::msgs::GetObjectsRequest
     {
         query,
-        pagination,
+        pagination: None,
     };
 
     let response = state.db.send(msg).await??;

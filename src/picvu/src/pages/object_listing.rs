@@ -206,7 +206,7 @@ pub async fn object_query(state: web::Data<State>, options: &ListViewOptionsForm
     let msg = picvudb::msgs::GetObjectsRequest
     {
         query,
-        pagination: pagination.clone(),
+        pagination: Some(pagination.clone()),
     };
 
     let response = state.db.send(msg).await??;
