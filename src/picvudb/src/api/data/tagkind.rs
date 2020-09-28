@@ -1,7 +1,8 @@
 use std::str::FromStr;
+use serde::Serialize;
 use crate::ParseError;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum TagKind
 {
     Location,

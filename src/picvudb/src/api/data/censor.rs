@@ -1,6 +1,7 @@
+use serde::Serialize;
 use crate::Error;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Censor
 {
     FamilyFriendly,

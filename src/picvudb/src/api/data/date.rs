@@ -1,4 +1,6 @@
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Local, Offset, Utc};
+use serde::{Serialize, Serializer};
+use serde::ser::SerializeStruct;
 
 use crate::{Error, ParseError};
 
@@ -132,5 +134,20 @@ impl Date
                 fixed.with_timezone(&Utc)
             },
         }
+    }
+}
+
+impl Serialize for Date
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer,
+    {
+        let date_str = self.to_rfc3339();
+        let type_str = match self { Date::Utc(_) => "UTC", Date::FixedOffset(_) => "FixedOffset" }.to_owned();
+
+        let mut s = serializer.serialize_struct("Date", 2)?;
+        s.serialize_field("date", &date_str)?;
+        s.serialize_field("type", &type_str)?;
+        s.end()
     }
 }

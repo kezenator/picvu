@@ -1,6 +1,7 @@
+use serde::Serialize;
 use crate::data::Orientation;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Dimensions
 {
     pub width: u32,

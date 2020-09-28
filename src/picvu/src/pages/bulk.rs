@@ -29,9 +29,12 @@ impl PageResources for BulkPage
     {
         builder
             .add_header_link("/view/bulk_import", "Import", OutlineIcon::Import, 600)
+            .add_header_link("/view/bulk_export", "Export", OutlineIcon::Export, 600)
             .route_view("/view/bulk_import", web::get().to(get_bulk_import))
+            .route_view("/view/bulk_export", web::get().to(get_bulk_export))
             .route_other("/view/bulk-progress", web::get().to(get_bulk_progress))
             .route_other("/form/bulk_import", web::post().to(post_bulk_import))
+            .route_other("/form/bulk_export", web::post().to(post_bulk_export))
             .route_other("/form/bulk_acknowledge", web::post().to(post_bulk_acknowledge));
     }
 }
@@ -44,6 +47,12 @@ pub struct BulkImportForm
     pub force_timezone: String,
     pub assume_notes: String,
     pub assume_location: String,
+}
+
+#[derive(Deserialize)]
+pub struct BulkExportForm
+{
+    pub folder: String,
 }
 
 fn parse_str_to_opt<T: std::str::FromStr>(s: &str) -> Result<Option<T>, HttpResponse>
@@ -95,6 +104,17 @@ async fn post_bulk_import(state: web::Data<State>, form: web::Form<BulkImportFor
         let mut bulk_queue = state.bulk_queue.lock().unwrap();
 
         bulk_queue.enqueue(bulk::import::FolderImport::new(form.folder.clone(), state.db_uri.clone(), api_key, access_token, import_options));
+    }
+
+    Ok(view::redirect(BulkPage::progress_path()))
+}
+
+async fn post_bulk_export(state: web::Data<State>, form: web::Form<BulkExportForm>) -> Result<HttpResponse, HttpResponse>
+{
+    {
+        let mut bulk_queue = state.bulk_queue.lock().unwrap();
+
+        bulk_queue.enqueue(bulk::export::Export::new(form.folder.clone(), state.db_uri.clone()));
     }
 
     Ok(view::redirect(BulkPage::progress_path()))
@@ -173,6 +193,35 @@ fn get_bulk_import(state: web::Data<State>, req: HttpRequest) -> HttpResponse
         &state.header_links,
         "Import",
         OutlineIcon::Import,
+        &contents)
+}
+
+fn get_bulk_export(state: web::Data<State>, req: HttpRequest) -> HttpResponse
+{
+    let contents = owned_html!
+    {
+        h1: "Bulk Export";
+        form(method="POST", action="/form/bulk_export", enctype="application/x-www-form-urlencoded")
+        {
+            h2: "Export Folder";
+            em: "The path to the local folder that the files should be exported into";
+            p
+            {
+                input(type="text", name="folder")
+            }
+
+            p
+            {
+                input(type="submit");
+            }
+        }
+    }.into_string().unwrap();
+
+    view::html_page(
+        &req,
+        &state.header_links,
+        "Export",
+        OutlineIcon::Export,
         &contents)
 }
 

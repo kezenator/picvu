@@ -1,6 +1,7 @@
+use serde::Serialize;
 use crate::Error;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Orientation
 {
     Straight,

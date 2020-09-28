@@ -1,6 +1,7 @@
+use serde::Serialize;
 use crate::Error;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct Duration(u32);
 
 impl Duration
