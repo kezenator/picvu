@@ -1,5 +1,5 @@
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Local, Offset, Utc};
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::SerializeStruct;
 
 use crate::{Error, ParseError};
@@ -149,5 +149,15 @@ impl Serialize for Date
         s.serialize_field("date", &date_str)?;
         s.serialize_field("type", &type_str)?;
         s.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Date
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>,
+    {
+        // TODO
+        Ok(Date::now())
     }
 }

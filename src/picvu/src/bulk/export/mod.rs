@@ -10,7 +10,7 @@ use crate::bulk::BulkOperation;
 use crate::bulk::progress::ProgressSender;
 use crate::format;
 
-mod data;
+pub mod data;
 mod error;
 mod writer;
 
@@ -51,6 +51,8 @@ impl BulkOperation for Export
         {
             web::block(move || -> Result<(), ExportError>
             {
+                let start_time = picvudb::data::Date::now();
+
                 sender.start_stage("Loading objects".to_owned(), vec!["Exporting".to_owned(), "Cleaning Up".to_owned()]);
 
                 let mut writer = writer::FileExportWriter::new(self.folder_path)?;
@@ -175,6 +177,18 @@ impl BulkOperation for Export
                         return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Could not load attachment data").into());
                     }
                 }
+
+                let export_metadata = data::ExportMetadata
+                {
+                    version: "development".to_owned(),
+                    start_time: start_time,
+                    end_time: picvudb::data::Date::now(),
+                };
+
+                writer.write_file(
+                    &vec![],
+                    &"picvudb.export.json".to_owned(),
+                    &serde_json::to_string_pretty(&export_metadata).unwrap().as_bytes().to_vec())?;
 
                 let mut results = vec![
                     format!("Exported {} objects", objs_done),

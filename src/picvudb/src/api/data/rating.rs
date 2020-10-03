@@ -1,7 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use crate::ParseError;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum Rating
 {
     OneStar,

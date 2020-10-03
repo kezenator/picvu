@@ -1,8 +1,8 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use picvudb::data::{Censor, Date, Dimensions, Duration, Location, Orientation, Rating, TagKind};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttachmentMetadata
 {
     pub filename: String,
@@ -16,7 +16,7 @@ pub struct AttachmentMetadata
     pub hash: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagMetadata
 {
     pub name: String,
@@ -25,7 +25,7 @@ pub struct TagMetadata
     pub censor: Censor,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectMetadata
 {
     pub created_time: Date,
@@ -38,4 +38,23 @@ pub struct ObjectMetadata
     pub location: Option<Location>,
     pub attachment: AttachmentMetadata,
     pub tags: Vec<TagMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportMetadata
+{
+    pub version: String,
+    pub start_time: Date,
+    pub end_time: Date,
+}
+
+pub fn parse_object_metadata(json_bytes: Vec<u8>, err_path: &String) -> Result<ObjectMetadata, std::io::Error>
+{
+    let json_string = String::from_utf8(json_bytes)
+        .map_err(|_| { std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Picvudb export metadata {} is not valid UTF-8", err_path)) })?;
+
+    let metadata = serde_json::from_str::<ObjectMetadata>(&json_string)
+        .map_err(|e| { std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Picvudb export metadata {} could not be decoded: {:?}", err_path, e)) })?;
+
+    Ok(metadata)
 }

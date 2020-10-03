@@ -9,6 +9,7 @@ use picvudb::ApiMessage;
 use googlephotos::auth::AccessToken;
 
 use crate::bulk::BulkOperation;
+use crate::bulk::export;
 use crate::bulk::progress::ProgressSender;
 use crate::bulk::sync::mediaitems::MediaItemDatabase;
 use crate::format;
@@ -78,6 +79,7 @@ impl BulkOperation for FolderImport
 
                 let mut path_to_info: HashMap<String, FoundMediaFileInfo> = HashMap::new();
                 let mut is_google_photos_takeout_archive = false;
+                let mut is_picvudb_export_archive = false;
                 let mut warnings: Vec<Warning> = Vec::new();
 
                 {
@@ -101,6 +103,12 @@ impl BulkOperation for FolderImport
                         {
                             // Ignore JSON metadata files
                         }
+                        else if entry.archive_path == "picvudb.export.json"
+                        {
+                            // It is an export from this application
+
+                            is_picvudb_export_archive = true;
+                        }
                         else if entry.archive_path == "Takeout/archive_browser.html"
                         {
                             // If it has the Google Photos Takout browser file, then
@@ -115,6 +123,15 @@ impl BulkOperation for FolderImport
                                 format!("Unsupported file: {}", entry.display_path)).into());
                         }
                     }
+                }
+
+                // Ensure we only have one supported set of metadata
+
+                if is_picvudb_export_archive && is_google_photos_takeout_archive
+                {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Import path appears to have both Google Takeout and PicvuDb Export metadata - only one is supported at a time").into());
                 }
 
                 let google_photos_db =
@@ -147,19 +164,24 @@ impl BulkOperation for FolderImport
                     }
                 }
 
+                // Load all of the metadata
+
                 sender.start_stage(
                     "Loading Metadata".to_owned(),
                     vec!["Importing Media".to_owned(), "Summary".to_owned()]);
 
-                let mut path_to_metadata: HashMap<String, analyse::takeout::Metadata> = HashMap::new();
+                let mut path_to_picvudb_metadata: HashMap<String, export::data::ObjectMetadata> = HashMap::new();
+                let mut path_to_google_metadata: HashMap<String, analyse::takeout::Metadata> = HashMap::new();
 
-                if is_google_photos_takeout_archive
+                if is_picvudb_export_archive || is_google_photos_takeout_archive
                 {
                     for entry in scanner.clone_iter(|file_name| { file_name.ends_with(".json") })
                     {
                         let entry = entry?;
 
-                        let progress_files = format!("Found metadata for {} out of {} media files", path_to_metadata.len(), path_to_info.len());
+                        let sum = path_to_picvudb_metadata.len() + path_to_google_metadata.len();
+
+                        let progress_files = format!("Found metadata for {} out of {} media files", sum, path_to_info.len());
 
                         sender.set(entry.percent, vec![entry.display_path.clone(), entry.progress_bytes, progress_files]);
 
@@ -169,9 +191,18 @@ impl BulkOperation for FolderImport
 
                             if path_to_info.contains_key(&media_name)
                             {
-                                let metadata = analyse::takeout::parse_google_photos_takeout_metadata(entry.bytes, &entry.display_path)?;
+                                if is_picvudb_export_archive
+                                {
+                                    let metadata = export::data::parse_object_metadata(entry.bytes, &entry.display_path)?;
 
-                                path_to_metadata.insert(media_name, metadata);
+                                    path_to_picvudb_metadata.insert(media_name, metadata);
+                                }
+                                else if is_google_photos_takeout_archive
+                                {
+                                    let metadata = analyse::takeout::parse_google_photos_takeout_metadata(entry.bytes, &entry.display_path)?;
+
+                                    path_to_google_metadata.insert(media_name, metadata);
+                                }
                             }
                         }
                     }
@@ -183,7 +214,7 @@ impl BulkOperation for FolderImport
 
                 let google_cache = analyse::google::GoogleCache::new(self.google_api_key);
 
-                let num_found_metadata_files = path_to_metadata.len();
+                let num_found_metadata_files = path_to_google_metadata.len();
 
                 let mut summary_imported_media_files: usize = 0;
                 let mut summary_imported_media_bytes: u64 = 0;
@@ -212,7 +243,7 @@ impl BulkOperation for FolderImport
 
                         if let Some(found_info) = path_to_info.get(&entry.archive_path)
                         {
-                            let google_metadata = path_to_metadata.get(&entry.archive_path).cloned();
+                            let google_metadata = path_to_google_metadata.get(&entry.archive_path).cloned();
 
                             if google_metadata.is_some()
                             {
@@ -233,7 +264,7 @@ impl BulkOperation for FolderImport
 
                                     if let Some(other_info) = path_to_info.get(&other_path)
                                     {
-                                        if let Some(_other_metadata) = path_to_metadata.get(&other_path)
+                                        if let Some(_other_metadata) = path_to_google_metadata.get(&other_path)
                                         {
                                             if other_info.size > found_info.size
                                             {

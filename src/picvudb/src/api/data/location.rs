@@ -1,8 +1,8 @@
 use std::str::FromStr;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use crate::ParseError;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Location
 {
     pub latitude: f64,

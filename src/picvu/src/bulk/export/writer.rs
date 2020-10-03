@@ -55,7 +55,16 @@ impl ExportWriter for FileExportWriter
             }
         }
         
-        self.written_files.entry(full_path.clone()).or_default().insert(filename.into());
+        {
+            let entry = self.written_files.entry(full_path.clone()).or_default();
+            
+            if !entry.insert(filename.into())
+            {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    format!("Duplicate files with name {}", full_path.join(filename).display())));
+            }
+        }
 
         full_path = full_path.join(filename);
 
