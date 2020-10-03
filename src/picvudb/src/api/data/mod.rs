@@ -22,6 +22,7 @@ pub use duration::Duration;
 pub use extref::ExternalReference;
 pub use markdown::NotesMarkdown;
 pub use markdown::TitleMarkdown;
+pub use location::LocationSource;
 pub use location::Location;
 pub use objectid::ObjectId;
 pub use orientation::Orientation;

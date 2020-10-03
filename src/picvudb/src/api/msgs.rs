@@ -203,10 +203,30 @@ impl ApiMessage for GetObjectsRequest
                 }
             };
 
-            let location = match (object.latitude, object.longitude)
+            let location = match object.location_source
             {
-                (Some(latitude), Some(longitude)) => Some(data::Location::new(latitude, longitude, None)),
-                _ => None
+                Some(source_int) =>
+                {
+                    match (object.latitude, object.longitude)
+                    {
+                        (Some(latitude), Some(longitude)) =>
+                        {
+                            Some(data::Location::new(
+                                data::LocationSource::from_db_field(source_int)?,
+                                latitude,
+                                longitude,
+                                object.altitude))
+                        },
+                        _ =>
+                        {
+                            return Err(Error::DatabaseConsistencyError
+                                {
+                                    msg: format!("Object {} contains a location source but no latitude/longitude", object.id.to_string()),
+                                });
+                        },
+                    }
+                },
+                None => None,
             };
 
             let mut tags = Vec::new();

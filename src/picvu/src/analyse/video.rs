@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use picvudb::data::{Date, Dimensions, Duration, Location, Orientation};
+use picvudb::data::{Date, Dimensions, Duration, Location, LocationSource, Orientation};
 use crate::analyse::google::GoogleCache;
 use crate::analyse::tz::ExplicitTimezone;
 use crate::analyse::warning::{Warning, WarningKind};
@@ -97,7 +97,11 @@ pub fn analyse_video(bytes: &[u8], filename: &str, thumbnail_size: u32, assume_t
                         {
                             if let Ok(long) = value[(offset + 1)..].parse::<f64>()
                             {
-                                location = Some(Location::new(lat, long, None));
+                                location = Some(Location::new(
+                                    LocationSource::CameraGps,
+                                    lat,
+                                    long,
+                                    None));
                             }
                         }
                     }

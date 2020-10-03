@@ -524,7 +524,11 @@ fn calc_location_and_dop(entries: &Vec<rexif::ExifEntry>) -> Result<(Option<picv
                     }
                 }
 
-                location = Some(picvudb::data::Location::new(lat, long, alt));
+                location = Some(picvudb::data::Location::new(
+                    picvudb::data::LocationSource::CameraGps,
+                    lat,
+                    long,
+                    alt));
 
                 let dop = find_single(entries, rexif::ExifTag::GPSDOP);
 

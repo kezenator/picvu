@@ -1,6 +1,5 @@
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Local, Offset, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::ser::SerializeStruct;
 
 use crate::{Error, ParseError};
 
@@ -137,18 +136,32 @@ impl Date
     }
 }
 
+#[derive(Deserialize, Serialize)]
+enum DateOffset
+{
+    Unknown,
+    Specified,
+}
+
+#[derive(Deserialize, Serialize)]
+struct DateSerde
+{
+    date: String,
+    offset: DateOffset,
+}
+
 impl Serialize for Date
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer,
     {
-        let date_str = self.to_rfc3339();
-        let type_str = match self { Date::Utc(_) => "UTC", Date::FixedOffset(_) => "FixedOffset" }.to_owned();
+        let date_serde = DateSerde
+        {
+            date: self.to_rfc3339(),
+            offset: match self { Date::Utc(_) => DateOffset::Unknown, Date::FixedOffset(_) => DateOffset::Specified }
+        };
 
-        let mut s = serializer.serialize_struct("Date", 2)?;
-        s.serialize_field("date", &date_str)?;
-        s.serialize_field("type", &type_str)?;
-        s.end()
+        date_serde.serialize(serializer)
     }
 }
 
@@ -157,7 +170,21 @@ impl<'de> Deserialize<'de> for Date
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de>,
     {
-        // TODO
-        Ok(Date::now())
+        let date_serde = DateSerde::deserialize(deserializer)?;
+
+        let date = DateTime::<FixedOffset>::parse_from_rfc3339(&date_serde.date)
+            .map_err(|err| serde::de::Error::custom(format!("Invalid RFC3339 date {}: {:?}", date_serde.date, err)))?;
+
+        match date_serde.offset
+        {
+            DateOffset::Unknown =>
+            {
+                Ok(Date::Utc(date.with_timezone(&Utc)))
+            },
+            DateOffset::Specified =>
+            {
+                Ok(Date::FixedOffset(date))
+            },
+        }
     }
 }

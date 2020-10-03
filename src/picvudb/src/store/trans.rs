@@ -427,8 +427,10 @@ impl<'a> WriteOps for Transaction<'a>
         let created_time = created_time.unwrap_or(modified_time.clone());
         let activity_time = activity_time.unwrap_or(created_time.clone());
 
+        let location_source = location.clone().map(|l| l.source.to_db_field());
         let latitude = location.clone().map(|l| l.latitude);
         let longitude = location.clone().map(|l| l.longitude);
+        let altitude = location.clone().map(|l| l.altitude).flatten();
 
         let insertable_object = InsertableObject
         {
@@ -442,8 +444,10 @@ impl<'a> WriteOps for Transaction<'a>
             notes: notes.clone().map(|m| m.get_markdown()),
             rating: rating.clone().map(|r| { r.to_db_field() }),
             censor: censor.to_db_field(),
+            location_source: location_source,
             latitude: latitude,
             longitude: longitude,
+            altitude: altitude,
             tag_set: tag_set.to_db_field(),
             ext_ref_type: ext_ref.clone().map(|e| e.to_db_field_type()),
             ext_ref_id: ext_ref.clone().map(|e| e.to_db_field_id()),
@@ -572,8 +576,10 @@ impl<'a> WriteOps for Transaction<'a>
             notes: notes.clone().map(|m| m.get_markdown()),
             rating: rating.map(|r| r.to_db_field()),
             censor: censor.to_db_field(),
+            location_source: location.clone().map(|l| l.source.to_db_field()),
             latitude: location.clone().map(|l| l.latitude),
             longitude: location.clone().map(|l| l.longitude),
+            altitude: location.clone().map(|l| l.altitude).flatten(),
         };
 
         diesel::update(&object).set(changeset).execute(self.connection)?;

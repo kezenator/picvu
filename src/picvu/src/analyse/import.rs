@@ -163,6 +163,7 @@ pub fn create_add_object_for_import(
                 || md_location.altitude != 0.0
             {
                 location = Some(picvudb::data::Location::new(
+                    picvudb::data::LocationSource::ThirdPartyMetadata,
                     md_location.latitude,
                     md_location.longitude,
                     Some(md_location.altitude)));

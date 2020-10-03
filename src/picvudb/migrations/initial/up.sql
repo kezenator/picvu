@@ -15,8 +15,10 @@ CREATE TABLE objects (
   notes TEXT,
   rating INTEGER,
   censor INTEGER NOT NULL,
+  location_source INTEGER,
   latitude REAL,
   longitude REAL,
+  altitude REAL,
   tag_set TEXT,
   ext_ref_type TEXT,
   ext_ref_id TEXT

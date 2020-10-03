@@ -24,8 +24,10 @@ pub struct Object
     pub notes: Option<String>,
     pub rating: Option<i32>,
     pub censor: i32,
+    pub location_source: Option<i32>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub altitude: Option<f64>,
     pub tag_set: Option<String>,
     pub ext_ref_type: Option<String>,
     pub ext_ref_id: Option<String>,
@@ -45,8 +47,10 @@ pub struct InsertableObject
     pub notes: Option<String>,
     pub rating: Option<i32>,
     pub censor: i32,
+    pub location_source: Option<i32>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub altitude: Option<f64>,
     pub tag_set: Option<String>,
     pub ext_ref_type: Option<String>,
     pub ext_ref_id: Option<String>,
@@ -79,8 +83,10 @@ pub struct UpdateObjectChangeset
     pub notes: Option<String>,
     pub rating: Option<i32>,
     pub censor: i32,
+    pub location_source: Option<i32>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub altitude: Option<f64>,
 }
 
 #[derive(AsChangeset)]
