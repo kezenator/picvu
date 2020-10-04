@@ -446,10 +446,20 @@ fn location_details(location: &Option<picvudb::data::Location>, timezone_info: &
                 td: "Location";
                 td
                 {
-                    a(href=format!("https://www.google.com/maps/search/?api=1&query={},{}", location.latitude, location.longitude),
-                        target="_blank")
+                    p
                     {
-                        : format!("{}, {}", location.latitude, location.longitude);
+                        a(href=format!("https://www.google.com/maps/search/?api=1&query={},{}", location.latitude, location.longitude),
+                            target="_blank")
+                        {
+                            : format!("{}, {}", location.latitude, location.longitude);
+                        }
+
+                        @if let Some(altitude) = location.altitude
+                        {
+                            : format!(", {:.0}m", altitude);
+                        }
+
+                        : format!(", ({:?})", location.source);
                     }
 
                     @if let Some(timezone_info) = timezone_info.clone()

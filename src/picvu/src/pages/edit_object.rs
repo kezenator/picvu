@@ -112,7 +112,29 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
 
     let censor: picvudb::data::Censor = form.censor.parse()?;
 
-    let location = if form.location.is_empty() { None } else { Some(form.location.parse()?) };
+    let location = if form.location.is_empty()
+    {
+        None
+    }
+    else
+    {
+        let mut new = form.location.parse::<picvudb::data::Location>()?;
+
+        if let Some(cur) = object.location.clone()
+        {
+            if ((new.latitude - cur.latitude).abs() < 1e-9)
+                && ((new.latitude - cur.latitude).abs() < 1e-9)
+            {
+                // The new location is withing 1e-9 of the current location -
+                // just keep the current location, so we keep the same source
+                // and altitude, which we don't support parsing from a string.
+
+                new = cur;
+            }
+        }
+
+        Some(new)
+    };
 
     if activity_time != object.activity_time
         || title != object.title

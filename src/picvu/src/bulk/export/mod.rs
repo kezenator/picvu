@@ -187,7 +187,7 @@ impl BulkOperation for Export
 
                 writer.write_file(
                     &vec![],
-                    &"picvudb.export.json".to_owned(),
+                    &"picvu.export.json".to_owned(),
                     &serde_json::to_string_pretty(&export_metadata).unwrap().as_bytes().to_vec())?;
 
                 let mut results = vec![
