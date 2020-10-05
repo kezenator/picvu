@@ -9,15 +9,15 @@ edition = "2018"
 [dependencies]
 base16="0.2.1"
 byteorder="1.3.4"
-chrono="0.4.12"
-data-encoding="2.2.1"
+chrono="0.4.19"
+data-encoding="2.3.0"
 mime="0.3.16"
 num-traits="0.2.12"
 sha2="0.9.1"
-snafu="0.6.8"
-serde="1.0.114"
+snafu="0.6.9"
+serde="1.0.116"
 libsqlite3-sys = { version = "0.9.1", features = ["bundled"] }
-pulldown-cmark="0.7.2"
+pulldown-cmark="0.8.0"
 
 [dependencies.diesel]
 version="1.4.5"
