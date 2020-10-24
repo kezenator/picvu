@@ -15,7 +15,7 @@ mime="0.3.16"
 num-traits="0.2.12"
 sha2="0.9.1"
 snafu="0.6.9"
-serde="1.0.116"
+serde="1.0.117"
 libsqlite3-sys = { version = "0.9.1", features = ["bundled"] }
 pulldown-cmark="0.8.0"
 

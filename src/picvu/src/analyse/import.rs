@@ -5,6 +5,7 @@ use crate::analyse;
 use crate::analyse::google::GoogleCache;
 use crate::analyse::tz::ExplicitTimezone;
 use crate::analyse::warning::{Warning, WarningKind};
+use crate::bulk::export;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImportOptions
@@ -45,6 +46,10 @@ pub fn guess_mime_type_from_filename(filename: &String) -> Option<mime::Mime>
     {
         Some(mime::IMAGE_GIF)
     }
+    else if ext == "tif"
+    {
+        Some("image/tiff".parse().unwrap())
+    }
     else if ext == "webp"
     {
         Some("image/webp".parse().unwrap())
@@ -52,6 +57,10 @@ pub fn guess_mime_type_from_filename(filename: &String) -> Option<mime::Mime>
     else if ext == "mp4"
     {
         Some(format!("{}/{}", mime::VIDEO.as_str(), mime::MP4.as_str()).parse().unwrap())
+    }
+    else if ext == "avi"
+    {
+        Some("video/x-msvideo".parse().unwrap())
     }
     else if ext == "mkv"
     {
@@ -70,10 +79,67 @@ pub fn create_add_object_for_import(
     import_options: &ImportOptions,
     opt_file_created_time: Option<picvudb::data::Date>,
     opt_file_modified_time: Option<picvudb::data::Date>,
+    opt_picvu_export_metadata: Option<export::data::ObjectMetadata>,
     opt_google_photos_takeout_metadata: Option<analyse::takeout::Metadata>,
     opt_ext_ref: Option<picvudb::data::ExternalReference>,
     warnings: &mut Vec<Warning>) -> Result<picvudb::msgs::AddObjectRequest, std::io::Error>
 {
+    if let Some(picvu_export) = opt_picvu_export_metadata
+    {
+        // If picvu export metadata has been provided, then we just
+        // want to directly import that again. Don't do any analysis,
+        // and just re-create an object that's identical to the export.
+
+        let mut tags = Vec::new();
+
+        for tag in picvu_export.tags
+        {
+            tags.push(picvudb::data::add::Tag{
+                name: tag.name,
+                kind: tag.kind,
+                rating: tag.rating,
+                censor: tag.censor,
+            });
+        }
+        
+        // Construct the Add Object request
+    
+        let attachment = picvudb::data::add::Attachment
+        {
+            filename: picvu_export.attachment.filename,
+            created: picvu_export.attachment.created,
+            modified: picvu_export.attachment.modified,
+            mime: picvu_export.attachment.mime.parse().map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Invalid MIME for {}: {:?}", file_name, e)))?,
+            orientation: picvu_export.attachment.orientation,
+            dimensions: picvu_export.attachment.dimensions,
+            duration: picvu_export.attachment.duration,
+            bytes: bytes,
+        };
+
+        let data = picvudb::data::add::ObjectData
+        {
+            title: picvu_export.title.map_or(Ok(None), |s| picvudb::data::TitleMarkdown::parse(s).map(Some)).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Invalid Title markdown for {}: {:?}", file_name, e)))?,
+            notes: picvu_export.notes.map_or(Ok(None), |s| picvudb::data::NotesMarkdown::parse(s).map(Some)).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Invalid Notes markdown {}: {:?}", file_name, e)))?,
+            rating: picvu_export.rating,
+            censor: picvu_export.censor,
+            created_time: Some(picvu_export.created_time),
+            modified_time: Some(picvu_export.modified_time),
+            activity_time: Some(picvu_export.activity_time),
+            location: picvu_export.location,
+            attachment: attachment,
+            tags: tags,
+            ext_ref: None,
+        };
+    
+        let msg = picvudb::msgs::AddObjectRequest{ data };
+    
+        return Ok(msg);
+    }
+
+    // Right - no export metadata - so we actually
+    // need to do some analysis to try and add the
+    // object with as much information as is available.
+
     let now = picvudb::data::Date::now();
 
     // Take default values from the information provided
@@ -450,6 +516,7 @@ pub fn create_add_object_for_import(
         rating: None,
         censor: picvudb::data::Censor::FamilyFriendly,
         created_time: obj_created_time,
+        modified_time: None,
         activity_time: obj_activity_time,
         location: location,
         attachment: attachment,

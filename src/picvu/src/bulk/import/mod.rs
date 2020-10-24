@@ -99,15 +99,15 @@ impl BulkOperation for FolderImport
 
                             path_to_info.insert(entry.archive_path.clone(), info);
                         }
-                        else if entry.ext == "json"
-                        {
-                            // Ignore JSON metadata files
-                        }
-                        else if entry.archive_path == "picvu.export.json"
+                        else if entry.file_name == "picvu.export.json"
                         {
                             // It is an export from this application
 
                             is_picvu_export_archive = true;
+                        }
+                        else if entry.ext == "json"
+                        {
+                            // Ignore JSON metadata files
                         }
                         else if entry.archive_path == "Takeout/archive_browser.html"
                         {
@@ -334,6 +334,7 @@ impl BulkOperation for FolderImport
                                     &import_options,
                                     entry.created,
                                     Some(entry.modified),
+                                    picvu_metadata,
                                     google_metadata,
                                     ext_ref,
                                     &mut warnings)?;

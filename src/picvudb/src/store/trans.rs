@@ -421,9 +421,9 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn add_object(&self, created_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<data::ObjectId, Error>
+    fn add_object(&self, created_time: Option<data::Date>, modified_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<data::ObjectId, Error>
     {
-        let modified_time = data::Date::now();
+        let modified_time = modified_time.unwrap_or(data::Date::now());
         let created_time = created_time.unwrap_or(modified_time.clone());
         let activity_time = activity_time.unwrap_or(created_time.clone());
 

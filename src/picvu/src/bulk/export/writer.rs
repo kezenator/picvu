@@ -35,6 +35,29 @@ impl FileExportWriter
             deleted_folders: 0,
         })
     }
+
+    fn remove_dir_recursive(&mut self, path: &PathBuf) -> Result<(), std::io::Error>
+    {
+        for file_entry in std::fs::read_dir(path)?
+        {
+            let file_entry = file_entry?;
+
+            if file_entry.file_type()?.is_dir()
+            {
+                self.remove_dir_recursive(&file_entry.path())?;
+            }
+            else
+            {
+                self.deleted_files += 1;
+                std::fs::remove_file(file_entry.path())?;
+            }
+        }
+
+        self.deleted_folders += 1;
+        std::fs::remove_dir(path)?;
+    
+        Ok(())
+    }
 }
 
 impl ExportWriter for FileExportWriter
@@ -98,7 +121,7 @@ impl ExportWriter for FileExportWriter
 
     fn close_and_summarize(mut self) -> Result<Vec<String>, std::io::Error>
     {
-        for written_entry in self.written_files
+        for written_entry in self.written_files.clone()
         {
             for file_entry in std::fs::read_dir(written_entry.0)?
             {
@@ -108,8 +131,7 @@ impl ExportWriter for FileExportWriter
                 {
                     if file_entry.file_type()?.is_dir()
                     {
-                        self.deleted_folders += 1;
-                        std::fs::remove_dir_all(file_entry.path())?;
+                        self.remove_dir_recursive(&file_entry.path())?;
                     }
                     else
                     {

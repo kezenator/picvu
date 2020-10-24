@@ -30,6 +30,7 @@ pub struct ObjectData
     pub rating: Option<Rating>,
     pub censor: Censor,
     pub created_time: Option<Date>,
+    pub modified_time: Option<Date>,
     pub activity_time: Option<Date>,
     pub location: Option<Location>,
     pub attachment: Attachment,

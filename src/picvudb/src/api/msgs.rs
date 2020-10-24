@@ -392,6 +392,7 @@ impl ApiMessage for AddObjectRequest
 
         let object_id = ops.add_object(
             self.data.created_time.clone(),
+            self.data.modified_time.clone(),
             self.data.activity_time.clone(),
             self.data.title.clone(),
             self.data.notes.clone(),
