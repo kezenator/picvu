@@ -137,11 +137,6 @@ fn render_edit_tag(tag: picvudb::data::get::TagMetadata, req: &HttpRequest, head
                     th(colspan="2")
                     {
                         : "Edit";
-
-                        div(class="details-table-header-right")
-                        {
-                            input(value="Save", type="Submit");
-                        }
                     }
                 }
 
@@ -201,14 +196,26 @@ fn render_edit_tag(tag: picvudb::data::get::TagMetadata, req: &HttpRequest, head
                         {
                             @for k in picvudb::data::TagKind::values()
                             {
-                                option(
-                                    value=k.to_string(),
-                                    selected?=(tag.kind == k))
+                                @if (k == tag.kind) || (k != picvudb::data::TagKind::Trash)
                                 {
-                                    : k.to_string()
+                                    option(
+                                        value=k.to_string(),
+                                        selected?=(tag.kind == k))
+                                    {
+                                        : k.to_string()
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+
+                tr
+                {
+                    td: "";
+                    td
+                    {
+                        input(value="Save", type="Submit");
                     }
                 }
             }
@@ -247,5 +254,5 @@ fn render_delete_tag(tag: picvudb::data::get::TagMetadata, num_objects: u64, req
 
     }.into_string().unwrap();
 
-    view::html_page(req, header_links, title, OutlineIcon::Delete, &contents)
+    view::html_page(req, header_links, title, OutlineIcon::Trash2, &contents)
 }

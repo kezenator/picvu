@@ -8,7 +8,6 @@ pub enum OutlineIcon
     CloudUpload,
     Edit,
     Export,
-    Delete,
     FilePlus,
     FileText,
     Image,
@@ -21,6 +20,7 @@ pub enum OutlineIcon
     Settings,
     Star,
     Sun,
+    Trash2,
     User,
     Video,
 }
@@ -36,6 +36,7 @@ pub enum ColoredIcon
     Play,
     RoundPushpin,
     Star,
+    Trash,
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +68,6 @@ impl OutlineIcon
             OutlineIcon::CloudUpload => "upload-cloud",
             OutlineIcon::Edit => "edit",
             OutlineIcon::Export => "hard-drive",
-            OutlineIcon::Delete => "delete",
             OutlineIcon::FilePlus => "file-plus",
             OutlineIcon::FileText => "file-text",
             OutlineIcon::Image => "image",
@@ -80,6 +80,7 @@ impl OutlineIcon
             OutlineIcon::Settings => "settings",
             OutlineIcon::Star => "star",
             OutlineIcon::Sun => "sun",
+            OutlineIcon::Trash2 => "trash-2",
             OutlineIcon::User => "user",
             OutlineIcon::Video => "video",
         };
@@ -116,6 +117,7 @@ impl ColoredIcon
             ColoredIcon::Play => "&#x25B6;",
             ColoredIcon::RoundPushpin => "&#x1F4CD;",
             ColoredIcon::Star => "&#x2B50;",
+            ColoredIcon::Trash => "&#x1F5D1",
         };
 
         Raw(text.to_owned())

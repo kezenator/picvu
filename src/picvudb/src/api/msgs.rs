@@ -611,6 +611,8 @@ impl ApiMessage for UpdateObjectTagsRequest
         {
             let tag_id = ops.find_or_add_tag(tag.name.clone(), tag.kind.clone(), tag.rating.clone(), tag.censor.clone())?;
 
+            ops.add_object_tag(self.object_id.to_db_field(), tag_id)?;
+
             new_tag_set.insert(tag_id);
         }
 

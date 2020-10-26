@@ -139,6 +139,23 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
 
     let contents = owned_html!
     {
+        div(class="cmdbar cmdbar-top")
+        {
+            a(href=pages::edit_object::EditObjectPage::path_for(&object.id), class="cmdbar-link")
+            {
+                : OutlineIcon::Edit.render(IconSize::Size16x16);
+                : " Edit"
+            }
+            a(href=pages::delete_object::DeleteObjectPage::path_for(&object.id), class="cmdbar-link")
+            {
+                : OutlineIcon::Trash2.render(IconSize::Size16x16);
+                : " Delete"
+            }
+            div(class="cmdbar-summary")
+            {
+            }
+        }
+        
         table(class="details-table")
         {
             tr
@@ -161,15 +178,6 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 th(colspan="2")
                 {
                     : "Details";
-
-                    div(class="details-table-header-right")
-                    {
-                        a(href=pages::edit_object::EditObjectPage::path_for(&object.id))
-                        {
-                            : OutlineIcon::Edit.render(IconSize::Size16x16);
-                            : "Edit";
-                        }
-                    }
                 }
             }
 
@@ -254,6 +262,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                                     picvudb::data::TagKind::List => OutlineIcon::List,
                                     picvudb::data::TagKind::Location => OutlineIcon::Location,
                                     picvudb::data::TagKind::Person => OutlineIcon::User,
+                                    picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
                                 }).render(IconSize::Size16x16);
 
                                 @if tag.rating.is_some()

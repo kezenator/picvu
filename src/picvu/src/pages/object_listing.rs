@@ -392,6 +392,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
                                     picvudb::data::TagKind::List => OutlineIcon::List,
                                     picvudb::data::TagKind::Location => OutlineIcon::Location,
                                     picvudb::data::TagKind::Person => OutlineIcon::User,
+                                    picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
                                 }).render(IconSize::Size16x16);
 
                                 @if tag.rating.is_some()
@@ -436,6 +437,11 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
                         {
                             div(class="object-listing-icons", style=icons_style(object))
                             {
+                                @if object.tags.iter().filter(|t| t.kind == picvudb::data::TagKind::Trash).count() != 0
+                                {
+                                    : ColoredIcon::Trash.render(IconSize::Size16x16);
+                                }
+
                                 @if object.notes.is_some()
                                 {
                                     : ColoredIcon::Memo.render(IconSize::Size16x16);
@@ -538,6 +544,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, tags: Vec<picvudb::data:
                                         picvudb::data::TagKind::List => OutlineIcon::List,
                                         picvudb::data::TagKind::Location => OutlineIcon::Location,
                                         picvudb::data::TagKind::Person => OutlineIcon::User,
+                                        picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
                                     }).render(IconSize::Size16x16);
                                 : &tag.name
                             }
@@ -640,6 +647,7 @@ fn get_title_and_icon(query: &picvudb::data::get::GetObjectsQuery, search_tag: &
             picvudb::data::TagKind::List => OutlineIcon::List,
             picvudb::data::TagKind::Location => OutlineIcon::Location,
             picvudb::data::TagKind::Person => OutlineIcon::User,
+            picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
         }.into();
     }
 
@@ -661,7 +669,7 @@ fn get_query_commands(query: &picvudb::data::get::GetObjectsQuery) -> Raw<String
                 }
                 a(href=pages::tags::TagPages::delete_path(tag_id), class="cmdbar-link")
                 {
-                    : OutlineIcon::Delete.render(IconSize::Size16x16);
+                    : OutlineIcon::Trash2.render(IconSize::Size16x16);
                     : " Delete Tag"
                 }
                 div(class="cmdbar-summary")

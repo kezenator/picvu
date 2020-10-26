@@ -181,11 +181,6 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     th(colspan="2")
                     {
                         : "Edit";
-
-                        div(class="details-table-header-right")
-                        {
-                            input(value="Save", type="Submit");
-                        }
                     }
                 }
 
@@ -263,6 +258,15 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td
                     {
                         input(type="text", name="location", value=object.location.clone().map(|l| l.to_string()).unwrap_or_default());
+                    }
+                }
+
+                tr
+                {
+                    td: "";
+                    td
+                    {
+                        input(value="Save", type="Submit");
                     }
                 }
 

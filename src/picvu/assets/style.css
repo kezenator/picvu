@@ -218,16 +218,6 @@ td, th
     padding: 0.4em;
 }
 
-.details-table-header-right
-{
-    float: right;
-}
-
-.details-table-header-right a
-{
-    color: black;
-}
-
 .tag
 {
     background-color: plum;

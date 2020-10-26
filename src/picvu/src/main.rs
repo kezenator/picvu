@@ -79,6 +79,7 @@ async fn main() -> std::io::Result<()>
         pages::object_details::ObjectDetailsPage::page_resources(&mut page_builder);
         pages::object_listing::ObjectListingPage::page_resources(&mut page_builder);
         pages::search::SearchPage::page_resources(&mut page_builder);
+        pages::delete_object::DeleteObjectPage::page_resources(&mut page_builder);
         pages::edit_object::EditObjectPage::page_resources(&mut page_builder);
         pages::tags::TagPages::page_resources(&mut page_builder);
         pages::attachments::AttachmentsPage::page_resources(&mut page_builder);

@@ -11,6 +11,7 @@ pub enum TagKind
     Label,
     List,
     Activity,
+    Trash,
 }
 
 impl TagKind
@@ -25,6 +26,7 @@ impl TagKind
             Self::Label => 0x08,
             Self::List => 0x10,
             Self::Activity => 0x20,
+            Self::Trash => 0x40,
         }
     }
 
@@ -38,6 +40,7 @@ impl TagKind
             0x08 => Ok(Self::Label),
             0x10 => Ok(Self::List),
             0x20 => Ok(Self::Activity),
+            0x40 => Ok(Self::Trash),
             _ => Err(ParseError::new(format!("Invalid TagType field 0x{:0x}", val))),
         }
     }
@@ -51,6 +54,7 @@ impl TagKind
             Self::Label,
             Self::List,
             Self::Activity,
+            Self::Trash,
         ]
     }
 }
@@ -67,6 +71,7 @@ impl ToString for TagKind
             Self::Label => "Label",
             Self::List => "List",
             Self::Activity => "Activity",
+            Self::Trash => "Trash",
         }.to_owned()
     }
 }
@@ -85,6 +90,7 @@ impl FromStr for TagKind
             "Label" => Ok(TagKind::Label),
             "List" => Ok(TagKind::List),
             "Activity" => Ok(TagKind::Activity),
+            "Trash" => Ok(TagKind::Trash),
             _ => Err(ParseError::new(format!("Invalid TagKind {:?}", s))),
         }
     }

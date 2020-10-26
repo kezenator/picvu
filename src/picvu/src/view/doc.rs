@@ -14,6 +14,7 @@ use horrorshow::{owned_html, Raw, Template};
 use crate::icons::{Icon, IconSize, OutlineIcon};
 use crate::pages::HeaderLinkCollection;
 
+#[derive(Clone)]
 pub struct Title
 {
     pub text: String,
