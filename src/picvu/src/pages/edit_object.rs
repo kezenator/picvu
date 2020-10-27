@@ -172,7 +172,9 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
 
     let contents = owned_html!
     {
-        form(method="POST", action=format!("/form/edit_object/{}", object.id.to_string()), enctype="application/x-www-form-urlencoded")
+        script(defer, src="/assets/edit.js");
+
+        form(id="form", method="POST", action=format!("/form/edit_object/{}", object.id.to_string()), enctype="application/x-www-form-urlencoded")
         {
             table(class="details-table")
             {
@@ -189,7 +191,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Activity";
                     td
                     {
-                        input(type="text", name="activity", value=object.activity_time.to_rfc3339());
+                        input(id="edit-activity", type="text", name="activity", value=object.activity_time.to_rfc3339());
                     }
                 }
 
@@ -198,7 +200,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Title";
                     td
                     {
-                        input(type="text", name="title", value=object.title.clone().map(|m| m.get_markdown()).unwrap_or_default());
+                        input(id="edit-title", type="text", name="title", value=object.title.clone().map(|m| m.get_markdown()).unwrap_or_default());
                     }
                 }
 
@@ -207,7 +209,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Notes";
                     td
                     {
-                        textarea(name="notes", rows=10, cols=60)
+                        textarea(id="edit-notes", name="notes", rows=10, cols=60)
                         {
                             : object.notes.clone().map(|m| m.get_markdown()).unwrap_or_default();
                         }
@@ -219,7 +221,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Rating";
                     td
                     {
-                        select(name="rating")
+                        select(id="combo-rating", name="rating")
                         {
                             option(value="", selected?=object.rating.is_none()) { : "Unrated" }
                             option(value="1", selected?=(object.rating == Some(picvudb::data::Rating::OneStar))) { : "1 Star" }
@@ -236,7 +238,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Censor";
                     td
                     {
-                        select(name="censor")
+                        select(id="combo-censor", name="censor")
                         {
                             @for c in [picvudb::data::Censor::FamilyFriendly, picvudb::data::Censor::TastefulNudes,
                                             picvudb::data::Censor::FullNudes, picvudb::data::Censor::Explicit].iter()
@@ -257,7 +259,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
                     td: "Location";
                     td
                     {
-                        input(type="text", name="location", value=object.location.clone().map(|l| l.to_string()).unwrap_or_default());
+                        input(id="edit-location", type="text", name="location", value=object.location.clone().map(|l| l.to_string()).unwrap_or_default());
                     }
                 }
 
