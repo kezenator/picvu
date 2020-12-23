@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use horrorshow::{owned_html, Raw, Template};
@@ -384,32 +385,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
                             a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }),
                                 class="tag")
                             {
-                                : (match tag.kind
-                                {
-                                    picvudb::data::TagKind::Activity => OutlineIcon::Sun,
-                                    picvudb::data::TagKind::Event => OutlineIcon::Calendar,
-                                    picvudb::data::TagKind::Label => OutlineIcon::Label,
-                                    picvudb::data::TagKind::List => OutlineIcon::List,
-                                    picvudb::data::TagKind::Location => OutlineIcon::Location,
-                                    picvudb::data::TagKind::Person => OutlineIcon::User,
-                                    picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
-                                }).render(IconSize::Size16x16);
-
-                                @if tag.rating.is_some()
-                                {
-                                    : OutlineIcon::Star.render(IconSize::Size16x16);
-                                }
-
-                                : (match tag.censor
-                                {
-                                    picvudb::data::Censor::FamilyFriendly => Raw(String::new()),
-                                    picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach.render(IconSize::Size16x16),
-                                    picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant.render(IconSize::Size16x16),
-                                    picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin.render(IconSize::Size16x16),
-                                });
-
-                                : " ";
-                                : &tag.name;
+                                : pages::templates::tags::render(tag);
                             }
                         }
                     }
@@ -425,6 +401,18 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
                         h2(class="object-listing-group")
                         {
                             : ({ cur_heading = this_heading; cur_heading.clone() });
+                        }
+
+                        div(class="object-listing-tags")
+                        {
+                            @for tag in get_tags_for_objects_with_heading(&cur_heading, &resp.objects, &resp.query)
+                            {
+                                a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }),
+                                    class="tag")
+                                {
+                                    : pages::templates::tags::render(&tag);
+                                }
+                            }
                         }
                     }
                 }
@@ -708,6 +696,24 @@ fn get_heading(object: &picvudb::data::get::ObjectMetadata, query: &picvudb::dat
         },
 
     }
+}
+
+fn get_tags_for_objects_with_heading(heading: &str, objects: &Vec<picvudb::data::get::ObjectMetadata>, query: &picvudb::data::get::GetObjectsQuery) -> Vec<picvudb::data::get::TagMetadata>
+{
+    let mut tags = BTreeMap::new();
+
+    for obj in objects.iter()
+    {
+        if heading == get_heading(obj, query)
+        {
+            for tag in obj.tags.iter()
+            {
+                tags.insert(tag.name.clone(), tag.clone());
+            }
+        }
+    }
+
+    tags.into_iter().map(|(_name, tag)| tag).collect()
 }
 
 fn should_print_page(page: u64, cur_page: u64, last_page: u64) -> bool

@@ -15,6 +15,7 @@ pub mod search;
 pub mod setup;
 pub mod sync;
 pub mod tags;
+pub mod templates;
 
 pub struct HeaderLink
 {

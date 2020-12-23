@@ -229,6 +229,17 @@ td, th
     display: inline-block;
 }
 
+.delete-tag
+{
+    background-color: orangered;
+    border: solid 1px red;
+    border-radius: 0.6em;
+    padding: 0.3em;
+    margin: 0.3em;
+    color: black !important;
+    display: inline-block;
+}
+
 svg.icon-16
 {
     vertical-align: text-bottom;

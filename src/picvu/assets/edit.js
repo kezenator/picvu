@@ -1,3 +1,5 @@
+var submit_funcs = {};
+
 document.addEventListener('DOMContentLoaded', (event) => {
 
     var doc_changed = false;
@@ -8,6 +10,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     function clearDocChanged() {
         doc_changed = false;
+    }
+
+    submit_funcs.submit = function() {
+        clearDocChanged();
+        document.getElementById('form').submit();
     }
 
     document.getElementById('edit-activity').addEventListener('input', (event) => { setDocChanged(); });

@@ -291,6 +291,55 @@ pub struct GetObjectsResponse
 }
 
 #[derive(Debug)]
+pub struct GetObjectsForEditRequest
+{
+    pub object_id: data::ObjectId,
+}
+
+impl ApiMessage for GetObjectsForEditRequest
+{
+    type Response = GetObjectsForEditResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        let one_obj = GetObjectsRequest
+        {
+            query: data::get::GetObjectsQuery::ByObjectId(self.object_id.clone()),
+            pagination: None,
+        }.execute(ops)?;
+
+        if one_obj.objects.len() != 1
+        {
+            return Err(Error::DatabaseConsistencyError{msg: "Not found".to_owned()});
+        }
+
+        let date_range = data::DateRange::new_from_date(&one_obj.objects[0].activity_time);
+
+        let all_objs = GetObjectsRequest
+        {
+            query: data::get::GetObjectsQuery::ActivityDateRangeByActivityDesc{ date_range },
+            pagination: None,
+        }.execute(ops)?;
+
+        let matching_object = all_objs.objects.iter().filter(|&o| o.id == self.object_id).cloned().next();
+
+        Ok(GetObjectsForEditResponse
+        {
+            object: matching_object,
+            all_objects_on_same_date: all_objs.objects.into_iter().rev().collect(),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct GetObjectsForEditResponse
+{
+    pub object: Option<data::get::ObjectMetadata>,
+    pub all_objects_on_same_date: Vec<data::get::ObjectMetadata>,
+}
+
+#[derive(Debug)]
 pub struct GetTagRequest
 {
     pub tag_id: data::TagId,

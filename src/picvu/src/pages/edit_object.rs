@@ -2,7 +2,7 @@ use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use horrorshow::{owned_html, Raw, Template};
 
-use crate::icons::OutlineIcon;
+use crate::icons::{IconSize, OutlineIcon};
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
 use crate::view;
 use crate::State;
@@ -31,37 +31,31 @@ impl PageResources for EditObjectPage
     }
 }
 
-async fn get_object(state: &web::Data<State>, object_id: &picvudb::data::ObjectId) -> Result<Option<picvudb::data::get::ObjectMetadata>, view::ErrorResponder>
+async fn get_object(state: &web::Data<State>, object_id: &picvudb::data::ObjectId) -> Result<picvudb::msgs::GetObjectsForEditResponse, view::ErrorResponder>
 {
-    let query = picvudb::data::get::GetObjectsQuery::ByObjectId(object_id.clone());
-
-    let msg = picvudb::msgs::GetObjectsRequest
+    let msg = picvudb::msgs::GetObjectsForEditRequest
     {
-        query,
-        pagination: None,
+        object_id: object_id.clone(),
     };
 
     let response = state.db.send(msg).await??;
-    let mut objects = response.objects;
-    let object = objects.drain(..).nth(0);
 
-    Ok(object)
+    Ok(response)
 }
 
 async fn get_edit_object(state: web::Data<State>, object_id: web::Path<String>, req: HttpRequest) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::try_new(object_id.to_string())?;
 
-    match get_object(&state, &object_id).await?
+    let response = get_object(&state, &object_id).await?;
+
+    if response.object.is_none()
     {
-        None =>
-        {
-            Ok(view::err(HttpResponse::NotFound(), "Not Found"))
-        },
-        Some(object) =>
-        {
-            Ok(render_edit_object(object, &req, &state.header_links))
-        },
+        Ok(view::err(HttpResponse::NotFound(), "Not Found"))
+    }
+    else
+    {
+        Ok(render_edit_object(response.object.unwrap(), response.all_objects_on_same_date, &req, &state.header_links))
     }
 }
 
@@ -80,7 +74,7 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
 {
     let object_id = picvudb::data::ObjectId::try_new(object_id.to_string())?;
 
-    let object = match get_object(&state, &object_id).await?
+    let object = match get_object(&state, &object_id).await?.object
     {
         None =>
         {
@@ -160,14 +154,14 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
     Ok(view::redirect(pages::object_details::ObjectDetailsPage::path_for(&object_id)))
 }
 
-fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
+fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_date: Vec<picvudb::data::get::ObjectMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     let filename = object.attachment.filename.clone();
 
     let title = view::Title
     {
-        text: object.title.clone().map(|m| m.get_display_text()).unwrap_or(filename.clone()),
-        html: Raw(object.title.clone().map(|m| m.get_html()).unwrap_or(owned_html!{ : filename.clone() }.into_string().unwrap())),
+        text: format!("Edit: {}", object.title.clone().map(|m| m.get_display_text()).unwrap_or(filename.clone())),
+        html: Raw(format!("Edit: {}", object.title.clone().map(|m| m.get_html()).unwrap_or(owned_html!{ : filename.clone() }.into_string().unwrap()))),
     };
 
     let contents = owned_html!
@@ -176,6 +170,23 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
 
         form(id="form", method="POST", action=format!("/form/edit_object/{}", object.id.to_string()), enctype="application/x-www-form-urlencoded")
         {
+            div(class="cmdbar cmdbar-top")
+            {
+                a(href="javascript:submit_funcs.submit();", class="cmdbar-link")
+                {
+                    : OutlineIcon::Save.render(IconSize::Size16x16);
+                    : " Save"
+                }
+                a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id), class="cmdbar-link")
+                {
+                    : OutlineIcon::Slash.render(IconSize::Size16x16);
+                    : " Cancel"
+                }
+                div(class="cmdbar-summary")
+                {
+                }
+            }
+
             table(class="details-table")
             {
                 tr
@@ -265,10 +276,23 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, req: &HttpRequ
 
                 tr
                 {
-                    td: "";
-                    td
+                    th(colspan="2"): "Current Tags";
+                }
+
+                tr
+                {
+                    td(colspan="2")
                     {
-                        input(value="Save", type="Submit");
+                        @for tag in object.tags.iter()
+                        {
+                            a(href=format!("javascript:submit_funcs.delete_tag({});", tag.tag_id.to_string()),
+                                class="delete-tag")
+                            {
+                                : OutlineIcon::Trash2.render(IconSize::Size16x16);
+                                : " Remove ";
+                                : pages::templates::tags::render(tag);
+                            }
+                        }
                     }
                 }
 

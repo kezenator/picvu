@@ -20,6 +20,18 @@ pub struct DateRange
 
 impl DateRange
 {
+    pub fn new_from_date(date: &crate::data::Date) -> Self
+    {
+        let fixed = date.to_chrono_fixed_offset();
+        let extent = DateRangeExtent::YearMonthDay(fixed.year(), fixed.month(), fixed.day());
+
+        DateRange
+        {
+            start: extent.clone(),
+            end: extent,
+        }
+    }
+
     pub fn first_date(&self) -> NaiveDate
     {
         self.start.first_date_opt().unwrap()
