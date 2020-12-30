@@ -4,7 +4,7 @@ use std::str::FromStr;
 use crate::data::id;
 use crate::ParseError;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 pub struct TagId(i64);
 
 impl TagId

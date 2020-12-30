@@ -17,6 +17,18 @@ document.addEventListener('DOMContentLoaded', (event) => {
         document.getElementById('form').submit();
     }
 
+    submit_funcs.delete_tag = function(tag_id) {
+        document.getElementById('hidden-remove-tag-id').value = tag_id;
+        clearDocChanged();
+        document.getElementById('form').submit();
+    }
+
+    submit_funcs.add_tag = function(tag_name) {
+        document.getElementById('edit-add-tag-name').value = tag_name;
+        clearDocChanged();
+        document.getElementById('form').submit();
+    }
+
     document.getElementById('edit-activity').addEventListener('input', (event) => { setDocChanged(); });
     document.getElementById('edit-title').addEventListener('input', (event) => { setDocChanged(); });
     document.getElementById('edit-notes').addEventListener('input', (event) => { setDocChanged(); });

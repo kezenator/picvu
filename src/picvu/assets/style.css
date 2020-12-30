@@ -240,6 +240,17 @@ td, th
     display: inline-block;
 }
 
+.add-tag
+{
+    background-color: lightgreen;
+    border: solid 1px green;
+    border-radius: 0.6em;
+    padding: 0.3em;
+    margin: 0.3em;
+    color: black !important;
+    display: inline-block;
+}
+
 svg.icon-16
 {
     vertical-align: text-bottom;

@@ -68,6 +68,8 @@ struct FormEditObject
     rating: String,
     censor: String,
     location: String,
+    remove_tag_id: String,
+    add_tag_name: String,
 }
 
 async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>, form: web::Form<FormEditObject>) -> Result<HttpResponse, view::ErrorResponder>
@@ -130,6 +132,9 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
         Some(new)
     };
 
+    let mut details = None;
+    let mut tags = None;
+
     if activity_time != object.activity_time
         || title != object.title
         || notes != object.notes
@@ -137,7 +142,8 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
         || censor != object.censor
         || location != object.location
     {
-        let msg = picvudb::msgs::UpdateObjectRequest
+        
+        details = Some(picvudb::msgs::UpdateObjectRequest
         {
             object_id: object_id.clone(),
             activity_time,
@@ -146,12 +152,60 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
             rating,
             censor,
             location,
-        };
-
-        let _response = state.db.send(msg).await??;
+        });
     }
 
-    Ok(view::redirect(pages::object_details::ObjectDetailsPage::path_for(&object_id)))
+    if !form.remove_tag_id.is_empty()
+        || !form.add_tag_name.is_empty()
+    {
+        let mut remove = Vec::new();
+        let mut add = Vec::new();
+
+        if !form.remove_tag_id.is_empty()
+        {
+            remove.push(form.remove_tag_id.parse::<picvudb::data::TagId>()?);
+        }
+        
+        if !form.add_tag_name.is_empty()
+        {
+            add.push(picvudb::data::add::Tag {
+                name: form.add_tag_name.clone(),
+                kind: picvudb::data::TagKind::Label,
+                rating: None,
+                censor: picvudb::data::Censor::FamilyFriendly,
+            });
+        }
+
+        if let Some(unsorted_tag_id) = object.tags.iter()
+            .filter(|tag| tag.name == "Unsorted")
+            .map(|tag| tag.tag_id.clone())
+            .next()
+        {
+            // This object still has the unsorted tag - since we've adjusted
+            // some tags, we should mark this as now sorted
+
+            if remove.iter().position(|tag_id| *tag_id == unsorted_tag_id).is_none()
+            {
+                remove.push(unsorted_tag_id);
+            }
+        }
+
+        tags = Some(picvudb::msgs::UpdateObjectTagsRequest{
+            object_id: object_id.clone(),
+            remove,
+            add,
+        });
+    }
+
+    let msg = picvudb::msgs::EditObjectRequest
+    {
+        details,
+        tags,
+    };
+
+    let _ = state.db.send(msg).await??;
+
+    Ok(view::redirect(pages::edit_object::EditObjectPage::path_for(&object_id)))
 }
 
 fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_date: Vec<picvudb::data::get::ObjectMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
@@ -163,6 +217,20 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
         text: format!("Edit: {}", object.title.clone().map(|m| m.get_display_text()).unwrap_or(filename.clone())),
         html: Raw(format!("Edit: {}", object.title.clone().map(|m| m.get_html()).unwrap_or(owned_html!{ : filename.clone() }.into_string().unwrap()))),
     };
+
+    let mut tags_on_same_day : Vec<picvudb::data::get::TagMetadata> = all_objs_on_date.iter()
+        .map(|obj| obj.tags.clone())
+        .flatten()
+        .map(|tag| (tag.tag_id.clone(), tag))
+        .collect::<std::collections::HashMap<_, _>>()
+        .values()
+        .filter(|tag| object.tags.iter().position(|otag| otag.tag_id == tag.tag_id).is_none())
+        .filter(|tag| tag.name != "Unsorted")
+        .filter(|tag| tag.name != "Trash")
+        .cloned()
+        .collect();
+
+    tags_on_same_day.sort_by(|a, b| a.name.cmp(&b.name));
 
     let contents = owned_html!
     {
@@ -276,23 +344,50 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
 
                 tr
                 {
-                    th(colspan="2"): "Current Tags";
+                    th(colspan="2"): "Tags";
                 }
 
                 tr
                 {
                     td(colspan="2")
                     {
-                        @for tag in object.tags.iter()
+                        input(id="hidden-remove-tag-id", type="hidden", name="remove_tag_id", value="");
+
+                        @if !object.tags.is_empty()
                         {
-                            a(href=format!("javascript:submit_funcs.delete_tag({});", tag.tag_id.to_string()),
-                                class="delete-tag")
+                            h2 { : "Current Tags" }
+
+                            @for tag in object.tags.iter()
                             {
-                                : OutlineIcon::Trash2.render(IconSize::Size16x16);
-                                : " Remove ";
-                                : pages::templates::tags::render(tag);
+                                a(href=format!("javascript:submit_funcs.delete_tag('{}');", tag.tag_id.to_string()),
+                                    class="delete-tag")
+                                {
+                                    : OutlineIcon::Trash2.render(IconSize::Size16x16);
+                                    : " Remove ";
+                                    : pages::templates::tags::render(tag);
+                                }
                             }
                         }
+
+                        @if !tags_on_same_day.is_empty()
+                        {
+                            h2 { : "On Same Day" }
+
+                            @for tag in tags_on_same_day.iter()
+                            {
+                                a(href=format!("javascript:submit_funcs.add_tag('{}');", tag.name),
+                                    class="add-tag")
+                                {
+                                    : OutlineIcon::Import.render(IconSize::Size16x16);
+                                    : " Add ";
+                                    : pages::templates::tags::render(tag);
+                                }
+                            }
+                        }
+
+                        h2 { : "Add New Tag" }
+
+                        input(id="edit-add-tag-name", type="text", name="add_tag_name", value="");
                     }
                 }
 

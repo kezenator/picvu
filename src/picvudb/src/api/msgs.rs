@@ -678,3 +678,36 @@ impl ApiMessage for UpdateObjectTagsRequest
 pub struct UpdateObjectTagsResponse
 {
 }
+
+#[derive(Debug)]
+pub struct EditObjectRequest
+{
+    pub details: Option<UpdateObjectRequest>,
+    pub tags: Option<UpdateObjectTagsRequest>
+}
+
+impl ApiMessage for EditObjectRequest
+{
+    type Response = EditObjectResponse;
+    type Error = Error;
+
+    fn execute(&self, ops: &dyn WriteOps) -> Result<Self::Response, Self::Error>
+    {
+        if let Some(update_obj) = &self.details
+        {
+            let _ = update_obj.execute(ops)?;
+        }
+
+        if let Some(update_tags) = &self.tags
+        {
+            let _ = update_tags.execute(ops)?;
+        }
+
+        Ok(EditObjectResponse{})
+    }
+}
+
+#[derive(Debug)]
+pub struct EditObjectResponse
+{
+}
