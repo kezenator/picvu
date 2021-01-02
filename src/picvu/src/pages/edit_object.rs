@@ -375,7 +375,12 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
 
                             @for tag in tags_on_same_day.iter()
                             {
-                                a(href=format!("javascript:submit_funcs.add_tag('{}');", tag.name),
+                                // Needs to be URI encoded as the web-browswer decodes the URI
+                                // into the correct string.
+
+                                a(href=format!(
+                                        "javascript:submit_funcs.add_tag('{}');",
+                                        urlencoding::encode(&&tag.name)),
                                     class="add-tag")
                                 {
                                     : OutlineIcon::Import.render(IconSize::Size16x16);
