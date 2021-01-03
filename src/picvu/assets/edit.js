@@ -3,6 +3,8 @@ var submit_funcs = {};
 document.addEventListener('DOMContentLoaded', (event) => {
 
     var doc_changed = false;
+    var add_search_required = false;
+    var add_search_in_progress = false;
 
     function setDocChanged() {
         doc_changed = true;
@@ -29,6 +31,41 @@ document.addEventListener('DOMContentLoaded', (event) => {
         document.getElementById('form').submit();
     }
 
+    function addSearchRequired() {
+        add_search_required = true;
+
+        if (!add_search_in_progress)
+        {
+            add_search_in_progress = true;
+            add_search_required = false;
+
+            var name = document.getElementById('edit-add-tag-name').value;
+
+            window.fetch('/edit/find_tags?name=' + encodeURIComponent(name))
+                .then(response => response.text())
+                .then(text => addSearchResults(text))
+                .catch((error) => addSearchError());
+        }
+    }
+
+    function addSearchResults(data) {
+        add_search_in_progress = false;
+
+        document.getElementById('add-tags-search-div').innerHTML = data;
+
+        if (add_search_required) {
+            addSearchRequired();
+        }
+    }
+
+    function addSearchError() {
+        add_search_in_progress = false;
+
+        if (add_search_required) {
+            addSearchRequired();
+        }
+    }
+
     document.getElementById('edit-activity').addEventListener('input', (event) => { setDocChanged(); });
     document.getElementById('edit-title').addEventListener('input', (event) => { setDocChanged(); });
     document.getElementById('edit-notes').addEventListener('input', (event) => { setDocChanged(); });
@@ -44,4 +81,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
             event.preventDefault();
         }
     });
+
+    document.getElementById('edit-add-tag-name').addEventListener('input', (event) => { addSearchRequired(); });
 });

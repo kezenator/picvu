@@ -27,6 +27,7 @@ impl PageResources for EditObjectPage
     {
         builder
             .route_view("/edit/object/{obj_id}", web::get().to(get_edit_object))
+            .route_other("/edit/find_tags", web::get().to(get_find_tags))
             .route_other("/form/edit_object/{obj_id}", web::post().to(post_edit_object));
     }
 }
@@ -206,6 +207,49 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
     let _ = state.db.send(msg).await??;
 
     Ok(view::redirect(pages::edit_object::EditObjectPage::path_for(&object_id)))
+}
+
+#[derive(Deserialize)]
+struct FormFindTags
+{
+    name: String,
+}
+
+async fn get_find_tags(state: web::Data<State>, form: web::Query<FormFindTags>) -> Result<HttpResponse, view::ErrorResponder>
+{
+    let msg = picvudb::msgs::SearchTagsRequest { search: form.name.clone() };
+
+    let response = state.db.send(msg).await??;
+
+    let fragment = owned_html!
+    {
+        @if response.tags.is_empty()
+        {
+            : "TODO - full add form";
+        }
+        else
+        {
+            h2
+            {
+                : "Suggestions";
+            }
+
+            @for tag in response.tags
+            {
+                a(href=format!(
+                        "javascript:submit_funcs.add_tag('{}');",
+                        urlencoding::encode(&&tag.name)),
+                    class="add-tag")
+                {
+                    : OutlineIcon::Import.render(IconSize::Size16x16);
+                    : " Add ";
+                    : pages::templates::tags::render(&tag);
+                }
+            }
+        }
+    }.into_string().unwrap();
+
+    Ok(view::html_fragment(fragment))
 }
 
 fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_date: Vec<picvudb::data::get::ObjectMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
@@ -393,6 +437,10 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                         h2 { : "Add New Tag" }
 
                         input(id="edit-add-tag-name", type="text", name="add_tag_name", value="");
+
+                        div(id="add-tags-search-div")
+                        {
+                        }
                     }
                 }
 

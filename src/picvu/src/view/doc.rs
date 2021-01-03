@@ -77,6 +77,16 @@ pub fn binary(bytes: Vec<u8>, filename: String, mime: mime::Mime, etag: String) 
     .body(bytes)
 }
 
+pub fn html_fragment(fragment: String) -> HttpResponse
+{
+    HttpResponse::Ok()
+        .set(ContentType::html())
+        .set(CacheControl(vec![
+            CacheDirective::NoStore,
+        ]))
+        .body(fragment)
+}
+
 pub fn html_response<T: Into<Title>>(builder: HttpResponseBuilder, title: T, body: &str) -> HttpResponse
 {
     let title: Title = title.into();

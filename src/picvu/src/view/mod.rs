@@ -9,6 +9,7 @@ mod doc;
 pub use doc::redirect;
 pub use doc::err;
 pub use doc::html_page;
+pub use doc::html_fragment;
 pub use doc::binary;
 pub use doc::Title;
 
