@@ -64,7 +64,51 @@ pub enum GetObjectsQuery
     ByAttachmentSizeDesc,
     ByObjectId(ObjectId),
     NearLocationByActivityDesc{ location: Location, radius_meters: f64 },
-    TitleNotesSearchByActivityDesc{ search: String },
+    TitleNotesSearchByActivityDesc{ search: SearchString },
     TagByActivityDesc{ tag_id: TagId },
     ActivityDateRangeByActivityDesc{ date_range: DateRange },
+}
+
+#[derive(Debug, Clone)]
+pub enum SearchString
+{
+    FullSearch(String),
+    Suggestion(String),
+}
+
+impl SearchString
+{
+    pub fn to_fts5_query(&self) -> String
+    {
+        let (mut fts5_search, mut prefix) = match self.clone()
+        {
+            SearchString::FullSearch(search) => (search, false),
+            SearchString::Suggestion(search) => (search, true),
+        };
+
+        if fts5_search.len() < 3
+        {
+            // Don't allow short suggestions
+            prefix = false;
+        }
+    
+        fts5_search = fts5_search.replace('\"', "\"\"");
+        fts5_search = format!("\"{}\"", fts5_search);
+    
+        if prefix
+        {
+            fts5_search.push('*');
+        }
+    
+        fts5_search
+    }
+    
+    pub fn to_literal_string(&self) -> String
+    {
+        match self.clone()
+        {
+            SearchString::FullSearch(search) => search,
+            SearchString::Suggestion(search) => search,
+        }
+    }
 }

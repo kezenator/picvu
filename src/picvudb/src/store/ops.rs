@@ -11,7 +11,7 @@ pub trait ReadOps
     fn get_num_objects(&self) -> Result<u64, Error>;
     fn get_num_objects_with_attachments(&self) -> Result<u64, Error>;
     fn get_num_objects_near_location(&self, latitude: f64, longitude: f64, radius_meters: f64) -> Result<u64, Error>;
-    fn get_num_objects_for_text_search(&self, search: &str) -> Result<u64, Error>;
+    fn get_num_objects_for_text_search(&self, search: &data::get::SearchString) -> Result<u64, Error>;
     fn get_num_objects_with_tag(&self, tag: i64) -> Result<u64, Error>;
     fn get_num_objects_in_activity_date_range(&self, date_range: &data::DateRange) -> Result<u64, Error>;
 
@@ -20,7 +20,7 @@ pub trait ReadOps
     fn get_objects_by_modified_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
     fn get_objects_by_attachment_size_desc(&self, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
     fn get_objects_near_location_by_activity_desc(&self, latitude: f64, longitude: f64, radius_meters: f64, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
-    fn get_objects_for_text_search(&self, search: &str, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
+    fn get_objects_for_text_search(&self, search: &data::get::SearchString, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
     fn get_objects_with_tag_by_activity_desc(&self, tag_id: i64, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
     fn get_objects_in_activity_date_range(&self, date_range: &data::DateRange, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>;
 
@@ -28,7 +28,7 @@ pub trait ReadOps
     fn get_attachment_data(&self, obj_id: i64) -> Result<Option<Vec<u8>>, Error>;
 
     fn get_tag(&self, tag_id: i64) -> Result<Tag, Error>;
-    fn get_tags_for_text_search(&self, search: &str) -> Result<Vec<Tag>, Error>;
+    fn get_tags_for_text_search(&self, search: &data::get::SearchString) -> Result<Vec<Tag>, Error>;
 }
 
 pub trait WriteOps: ReadOps

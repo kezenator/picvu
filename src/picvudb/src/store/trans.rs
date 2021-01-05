@@ -87,11 +87,10 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(num)
     }
 
-    fn get_num_objects_for_text_search(&self, search: &str) -> Result<u64, Error>
+    fn get_num_objects_for_text_search(&self, search: &data::get::SearchString) -> Result<u64, Error>
     {
-        let fts5_search = search.to_owned();
-        let fts5_search = fts5_search.replace('\"', "\"\"");
-        let fts5_search = format!("\"{}\"", fts5_search);
+        let fts5_search = search.to_fts5_query();
+        let literal_text = search.to_literal_string();
 
         let num = schema::objects::table
             .select(diesel::dsl::count_star())
@@ -104,7 +103,7 @@ impl<'a> ReadOps for Transaction<'a>
                 .or(schema::objects::id.eq_any(
                     schema::attachments_metadata::table
                     .select(schema::attachments_metadata::obj_id)
-                    .filter(schema::attachments_metadata::dsl::filename.eq(search)))))
+                    .filter(schema::attachments_metadata::dsl::filename.eq(&literal_text)))))
             .first::<i64>(self.connection)?
             .to_u64()
             .ok_or(Error::DatabaseConsistencyError{ msg: "More than 2^64 objects in database".to_owned() })?;
@@ -237,11 +236,10 @@ impl<'a> ReadOps for Transaction<'a>
         Ok(results)
     }
 
-    fn get_objects_for_text_search(&self, search: &str, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
+    fn get_objects_for_text_search(&self, search: &data::get::SearchString, offset: u64, page_size: u64) -> Result<Vec<Object>, Error>
     {
-        let fts5_search = search.to_owned();
-        let fts5_search = fts5_search.replace('\"', "\"\"");
-        let fts5_search = format!("\"{}\"", fts5_search);
+        let fts5_search = search.to_fts5_query();
+        let literal_text = search.to_literal_string();
 
         let results = schema::objects::table
             .filter(
@@ -253,7 +251,7 @@ impl<'a> ReadOps for Transaction<'a>
                 .or(schema::objects::id.eq_any(
                     schema::attachments_metadata::table
                     .select(schema::attachments_metadata::obj_id)
-                    .filter(schema::attachments_metadata::dsl::filename.eq(search)))))
+                    .filter(schema::attachments_metadata::dsl::filename.eq(&literal_text)))))
             .order_by(schema::objects::activity_timestamp.desc())
             .offset(offset as i64)
             .limit(page_size as i64)
@@ -373,11 +371,9 @@ impl<'a> ReadOps for Transaction<'a>
         }
     }
 
-    fn get_tags_for_text_search(&self, search: &str) -> Result<Vec<Tag>, Error>
+    fn get_tags_for_text_search(&self, search: &data::get::SearchString) -> Result<Vec<Tag>, Error>
     {
-        let fts5_search = search.to_owned();
-        let fts5_search = fts5_search.replace('\"', "\"\"");
-        let fts5_search = format!("\"{}\"", fts5_search);
+        let fts5_search = search.to_fts5_query();
 
         let results = schema::tags::table
             .filter(

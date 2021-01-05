@@ -63,6 +63,7 @@ async fn get_edit_object(state: web::Data<State>, object_id: web::Path<String>, 
 #[derive(Deserialize)]
 struct FormEditObject
 {
+    next: String,
     activity: String,
     title: String,
     notes: String,
@@ -76,6 +77,7 @@ struct FormEditObject
 async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>, form: web::Form<FormEditObject>) -> Result<HttpResponse, view::ErrorResponder>
 {
     let object_id = picvudb::data::ObjectId::try_new(object_id.to_string())?;
+    let next_object_id = picvudb::data::ObjectId::try_new(form.next.clone())?;
 
     let object = match get_object(&state, &object_id).await?.object
     {
@@ -206,7 +208,7 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
 
     let _ = state.db.send(msg).await??;
 
-    Ok(view::redirect(pages::edit_object::EditObjectPage::path_for(&object_id)))
+    Ok(view::redirect(pages::edit_object::EditObjectPage::path_for(&next_object_id)))
 }
 
 #[derive(Deserialize)]
@@ -217,7 +219,12 @@ struct FormFindTags
 
 async fn get_find_tags(state: web::Data<State>, form: web::Query<FormFindTags>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    let msg = picvudb::msgs::SearchTagsRequest { search: form.name.clone() };
+    if form.name.is_empty()
+    {
+        return Ok(view::html_fragment(String::new()));
+    }
+
+    let msg = picvudb::msgs::SearchTagsRequest { search: picvudb::data::get::SearchString::Suggestion(form.name.clone()) };
 
     let response = state.db.send(msg).await??;
 
@@ -238,7 +245,7 @@ async fn get_find_tags(state: web::Data<State>, form: web::Query<FormFindTags>) 
             {
                 a(href=format!(
                         "javascript:submit_funcs.add_tag('{}');",
-                        urlencoding::encode(&&tag.name)),
+                        urlencoding::encode(&tag.name)),
                     class="add-tag")
                 {
                     : OutlineIcon::Import.render(IconSize::Size16x16);
@@ -276,6 +283,10 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
 
     tags_on_same_day.sort_by(|a, b| a.name.cmp(&b.name));
 
+    let index_of_this_obj = all_objs_on_date.iter()
+        .position(|o| o.id == object.id)
+        .unwrap_or(0);
+
     let contents = owned_html!
     {
         script(defer, src="/assets/edit.js");
@@ -299,6 +310,23 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                 }
             }
 
+            input(id="hidden-next-object-id", type="hidden", name="next", value=object.id.to_string());
+
+            div(class="object-listing")
+            {
+                @for (index, other_obj) in all_objs_on_date.iter().enumerate()
+                {
+                    @if ((index + 5) >= index_of_this_obj)
+                        && ((index_of_this_obj + 5) >= index)
+                    {
+                        : pages::templates::thumbnails::render(
+                            other_obj,
+                            format!("javascript:submit_funcs.move_to('{}')", other_obj.id.to_string()),
+                            other_obj.id == object.id);
+                    }
+                }
+            }
+    
             table(class="details-table")
             {
                 tr
@@ -436,7 +464,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
 
                         h2 { : "Add New Tag" }
 
-                        input(id="edit-add-tag-name", type="text", name="add_tag_name", value="");
+                        input(id="edit-add-tag-name", type="text", name="add_tag_name", value="", autocomplete="off");
 
                         div(id="add-tags-search-div")
                         {

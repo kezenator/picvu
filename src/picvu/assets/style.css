@@ -163,6 +163,11 @@ div.object-listing-entry
     flex-basis: 150px;
 }
 
+div.object-listing-selected
+{
+    background-color: orange;
+}
+
 div.object-listing-thumbnail
 {
     width: 150px;

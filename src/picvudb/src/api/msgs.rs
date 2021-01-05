@@ -376,7 +376,7 @@ pub struct GetTagResponse
 #[derive(Debug)]
 pub struct SearchTagsRequest
 {
-    pub search: String,
+    pub search: data::get::SearchString,
 }
 
 impl ApiMessage for SearchTagsRequest

@@ -31,20 +31,31 @@ document.addEventListener('DOMContentLoaded', (event) => {
         document.getElementById('form').submit();
     }
 
+    submit_funcs.move_to = function(object_id) {
+        document.getElementById('hidden-next-object-id').value = object_id;
+        clearDocChanged();
+        document.getElementById('form').submit();
+    }
+
     function addSearchRequired() {
         add_search_required = true;
 
         if (!add_search_in_progress)
         {
             add_search_in_progress = true;
-            add_search_required = false;
 
-            var name = document.getElementById('edit-add-tag-name').value;
+            setTimeout(() =>
+            {
+                add_search_required = false;
 
-            window.fetch('/edit/find_tags?name=' + encodeURIComponent(name))
-                .then(response => response.text())
-                .then(text => addSearchResults(text))
-                .catch((error) => addSearchError());
+                var name = document.getElementById('edit-add-tag-name').value;
+
+                window.fetch('/edit/find_tags?name=' + encodeURIComponent(name))
+                    .then(response => response.text())
+                    .then(text => addSearchResults(text))
+                    .catch((error) => addSearchError());
+            },
+            100);
         }
     }
 

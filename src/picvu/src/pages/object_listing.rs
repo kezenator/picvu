@@ -97,7 +97,7 @@ impl ObjectListingPage
         }
         else if let picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search } = query
         {
-            params.push(("q", search.clone()));
+            params.push(("q", search.to_literal_string()));
         }
         else if let picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id } = query
         {
@@ -297,7 +297,7 @@ async fn objects_search(state: web::Data<State>, query: web::Query<SearchListVie
 
     let query = picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc
     {
-        search: query.q.clone(),
+        search: picvudb::data::get::SearchString::FullSearch(query.q.clone()),
     };
 
     object_query(state, &options, query, req).await
@@ -349,15 +349,6 @@ pub fn render_object_listing(resp: GetObjectsResponse, tags: Vec<picvudb::data::
 pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::data::get::TagMetadata>, search_tag: Option<picvudb::data::get::TagMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     let (title, icon) = get_title_and_icon(&resp.query, &search_tag);
-
-    let icons_style = |o: &picvudb::data::get::ObjectMetadata|
-    {
-        let dimensions = o.attachment.dimensions.clone().map(|d| d.resize_to_max_dimension(128));
-        let width = dimensions.clone().map_or("100%".to_owned(), |d| format!("{}px", d.width));
-        let height = dimensions.map_or("100%".to_owned(), |d| format!("{}px", d.height));
-
-        format!("width: {};height: {};", width, height)
-    };
 
     let mut cur_heading = String::new();
 
@@ -417,66 +408,10 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
                     }
                 }
 
-                div(class="object-listing-entry")
-                {
-                    div(class="object-listing-thumbnail")
-                    {
-                        a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id))
-                        {
-                            div(class="object-listing-icons", style=icons_style(object))
-                            {
-                                @if object.tags.iter().filter(|t| t.kind == picvudb::data::TagKind::Trash).count() != 0
-                                {
-                                    : ColoredIcon::Trash.render(IconSize::Size16x16);
-                                }
-
-                                @if object.notes.is_some()
-                                {
-                                    : ColoredIcon::Memo.render(IconSize::Size16x16);
-                                }
-
-                                @if object.location.is_some()
-                                {
-                                    : ColoredIcon::RoundPushpin.render(IconSize::Size16x16);
-                                }
-
-                                @if object.rating.is_some()
-                                {
-                                    : ColoredIcon::Star.render(IconSize::Size16x16);
-                                }
-
-                                : (match object.censor
-                                    {
-                                        picvudb::data::Censor::FamilyFriendly => Raw(String::new()),
-                                        picvudb::data::Censor::TastefulNudes => ColoredIcon::Peach.render(IconSize::Size16x16),
-                                        picvudb::data::Censor::FullNudes => ColoredIcon::Eggplant.render(IconSize::Size16x16),
-                                        picvudb::data::Censor::Explicit => ColoredIcon::EvilGrin.render(IconSize::Size16x16),
-                                    });
-
-                                @if let Some(duration) = &object.attachment.duration
-                                {
-                                    : ColoredIcon::Play.render(IconSize::Size16x16);
-                                    : " ";
-                                    : duration.to_string();
-                                }
-                            }
-
-                            : pages::attachments::AttachmentsPage::raw_html_for_thumbnail(&object, 128, false);
-                        }
-                    }
-
-                    div(class="object-listing-title")
-                    {
-                        @if let Some(title) = &object.title
-                        {
-                            : render_with_zero_width_spaces(title.get_events());
-                        }
-                        else
-                        {
-                            : render_with_zero_width_spaces(vec![ pulldown_cmark::Event::Text(pulldown_cmark::CowStr::Borrowed(&object.attachment.filename))].drain(..));
-                        }
-                    }
-                }
+                : pages::templates::thumbnails::render(
+                    object,
+                    pages::object_details::ObjectDetailsPage::path_for(&object.id),
+                    false);
             }
         }
 
@@ -823,39 +758,6 @@ fn pagination(query: picvudb::data::get::GetObjectsQuery, num_tags: usize, list_
             }
         }
     }.into_string().unwrap();
-
-    Raw(result)
-}
-
-
-
-pub fn render_with_zero_width_spaces<'a, T: Iterator<Item = pulldown_cmark::Event<'a>>>(events: T) -> Raw<String>
-{
-    let mut result = String::new();
-
-    let events = events.map(|e|
-    {
-        match e
-        {
-            pulldown_cmark::Event::Text(t) =>
-            {
-                let t = t.to_string();
-                let t = t.replace("_", "_\u{200B}");
-                return pulldown_cmark::Event::Text(t.into());
-            },
-            pulldown_cmark::Event::Code(t) =>
-            {
-                let t = t.to_string();
-                let t = t.replace("_", "_\u{200B}");
-                return pulldown_cmark::Event::Code(t.into());
-            },
-            _ => {},
-        }
-        // Other events unchanged
-        e
-    });
-
-    pulldown_cmark::html::push_html(&mut result, events);
 
     Raw(result)
 }

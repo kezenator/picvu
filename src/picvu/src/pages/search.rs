@@ -57,7 +57,10 @@ async fn get_search(form: web::Query<SearchForm>) -> HttpResponse
     {
         // Just treat it as a standard text search
 
-        let query = picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc{ search: form.q.clone() };
+        let query = picvudb::data::get::GetObjectsQuery::TitleNotesSearchByActivityDesc
+        {
+            search: picvudb::data::get::SearchString::FullSearch(form.q.clone()),
+        };
 
         view::redirect(pages::object_listing::ObjectListingPage::path(query))
     }
