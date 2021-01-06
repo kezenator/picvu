@@ -256,13 +256,13 @@ td, th
     display: inline-block;
 }
 
-svg.icon-16
+i.icon-16
 {
     vertical-align: text-bottom;
     padding: 2px;
 }
 
-svg.icon-32
+i.icon-32
 {
     vertical-align: text-bottom;
     padding: 4px;

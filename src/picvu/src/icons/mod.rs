@@ -5,6 +5,7 @@ pub enum OutlineIcon
 {
     AlertTriangle,
     Calendar,
+    Cancel,
     CloudUpload,
     Edit,
     Export,
@@ -19,7 +20,6 @@ pub enum OutlineIcon
     Save,
     Search,
     Settings,
-    Slash,
     Star,
     Sun,
     Trash2,
@@ -65,28 +65,28 @@ impl OutlineIcon
     {
         let name = match self
         {
-            OutlineIcon::AlertTriangle => "alert-triangle",
-            OutlineIcon::Calendar => "calendar",
-            OutlineIcon::CloudUpload => "upload-cloud",
-            OutlineIcon::Edit => "edit",
-            OutlineIcon::Export => "hard-drive",
-            OutlineIcon::FilePlus => "file-plus",
-            OutlineIcon::FileText => "file-text",
-            OutlineIcon::Image => "image",
-            OutlineIcon::Import => "plus-square",
+            OutlineIcon::AlertTriangle => "exclamation-triangle",
+            OutlineIcon::Calendar => "calendar4-week",
+            OutlineIcon::Cancel => "x-circle",
+            OutlineIcon::CloudUpload => "cloud-upload",
+            OutlineIcon::Edit => "pencil-square",
+            OutlineIcon::Export => "cloud-download",
+            OutlineIcon::FilePlus => "file-earmark-plus",
+            OutlineIcon::FileText => "file-earmark-text",
+            OutlineIcon::Image => "file-earmark-image",
+            OutlineIcon::Import => "cloud-upload",
             OutlineIcon::Label => "tag",
-            OutlineIcon::List => "list",
-            OutlineIcon::Location => "map-pin",
-            OutlineIcon::Login => "log-in",
-            OutlineIcon::Save => "save",
+            OutlineIcon::List => "list-ul",
+            OutlineIcon::Location => "geo-alt",
+            OutlineIcon::Login => "box-arrow-in-right",
+            OutlineIcon::Save => "check-circle",
             OutlineIcon::Search => "search",
-            OutlineIcon::Settings => "settings",
-            OutlineIcon::Slash => "slash",
+            OutlineIcon::Settings => "gear",
             OutlineIcon::Star => "star",
             OutlineIcon::Sun => "sun",
-            OutlineIcon::Trash2 => "trash-2",
-            OutlineIcon::User => "user",
-            OutlineIcon::Video => "video",
+            OutlineIcon::Trash2 => "trash",
+            OutlineIcon::User => "person",
+            OutlineIcon::Video => "camera-video",
         };
 
         let size = match size
@@ -97,10 +97,7 @@ impl OutlineIcon
 
         let html = owned_html!
         {
-            svg(class=format!("icon-{}", size), width=size, height=size, fill="none", stroke=color, stroke-width="2", stroke-linecap="round", stroke-linejoin="round")
-            {
-                use(xlink:href=format!("/assets/feather-sprite.svg#{}", name));
-            }
+            i(class=format!("bi-{} icon-{}", name, size), style=format!("font-size: {}px; color: {}", size, color))
         }.into_string().unwrap();
 
         Raw(html)

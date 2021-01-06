@@ -61,6 +61,10 @@ Third party software used by this project includes:
    [Diesel](https://crates.io/crates/diesel) and
    [Rusqlite](https://crates.io/crates/rusqlite) packages, with
    the Ruqlite "bundled" feature.
-3. [Feather Icons](https://feathericons.com/) - included as file
+3. [Bootstrap Icons](https://icons.getbootstrap.com/) - included as files
+   in src/picvu/assests/bootstrap-icons.css and sub-folder fonts.
+   Downloaded from https://github.com/twbs/icons/releases/download/v1.2.2/bootstrap-icons-1.2.2.zip
+   on 2021-01-06.
+4. ~~[Feather Icons](https://feathericons.com/) - included as file
    src/picvu/assets/feather-sprite.svg (Obtained from
-   https://unpkg.com/feather-icons/dist/feather-sprite.svg on 2020-07-04).
+   https://unpkg.com/feather-icons/dist/feather-sprite.svg on 2020-07-04).~~

@@ -302,7 +302,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                 }
                 a(href=pages::object_details::ObjectDetailsPage::path_for(&object.id), class="cmdbar-link")
                 {
-                    : OutlineIcon::Slash.render(IconSize::Size16x16);
+                    : OutlineIcon::Cancel.render(IconSize::Size16x16);
                     : " Cancel"
                 }
                 div(class="cmdbar-summary")

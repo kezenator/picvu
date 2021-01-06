@@ -103,6 +103,7 @@ pub fn html_response<T: Into<Title>>(builder: HttpResponseBuilder, title: T, bod
             {
                 meta(charset="utf-8");
                 link(rel="stylesheet", href="/assets/style.css");
+                link(rel="stylesheet", href="/assets/bootstrap-icons.css");
 
                 title : title.html
             }
