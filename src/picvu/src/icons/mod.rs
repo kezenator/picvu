@@ -7,6 +7,7 @@ pub enum OutlineIcon
     Calendar,
     Cancel,
     CloudUpload,
+    DashCircle,
     Edit,
     Export,
     FilePlus,
@@ -21,6 +22,7 @@ pub enum OutlineIcon
     Search,
     Settings,
     Star,
+    StarFill,
     Sun,
     Trash2,
     User,
@@ -58,17 +60,13 @@ impl OutlineIcon
 {
     pub fn render(&self, size: IconSize) -> Raw<String>
     {
-        self.render_internal(size, "#000000")
-    }
-
-    fn render_internal(&self, size: IconSize, color: &str) -> Raw<String>
-    {
         let name = match self
         {
             OutlineIcon::AlertTriangle => "exclamation-triangle",
             OutlineIcon::Calendar => "calendar4-week",
             OutlineIcon::Cancel => "x-circle",
             OutlineIcon::CloudUpload => "cloud-upload",
+            OutlineIcon::DashCircle => "dash-circle",
             OutlineIcon::Edit => "pencil-square",
             OutlineIcon::Export => "cloud-download",
             OutlineIcon::FilePlus => "file-earmark-plus",
@@ -83,6 +81,7 @@ impl OutlineIcon
             OutlineIcon::Search => "search",
             OutlineIcon::Settings => "gear",
             OutlineIcon::Star => "star",
+            OutlineIcon::StarFill => "star-fill",
             OutlineIcon::Sun => "sun",
             OutlineIcon::Trash2 => "trash",
             OutlineIcon::User => "person",
@@ -97,7 +96,7 @@ impl OutlineIcon
 
         let html = owned_html!
         {
-            i(class=format!("bi-{} icon-{}", name, size), style=format!("font-size: {}px; color: {}", size, color))
+            i(class=format!("bi-{} icon-{}", name, size))
         }.into_string().unwrap();
 
         Raw(html)
@@ -106,7 +105,7 @@ impl OutlineIcon
 
 impl ColoredIcon
 {
-    pub fn render(&self, _size: IconSize) -> Raw<String>
+    pub fn render(&self, size: IconSize) -> Raw<String>
     {
         let text = match self
         {
@@ -121,7 +120,21 @@ impl ColoredIcon
             ColoredIcon::Trash => "&#x1F5D1",
         };
 
-        Raw(text.to_owned())
+        let size = match size
+        {
+            IconSize::Size16x16 => 16,
+            IconSize::Size32x32 => 32,
+        };
+
+        let html = owned_html!
+        {
+            span(class=format!("icon-{}", size))
+            {
+                : Raw(text);
+            }
+        }.into_string().unwrap();
+
+        Raw(html)
     }
 }
 

@@ -260,10 +260,59 @@ i.icon-16
 {
     vertical-align: text-bottom;
     padding: 2px;
+    font-size: 16px;
 }
 
 i.icon-32
 {
     vertical-align: text-bottom;
     padding: 4px;
+    font-size: 32px;
+}
+
+span.icon-16
+{
+    font-size: 16px;
+}
+
+span.icon-32
+{
+    font-size: 32px;
+}
+
+div.combo-list
+{
+    margin: 0.1em;
+}
+
+a.combo-item
+{
+    margin: 0.25em;
+    padding: 0.5em;
+    display: inline-block;
+    font-size: smaller;
+    text-align: center;
+    text-decoration: none;
+    color: black !important;
+}
+
+a.combo-selected
+{
+    background-color: cornflowerblue;
+    border: solid 1px black;
+}
+
+a.combo-item:hover
+{
+    background-color: cornflowerblue;
+}
+
+div.combo-icon
+{
+    padding: 8px;
+}
+
+a.rating-yellow i
+{
+    color: gold !important;
 }

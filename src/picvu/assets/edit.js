@@ -31,6 +31,18 @@ document.addEventListener('DOMContentLoaded', (event) => {
         document.getElementById('form').submit();
     }
 
+    submit_funcs.rating = function(rating) {
+        document.getElementById('hidden-rating').value = rating;
+        clearDocChanged();
+        document.getElementById('form').submit();
+    }
+
+    submit_funcs.censor = function(censor) {
+        document.getElementById('hidden-censor').value = censor;
+        clearDocChanged();
+        document.getElementById('form').submit();
+    }
+
     submit_funcs.move_to = function(object_id) {
         document.getElementById('hidden-next-object-id').value = object_id;
         clearDocChanged();
@@ -80,8 +92,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
     document.getElementById('edit-activity').addEventListener('input', (event) => { setDocChanged(); });
     document.getElementById('edit-title').addEventListener('input', (event) => { setDocChanged(); });
     document.getElementById('edit-notes').addEventListener('input', (event) => { setDocChanged(); });
-    document.getElementById('combo-rating').addEventListener('input', (event) => { setDocChanged(); });
-    document.getElementById('combo-censor').addEventListener('input', (event) => { setDocChanged(); });
     document.getElementById('edit-location').addEventListener('input', (event) => { setDocChanged(); });
 
     document.getElementById('form').addEventListener('submit', (event) => { clearDocChanged(); });

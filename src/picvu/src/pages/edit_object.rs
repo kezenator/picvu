@@ -372,15 +372,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                     td: "Rating";
                     td
                     {
-                        select(id="combo-rating", name="rating")
-                        {
-                            option(value="", selected?=object.rating.is_none()) { : "Unrated" }
-                            option(value="1", selected?=(object.rating == Some(picvudb::data::Rating::OneStar))) { : "1 Star" }
-                            option(value="2", selected?=(object.rating == Some(picvudb::data::Rating::TwoStars))) { : "2 Stars" }
-                            option(value="3", selected?=(object.rating == Some(picvudb::data::Rating::ThreeStars))) { : "3 Stars" }
-                            option(value="4", selected?=(object.rating == Some(picvudb::data::Rating::FourStars))) { : "4 Stars" }
-                            option(value="5", selected?=(object.rating == Some(picvudb::data::Rating::FiveStars))) { : "5 Stars" }
-                        }
+                        : pages::templates::rating::render(&object.rating);
                     }
                 }
 
@@ -389,19 +381,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                     td: "Censor";
                     td
                     {
-                        select(id="combo-censor", name="censor")
-                        {
-                            @for c in [picvudb::data::Censor::FamilyFriendly, picvudb::data::Censor::TastefulNudes,
-                                            picvudb::data::Censor::FullNudes, picvudb::data::Censor::Explicit].iter()
-                            {
-                                option(
-                                    value=c.to_string(),
-                                    selected?=(object.censor == *c))
-                                {
-                                    : c.to_string()
-                                }
-                            }
-                        }
+                        : pages::templates::censor::render(&object.censor);
                     }
                 }
 
