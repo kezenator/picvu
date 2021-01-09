@@ -2,15 +2,20 @@ use horrorshow::{Raw, Template, labels, owned_html};
 use crate::icons::{IconSize, OutlineIcon};
 use picvudb::data::Rating;
 
-pub fn render(rating: &Rating) -> Raw<String>
+pub fn render(name: &str, rating: &Rating) -> Raw<String>
 {
+    let rust_name = name.replace("-", "_");
     let num_stars = rating.num_stars();
 
     Raw(owned_html!
     {
-        input(id="hidden-rating", type="hidden", name="rating", value=rating.num_stars().to_string());
+        label(for=rust_name.clone())
+        {
+            : "Rating";
+        }
+        input(id=format!("hidden-{}", name), type="hidden", name=rust_name, value=rating.num_stars().to_string());
 
-        div(id="rating", class="combo-list")
+        div(id=format!("combo-{}", name), class="combo-list")
         {
             @for r in all_ratings()
             {
@@ -18,7 +23,8 @@ pub fn render(rating: &Rating) -> Raw<String>
                         "combo-item",
                         "combo-selected" => r == *rating,
                         "rating-yellow" => (r.num_stars() > 0) && (r.num_stars() <= num_stars)),
-                    href=format!("javascript:submit_funcs.rating('{}');", r.num_stars().to_string()))
+                    href=format!("javascript:picvu.set_combo('{}', '{}', picvu.rating_combo);", name, r.num_stars().to_string()),
+                    value=r.num_stars().to_string())
                 {
                     div(class="combo-icon")
                     {

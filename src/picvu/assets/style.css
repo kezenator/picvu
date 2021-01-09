@@ -1,6 +1,8 @@
 html
 {
     font-family: sans-serif;
+    font-weight: normal;
+    font-size: 16px;
     color: black;
     background: white;
     margin: 0px;
@@ -13,6 +15,35 @@ body
     background: white;
     margin: 0px;
     padding: 0px;
+}
+
+h1
+{
+    font-weight: bold;
+    font-size: 32px;
+}
+
+h2
+{
+    font-weight: bold;
+    font-size: 24px;
+}
+
+h3
+{
+    font-weight: bold;
+    font-size: 20px;
+    margin-top: 0.5em;
+    margin-bottom: 0.1em;
+}
+
+label
+{
+    font-weight: bold;
+    font-size: 20px;
+    display: block;
+    margin-top: 0.5em;
+    margin-bottom: 0.1em;
 }
 
 a:link
@@ -98,6 +129,12 @@ div.cmdbar a
     margin: 0px;
     padding: 0.4em;
     color: black;
+}
+
+div.cmdbar a.not-saved
+{
+    background-color: red;
+    color: white;
 }
 
 div.cmdbar a:hover
@@ -223,39 +260,6 @@ td, th
     padding: 0.4em;
 }
 
-.tag
-{
-    background-color: plum;
-    border: solid 1px rebeccapurple;
-    border-radius: 0.6em;
-    padding: 0.3em;
-    margin: 0.3em;
-    color: black !important;
-    display: inline-block;
-}
-
-.delete-tag
-{
-    background-color: orangered;
-    border: solid 1px red;
-    border-radius: 0.6em;
-    padding: 0.3em;
-    margin: 0.3em;
-    color: black !important;
-    display: inline-block;
-}
-
-.add-tag
-{
-    background-color: lightgreen;
-    border: solid 1px green;
-    border-radius: 0.6em;
-    padding: 0.3em;
-    margin: 0.3em;
-    color: black !important;
-    display: inline-block;
-}
-
 i.icon-16
 {
     vertical-align: text-bottom;
@@ -294,12 +298,13 @@ a.combo-item
     text-align: center;
     text-decoration: none;
     color: black !important;
+    border: solid 2px transparent;
 }
 
 a.combo-selected
 {
     background-color: cornflowerblue;
-    border: solid 1px black;
+    border: solid 2px black !important;
 }
 
 a.combo-item:hover
@@ -315,4 +320,66 @@ div.combo-icon
 a.rating-yellow i
 {
     color: gold !important;
+}
+
+div.horiz-columns
+{
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: stretch;
+}
+
+div.horiz-columns > div
+{
+    margin-left: 0.2em;
+    padding-left: 0.4em;
+    border-left: solid 2px black;
+    margin-right: 0em;
+    padding-right: 0.4em;
+    border-right: none;
+}
+
+div.horiz-columns > div:first-child
+{
+    margin-left: 0em;
+    padding-left: 0.2em;
+    border-left: none;
+}
+
+div.horiz-columns > div:last-child
+{
+    padding-right: 0.2em;
+    flex-grow: 1;
+}
+
+.add-tag-sub-form
+{
+    margin: 0.2em;
+    padding: 0.2em;
+    border: solid 2px darkgray;
+    background-color: lightgray;
+}
+
+.tag
+{
+    background-color: plum;
+    border: solid 1px rebeccapurple;
+    border-radius: 0.6em;
+    padding: 0.3em;
+    margin: 0.3em;
+    color: black !important;
+    display: inline-block;
+}
+
+.add-tag
+{
+    background-color: lightgreen;
+    border: solid 1px green;
+}
+
+.remove-tag
+{
+    background-color: orangered;
+    border: solid 1px red;
 }

@@ -248,7 +248,7 @@ impl ApiMessage for GetObjectsRequest
                     });
                 }
             }
-            tags.sort_by(|a, b| a.name.cmp(&b.name));
+            tags.sort_by(|a, b| crate::text_utils::normalized_cmp(&a.name, &b.name));
 
             results.push(data::get::ObjectMetadata
             {
@@ -402,6 +402,8 @@ impl ApiMessage for SearchTagsRequest
                 censor: data::Censor::from_db_field(tag_data.tag_censor)?,
             });
         }
+
+        tags.sort_by(|a, b| crate::text_utils::normalized_cmp(&a.name, &b.name));
 
         Ok(SearchTagsResponse{ tags })
     }

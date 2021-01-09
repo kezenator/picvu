@@ -28,7 +28,7 @@ impl PageResources for BulkPage
     fn page_resources(builder: &mut PageResourcesBuilder)
     {
         builder
-            .add_header_link("/view/bulk_import", "Import", OutlineIcon::Import, 600)
+            .add_header_link("/view/bulk_import", "Import", OutlineIcon::PlusCircle, 600)
             .add_header_link("/view/bulk_export", "Export", OutlineIcon::Export, 600)
             .route_view("/view/bulk_import", web::get().to(get_bulk_import))
             .route_view("/view/bulk_export", web::get().to(get_bulk_export))
@@ -192,7 +192,7 @@ fn get_bulk_import(state: web::Data<State>, req: HttpRequest) -> HttpResponse
         &req,
         &state.header_links,
         "Import",
-        OutlineIcon::Import,
+        OutlineIcon::PlusCircle,
         &contents)
 }
 

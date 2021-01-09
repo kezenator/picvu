@@ -381,7 +381,6 @@ impl<'a> ReadOps for Transaction<'a>
                     schema::tags_fts::table
                     .select(schema::tags_fts::tag_id)
                     .filter(schema::tags_fts::dsl::tag_name.fts_match(&fts5_search))))
-            .order_by(schema::tags::tag_name.asc())
             .load::<Tag>(self.connection)?;
 
         Ok(results)

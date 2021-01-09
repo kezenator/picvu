@@ -71,7 +71,12 @@ struct FormEditObject
     censor: String,
     location: String,
     remove_tag_id: String,
+    #[allow(unused)]
+    search_tag_name: String,
     add_tag_name: String,
+    add_tag_kind: String,
+    add_tag_rating: String,
+    add_tag_censor: String,
 }
 
 async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>, form: web::Form<FormEditObject>) -> Result<HttpResponse, view::ErrorResponder>
@@ -165,9 +170,9 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
         {
             add.push(picvudb::data::add::Tag {
                 name: form.add_tag_name.clone(),
-                kind: picvudb::data::TagKind::Label,
-                rating: picvudb::data::Rating::NotRated,
-                censor: picvudb::data::Censor::FamilyFriendly,
+                kind: form.add_tag_kind.parse()?,
+                rating: picvudb::data::Rating::from_num_stars(form.add_tag_rating.parse().unwrap_or(-1))?,
+                censor: form.add_tag_censor.parse()?,
             });
         }
 
@@ -211,7 +216,7 @@ struct FormFindTags
 
 async fn get_find_tags(state: web::Data<State>, form: web::Query<FormFindTags>) -> Result<HttpResponse, view::ErrorResponder>
 {
-    if form.name.is_empty()
+    if form.name.trim().is_empty()
     {
         return Ok(view::html_fragment(String::new()));
     }
@@ -220,32 +225,71 @@ async fn get_find_tags(state: web::Data<State>, form: web::Query<FormFindTags>) 
 
     let response = state.db.send(msg).await??;
 
+    let found_matching = response.tags.iter()
+        .filter(|t| picvudb::text_utils::normalized_cmp(&t.name, &form.name) == std::cmp::Ordering::Equal)
+        .next()
+        .is_some();
+
     let fragment = owned_html!
     {
-        @if response.tags.is_empty()
+        @if !response.tags.is_empty()
         {
-            : "TODO - full add form";
-        }
-        else
-        {
-            h2
+            h3
             {
-                : "Suggestions";
+                : "Search Results";
             }
 
             @for tag in response.tags
             {
                 a(href=format!(
-                        "javascript:submit_funcs.add_tag('{}');",
-                        urlencoding::encode(&tag.name)),
-                    class="add-tag")
+                        "javascript:picvu.add_tag(decodeURIComponent('{}'), '{}', '{}', '{}');",
+                        urlencoding::encode(&urlencoding::encode(&tag.name)),
+                        tag.kind.to_string(),
+                        tag.rating.num_stars().to_string(),
+                        tag.censor.to_string()),
+                    class="tag add-tag")
                 {
-                    : OutlineIcon::Import.render(IconSize::Size16x16);
-                    : " Add ";
+                    : OutlineIcon::PlusCircle.render(IconSize::Size16x16);
                     : pages::templates::tags::render(&tag);
                 }
             }
         }
+
+        @if !form.name.is_empty() && !found_matching
+        {
+            h3
+            {
+                : format!("New Tag \"{}\"", form.name);
+            }
+
+            div(class="add-tag-sub-form")
+            {
+                h3
+                {
+                    : "Name";
+                }
+
+                a(href=format!(
+                        "javascript:picvu.set_and_submit('hidden-add-tag-name', decodeURIComponent('{}'))",
+                        urlencoding::encode(&urlencoding::encode(&form.name))),
+                    class="tag add-tag")
+                {
+                    : OutlineIcon::PlusCircle.render(IconSize::Size16x16);
+                    : form.name.clone();
+                }
+
+                : pages::templates::tag_kind::render("add-tag-kind", &picvudb::data::TagKind::Label);
+                : pages::templates::rating::render("add-tag-rating", &picvudb::data::Rating::NotRated);
+                : pages::templates::censor::render("add-tag-censor", &picvudb::data::Censor::FamilyFriendly);
+            }
+        }
+        else
+        {
+            input(id="hidden-add-tag-kind", type="hidden", name="add_tag_kind", value="");
+            input(id="hidden-add-tag-rating", type="hidden", name="add_tag_rating", value="");
+            input(id="hidden-add-tag-censor", type="hidden", name="add_tag_censor", value="");
+        }
+
     }.into_string().unwrap();
 
     Ok(view::html_fragment(fragment))
@@ -273,7 +317,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
         .cloned()
         .collect();
 
-    tags_on_same_day.sort_by(|a, b| a.name.cmp(&b.name));
+    tags_on_same_day.sort_by(|a, b| picvudb::text_utils::normalized_cmp(&a.name, &b.name));
 
     let index_of_this_obj = all_objs_on_date.iter()
         .position(|o| o.id == object.id)
@@ -281,13 +325,14 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
 
     let contents = owned_html!
     {
-        script(defer, src="/assets/edit.js");
+        script(src="/assets/picvu.js");
+        script(src="/assets/edit_object.js");
 
         form(id="form", method="POST", action=format!("/form/edit_object/{}", object.id.to_string()), enctype="application/x-www-form-urlencoded")
         {
             div(class="cmdbar cmdbar-top")
             {
-                a(href="javascript:submit_funcs.submit();", class="cmdbar-link")
+                a(id="save", href="javascript:picvu.submit();", class="cmdbar-link")
                 {
                     : OutlineIcon::Save.render(IconSize::Size16x16);
                     : " Save"
@@ -313,149 +358,122 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                     {
                         : pages::templates::thumbnails::render(
                             other_obj,
-                            format!("javascript:submit_funcs.move_to('{}')", other_obj.id.to_string()),
+                            format!("javascript:picvu.set_and_submit('hidden-next-object-id', '{}')", other_obj.id.to_string()),
                             other_obj.id == object.id);
                     }
                 }
             }
-    
-            table(class="details-table")
+
+            div(class="horiz-columns")
             {
-                tr
+                div
                 {
-                    th(colspan="2")
+                    h2
                     {
-                        : "Edit";
+                        : "Preview";
+                    }
+
+                    a(href=pages::attachments::AttachmentsPage::path_attachment(&object.id, &object.attachment.hash))
+                    {
+                        : pages::attachments::AttachmentsPage::raw_html_for_thumbnail(&object, 512, true);
                     }
                 }
 
-                tr
+                div
                 {
-                    td: "Activity";
-                    td
+                    h2
                     {
-                        input(id="edit-activity", type="text", name="activity", value=object.activity_time.to_rfc3339());
+                        : "Details";
                     }
-                }
 
-                tr
-                {
-                    td: "Title";
-                    td
-                    {
-                        input(id="edit-title", type="text", name="title", value=object.title.clone().map(|m| m.get_markdown()).unwrap_or_default());
-                    }
-                }
+                    : pages::templates::rating::render("rating", &object.rating);
+                    : pages::templates::censor::render("censor", &object.censor);
 
-                tr
-                {
-                    td: "Notes";
-                    td
+                    @if !object.tags.is_empty()
                     {
-                        textarea(id="edit-notes", name="notes", rows=10, cols=60)
+                        h3 { : "Tags" }
+
+                        @for tag in object.tags.iter()
                         {
-                            : object.notes.clone().map(|m| m.get_markdown()).unwrap_or_default();
-                        }
-                    }
-                }
-
-                tr
-                {
-                    td: "Rating";
-                    td
-                    {
-                        : pages::templates::rating::render(&object.rating);
-                    }
-                }
-
-                tr
-                {
-                    td: "Censor";
-                    td
-                    {
-                        : pages::templates::censor::render(&object.censor);
-                    }
-                }
-
-                tr
-                {
-                    td: "Location";
-                    td
-                    {
-                        input(id="edit-location", type="text", name="location", value=object.location.clone().map(|l| l.to_string()).unwrap_or_default());
-                    }
-                }
-
-                tr
-                {
-                    th(colspan="2"): "Tags";
-                }
-
-                tr
-                {
-                    td(colspan="2")
-                    {
-                        input(id="hidden-remove-tag-id", type="hidden", name="remove_tag_id", value="");
-
-                        @if !object.tags.is_empty()
-                        {
-                            h2 { : "Current Tags" }
-
-                            @for tag in object.tags.iter()
+                            a(href=format!("javascript:picvu.set_and_submit('hidden-remove-tag-id', '{}');", tag.tag_id.to_string()),
+                                class="tag remove-tag")
                             {
-                                a(href=format!("javascript:submit_funcs.delete_tag('{}');", tag.tag_id.to_string()),
-                                    class="delete-tag")
-                                {
-                                    : OutlineIcon::Trash2.render(IconSize::Size16x16);
-                                    : " Remove ";
-                                    : pages::templates::tags::render(tag);
-                                }
+                                : OutlineIcon::Cancel.render(IconSize::Size16x16);
+                                : pages::templates::tags::render(tag);
                             }
                         }
+                    }
 
-                        @if !tags_on_same_day.is_empty()
-                        {
-                            h2 { : "On Same Day" }
+                    label(for="activity")
+                    {
+                        : "Date/Time";
+                    }
+                    input(id="edit-activity", type="text", name="activity", value=object.activity_time.to_rfc3339());
 
-                            @for tag in tags_on_same_day.iter()
-                            {
-                                // Needs to be URI encoded as the web-browswer decodes the URI
-                                // into the correct string.
+                    label(for="title")
+                    {
+                        : "Title";
+                    }
+                    input(id="edit-title", type="text", name="title", value=object.title.clone().map(|m| m.get_markdown()).unwrap_or_default());
 
-                                a(href=format!(
-                                        "javascript:submit_funcs.add_tag('{}');",
-                                        urlencoding::encode(&&tag.name)),
-                                    class="add-tag")
-                                {
-                                    : OutlineIcon::Import.render(IconSize::Size16x16);
-                                    : " Add ";
-                                    : pages::templates::tags::render(tag);
-                                }
-                            }
-                        }
+                    label(for="location")
+                    {
+                        : "Location";
+                    }
+                    input(id="edit-location", type="text", name="location", value=object.location.clone().map(|l| l.to_string()).unwrap_or_default());
 
-                        h2 { : "Add New Tag" }
-
-                        input(id="edit-add-tag-name", type="text", name="add_tag_name", value="", autocomplete="off");
-
-                        div(id="add-tags-search-div")
-                        {
-                        }
+                    label(for="notes")
+                    {
+                        : "Notes";
+                    }
+                    textarea(id="edit-notes", name="notes", rows=10, cols=60)
+                    {
+                        : object.notes.clone().map(|m| m.get_markdown()).unwrap_or_default();
                     }
                 }
 
-                tr
+                div
                 {
-                    th(colspan="2"): "Preview";
-                }
-
-                tr
-                {
-                    td(colspan="2")
+                    h2
                     {
-                        a(href=pages::attachments::AttachmentsPage::path_attachment(&object.id, &object.attachment.hash))
+                        : "Add Tags";
+                    }
+                    input(id="hidden-remove-tag-id", type="hidden", name="remove_tag_id", value="");
+
+                    label(for="search_tag_name")
+                    {
+                        : "Search";
+                    }
+                    input(id="edit-search-tag-name", type="search", name="search_tag_name", value="", autocomplete="off", placeholder="Search Tags");
+                    input(id="hidden-add-tag-name", type="hidden", name="add_tag_name", value="");
+
+                    div(id="add-tags-search-div")
+                    {
+                        input(id="hidden-add-tag-kind", type="hidden", name="add_tag_kind", value="");
+                        input(id="hidden-add-tag-rating", type="hidden", name="add_tag_rating", value="");
+                        input(id="hidden-add-tag-censor", type="hidden", name="add_tag_censor", value="");
+                    }
+
+                    @if !tags_on_same_day.is_empty()
+                    {
+                        h3 { : "On Same Day" }
+
+                        @for tag in tags_on_same_day.iter()
                         {
-                            : pages::attachments::AttachmentsPage::raw_html_for_thumbnail(&object, 512, true);
+                            // Needs to be URI encoded as the web-browswer decodes the URI
+                            // into the correct string.
+
+                            a(href=format!(
+                                    "javascript:picvu.add_tag(decodeURIComponent('{}'), '{}', '{}', '{}');",
+                                    urlencoding::encode(&urlencoding::encode(&tag.name)),
+                                    tag.kind.to_string(),
+                                    tag.rating.num_stars().to_string(),
+                                    tag.censor.to_string()),
+                                class="tag add-tag")
+                            {
+                                : OutlineIcon::PlusCircle.render(IconSize::Size16x16);
+                                : pages::templates::tags::render(tag);
+                            }
                         }
                     }
                 }

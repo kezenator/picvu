@@ -11,6 +11,7 @@ mod err;
 mod models;
 mod schema;
 mod store;
+pub mod text_utils;
 
 #[cfg(test)]
 mod tests;

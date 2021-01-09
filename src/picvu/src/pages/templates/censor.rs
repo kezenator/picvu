@@ -2,20 +2,27 @@ use horrorshow::{Raw, Template, labels, owned_html};
 use crate::icons::{IconSize, ColoredIcon};
 use picvudb::data::Censor;
 
-pub fn render(censor: &Censor) -> Raw<String>
+pub fn render(name: &str, censor: &Censor) -> Raw<String>
 {
+    let rust_name = name.replace("-", "_");
+
     Raw(owned_html!
     {
-        input(id="hidden-censor", type="hidden", name="censor", value=censor.to_string());
+        label(for=rust_name.clone())
+        {
+            : "Censor";
+        }
+        input(id=format!("hidden-{}", name), type="hidden", name=rust_name, value=censor.to_string());
 
-        div(id="censor", class="combo-list")
+        div(id=format!("combo-{}", name), class="combo-list")
         {
             @for c in all_censors()
             {
                 a(class=labels!(
                         "combo-item",
                         "combo-selected" => c == *censor),
-                    href=format!("javascript:submit_funcs.censor('{}');", c.to_string()))
+                    href=format!("javascript:picvu.set_combo('{}', '{}');", name, c.to_string()),
+                    value=c.to_string())
                 {
                     div(class="combo-icon")
                     {

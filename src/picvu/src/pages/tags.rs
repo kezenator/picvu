@@ -120,97 +120,37 @@ fn render_edit_tag(tag: picvudb::data::get::TagMetadata, req: &HttpRequest, head
 
     let contents = owned_html!
     {
-        form(method="POST", action=format!("/form/edit_tag/{}", tag.tag_id.to_string()), enctype="application/x-www-form-urlencoded")
+        script(src="/assets/picvu.js");
+        script(src="/assets/edit_tag.js");
+
+        form(id="form", method="POST", action=format!("/form/edit_tag/{}", tag.tag_id.to_string()), enctype="application/x-www-form-urlencoded")
         {
-            table(class="details-table")
+            div(class="cmdbar cmdbar-top")
             {
-                tr
+                a(id="save", href="javascript:picvu.submit();", class="cmdbar-link")
                 {
-                    th(colspan="2")
-                    {
-                        : "Edit";
-                    }
+                    : OutlineIcon::Save.render(IconSize::Size16x16);
+                    : " Save"
                 }
-
-                tr
+                a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone(), }), class="cmdbar-link")
                 {
-                    td: "Name";
-                    td
-                    {
-                        input(type="text", name="name", value=tag.name);
-                    }
+                    : OutlineIcon::Cancel.render(IconSize::Size16x16);
+                    : " Cancel"
                 }
-
-                tr
+                div(class="cmdbar-summary")
                 {
-                    td: "Rating";
-                    td
-                    {
-                        select(name="rating")
-                        {
-                            option(value="0", selected?=(tag.rating == picvudb::data::Rating::NotRated)) { : "Not Rated" }
-                            option(value="1", selected?=(tag.rating == picvudb::data::Rating::OneStar)) { : "1 Star" }
-                            option(value="2", selected?=(tag.rating == picvudb::data::Rating::TwoStars)) { : "2 Stars" }
-                            option(value="3", selected?=(tag.rating == picvudb::data::Rating::ThreeStars)) { : "3 Stars" }
-                            option(value="4", selected?=(tag.rating == picvudb::data::Rating::FourStars)) { : "4 Stars" }
-                            option(value="5", selected?=(tag.rating == picvudb::data::Rating::FiveStars)) { : "5 Stars" }
-                        }
-                    }
-                }
-
-                tr
-                {
-                    td: "Censor";
-                    td
-                    {
-                        select(name="censor")
-                        {
-                            @for c in [picvudb::data::Censor::FamilyFriendly, picvudb::data::Censor::TastefulNudes,
-                                            picvudb::data::Censor::FullNudes, picvudb::data::Censor::Explicit].iter()
-                            {
-                                option(
-                                    value=c.to_string(),
-                                    selected?=(tag.censor == *c))
-                                {
-                                    : c.to_string()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                tr
-                {
-                    td: "Icon";
-                    td
-                    {
-                        select(name="kind")
-                        {
-                            @for k in picvudb::data::TagKind::values()
-                            {
-                                @if (k == tag.kind) || (k != picvudb::data::TagKind::Trash)
-                                {
-                                    option(
-                                        value=k.to_string(),
-                                        selected?=(tag.kind == k))
-                                    {
-                                        : k.to_string()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                tr
-                {
-                    td: "";
-                    td
-                    {
-                        input(value="Save", type="Submit");
-                    }
                 }
             }
+
+            label(for="name")
+            {
+                : "Name";
+            }
+            input(id="edit-name", type="text", name="name", value=tag.name);
+
+            : pages::templates::tag_kind::render("kind", &tag.kind);
+            : pages::templates::rating::render("rating", &tag.rating);
+            : pages::templates::censor::render("censor", &tag.censor);
         }
     }.into_string().unwrap();
 
