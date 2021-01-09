@@ -8,7 +8,7 @@ pub fn render(censor: &Censor) -> Raw<String>
     {
         input(id="hidden-censor", type="hidden", name="censor", value=censor.to_string());
 
-        div(class="combo-list")
+        div(id="censor", class="combo-list")
         {
             @for c in all_censors()
             {
@@ -37,7 +37,7 @@ fn censor_to_strs(censor: &Censor) -> (&'static str, &'static str, ColoredIcon)
         Censor::FamilyFriendly => ("Family", "Friendly", ColoredIcon::ManWomanBoy),
         Censor::TastefulNudes => ("Tasteful", "Nudes", ColoredIcon::Peach),
         Censor::FullNudes => ("Full", "Nudes", ColoredIcon::Eggplant),
-        Censor::Explicit => ("Sexy and", "Explicit", ColoredIcon::EvilGrin),
+        Censor::Explicit => ("Sexy /", "Explicit", ColoredIcon::EvilGrin),
     }
 }
 

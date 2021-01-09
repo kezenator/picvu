@@ -475,7 +475,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, tags: Vec<picvudb::data:
                         td {}
                         td
                         {
-                            @if tag.rating.is_some()
+                            @if tag.rating != picvudb::data::Rating::NotRated
                             {
                                 : ColoredIcon::Star.render(IconSize::Size16x16);
                             }
@@ -524,7 +524,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, tags: Vec<picvudb::data:
                         {
                             : ColoredIcon::Memo.render(IconSize::Size16x16);
                         }
-                        @if object.rating.is_some()
+                        @if object.rating != picvudb::data::Rating::NotRated
                         {
                             : ColoredIcon::Star.render(IconSize::Size16x16);
                         }

@@ -20,7 +20,7 @@ pub struct TagMetadata
     pub tag_id: TagId,
     pub name: String,
     pub kind: TagKind,
-    pub rating: Option<Rating>,
+    pub rating: Rating,
     pub censor: Censor,
 }
 
@@ -33,7 +33,7 @@ pub struct ObjectMetadata
     pub activity_time: Date,
     pub title: Option<TitleMarkdown>,
     pub notes: Option<NotesMarkdown>,
-    pub rating: Option<Rating>,
+    pub rating: Rating,
     pub censor: Censor,
     pub location: Option<Location>,
     pub attachment: AttachmentMetadata,

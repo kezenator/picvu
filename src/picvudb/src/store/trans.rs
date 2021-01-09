@@ -417,7 +417,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn add_object(&self, created_time: Option<data::Date>, modified_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<data::ObjectId, Error>
+    fn add_object(&self, created_time: Option<data::Date>, modified_time: Option<data::Date>, activity_time: Option<data::Date>, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: data::Rating, censor: data::Censor, location: Option<data::Location>, tag_set: data::TagSet, ext_ref: Option<data::ExternalReference>) -> Result<data::ObjectId, Error>
     {
         let modified_time = modified_time.unwrap_or(data::Date::now());
         let created_time = created_time.unwrap_or(modified_time.clone());
@@ -438,7 +438,7 @@ impl<'a> WriteOps for Transaction<'a>
             activity_offset: activity_time.to_db_offset(),
             title: title.clone().map(|m| m.get_markdown()),
             notes: notes.clone().map(|m| m.get_markdown()),
-            rating: rating.clone().map(|r| { r.to_db_field() }),
+            rating: rating.to_db_field(),
             censor: censor.to_db_field(),
             location_source: location_source,
             latitude: latitude,
@@ -553,7 +553,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: Option<data::Rating>, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>
+    fn update_object(&self, obj_id: i64, activity_time: data::Date, title: Option<data::TitleMarkdown>, notes: Option<data::NotesMarkdown>, rating: data::Rating, censor: data::Censor, location: Option<data::Location>) -> Result<(), Error>
     {
         let object = UpdateObjectId
         {
@@ -570,7 +570,7 @@ impl<'a> WriteOps for Transaction<'a>
             activity_offset: activity_time.to_db_offset(),
             title: title.clone().map(|m| m.get_markdown()),
             notes: notes.clone().map(|m| m.get_markdown()),
-            rating: rating.map(|r| r.to_db_field()),
+            rating: rating.to_db_field(),
             censor: censor.to_db_field(),
             location_source: location.clone().map(|l| l.source.to_db_field()),
             latitude: location.clone().map(|l| l.latitude),
@@ -657,7 +657,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn update_tag(&self, tag_id: data::TagId, name: String, rating: Option<data::Rating>, censor: data::Censor, kind: data::TagKind) -> Result<(), Error>
+    fn update_tag(&self, tag_id: data::TagId, name: String, rating: data::Rating, censor: data::Censor, kind: data::TagKind) -> Result<(), Error>
     {
         // First, check there's no other tag with this name
 
@@ -686,7 +686,7 @@ impl<'a> WriteOps for Transaction<'a>
         let changeset = UpdateTagChangeset
         {
             tag_name: name.clone(),
-            tag_rating: rating.map(|r| r.to_db_field()),
+            tag_rating: rating.to_db_field(),
             tag_censor: censor.to_db_field(),
             tag_kind: kind.to_db_field(),
         };
@@ -737,7 +737,7 @@ impl<'a> WriteOps for Transaction<'a>
         Ok(())
     }
 
-    fn find_or_add_tag(&self, name: String, kind: data::TagKind, rating: Option<data::Rating>, censor: data::Censor) -> Result<i64, Error>
+    fn find_or_add_tag(&self, name: String, kind: data::TagKind, rating: data::Rating, censor: data::Censor) -> Result<i64, Error>
     {
         match schema::tags::table.filter(schema::tags::tag_name.eq(name.clone())).get_result::<Tag>(self.connection).optional()?
         {
@@ -751,7 +751,7 @@ impl<'a> WriteOps for Transaction<'a>
                 {
                     tag_name: name.clone(),
                     tag_kind: kind.to_db_field(),
-                    tag_rating: rating.map(|r| r.to_db_field()),
+                    tag_rating: rating.to_db_field(),
                     tag_censor: censor.to_db_field(),
                 };
 

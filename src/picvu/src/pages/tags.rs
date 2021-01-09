@@ -73,18 +73,10 @@ async fn post_edit_tag(state: web::Data<State>, tag_id: web::Path<String>, form:
 
     let tag = state.db.send(picvudb::msgs::GetTagRequest{ tag_id: tag_id.clone() }).await??.tag;
 
-    let rating =
-    {
-        if form.rating.is_empty()
-        {
-            None
-        }
-        else
-        {
-            let num_stars = form.rating.parse().map_err(|_| picvudb::ParseError::new("Invalid rating"))?;
-            let rating = picvudb::data::Rating::from_num_stars(num_stars)?;
-            Some(rating)
-        }
+    let rating = {
+        let num_stars = form.rating.parse().map_err(|_| picvudb::ParseError::new("Invalid rating"))?;
+        let rating = picvudb::data::Rating::from_num_stars(num_stars)?;
+        rating
     };
 
     let censor: picvudb::data::Censor = form.censor.parse()?;
@@ -156,12 +148,12 @@ fn render_edit_tag(tag: picvudb::data::get::TagMetadata, req: &HttpRequest, head
                     {
                         select(name="rating")
                         {
-                            option(value="", selected?=tag.rating.is_none()) { : "Unrated" }
-                            option(value="1", selected?=(tag.rating == Some(picvudb::data::Rating::OneStar))) { : "1 Star" }
-                            option(value="2", selected?=(tag.rating == Some(picvudb::data::Rating::TwoStars))) { : "2 Stars" }
-                            option(value="3", selected?=(tag.rating == Some(picvudb::data::Rating::ThreeStars))) { : "3 Stars" }
-                            option(value="4", selected?=(tag.rating == Some(picvudb::data::Rating::FourStars))) { : "4 Stars" }
-                            option(value="5", selected?=(tag.rating == Some(picvudb::data::Rating::FiveStars))) { : "5 Stars" }
+                            option(value="0", selected?=(tag.rating == picvudb::data::Rating::NotRated)) { : "Not Rated" }
+                            option(value="1", selected?=(tag.rating == picvudb::data::Rating::OneStar)) { : "1 Star" }
+                            option(value="2", selected?=(tag.rating == picvudb::data::Rating::TwoStars)) { : "2 Stars" }
+                            option(value="3", selected?=(tag.rating == picvudb::data::Rating::ThreeStars)) { : "3 Stars" }
+                            option(value="4", selected?=(tag.rating == picvudb::data::Rating::FourStars)) { : "4 Stars" }
+                            option(value="5", selected?=(tag.rating == picvudb::data::Rating::FiveStars)) { : "5 Stars" }
                         }
                     }
                 }

@@ -18,7 +18,7 @@ pub struct Tag
 {
     pub name: String,
     pub kind: TagKind,
-    pub rating: Option<Rating>,
+    pub rating: Rating,
     pub censor: Censor,
 }
 
@@ -27,7 +27,7 @@ pub struct ObjectData
 {
     pub title: Option<TitleMarkdown>,
     pub notes: Option<NotesMarkdown>,
-    pub rating: Option<Rating>,
+    pub rating: Rating,
     pub censor: Censor,
     pub created_time: Option<Date>,
     pub modified_time: Option<Date>,

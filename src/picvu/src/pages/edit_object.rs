@@ -95,18 +95,10 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
     let title = if form.title.is_empty() { None } else { Some(picvudb::data::TitleMarkdown::parse(form.title.clone())?) };
     let notes = if form.notes.is_empty() { None } else { Some(picvudb::data::NotesMarkdown::parse(form.notes.clone())?) };
 
-    let rating =
-    {
-        if form.rating.is_empty()
-        {
-            None
-        }
-        else
-        {
-            let num_stars = form.rating.parse().map_err(|_| picvudb::ParseError::new("Invalid rating"))?;
-            let rating = picvudb::data::Rating::from_num_stars(num_stars)?;
-            Some(rating)
-        }
+    let rating = {
+        let num_stars = form.rating.parse().map_err(|_| picvudb::ParseError::new("Invalid rating"))?;
+        let rating = picvudb::data::Rating::from_num_stars(num_stars)?;
+        rating
     };
 
     let censor: picvudb::data::Censor = form.censor.parse()?;
@@ -174,7 +166,7 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
             add.push(picvudb::data::add::Tag {
                 name: form.add_tag_name.clone(),
                 kind: picvudb::data::TagKind::Label,
-                rating: None,
+                rating: picvudb::data::Rating::NotRated,
                 censor: picvudb::data::Censor::FamilyFriendly,
             });
         }

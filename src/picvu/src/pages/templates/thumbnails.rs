@@ -38,7 +38,7 @@ pub fn render(object: &picvudb::data::get::ObjectMetadata, href: String, selecte
                             : ColoredIcon::RoundPushpin.render(IconSize::Size16x16);
                         }
 
-                        @if object.rating.is_some()
+                        @if object.rating != picvudb::data::Rating::NotRated
                         {
                             : ColoredIcon::Star.render(IconSize::Size16x16);
                         }

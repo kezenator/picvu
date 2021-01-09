@@ -4,6 +4,7 @@ use crate::ParseError;
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum Rating
 {
+    NotRated,
     OneStar,
     TwoStars,
     ThreeStars,
@@ -13,10 +14,11 @@ pub enum Rating
 
 impl Rating
 {
-    pub fn from_num_stars(num: u8) -> Result<Self, ParseError>
+    pub fn from_num_stars(num: i32) -> Result<Self, ParseError>
     {
         match num
         {
+            0 => Ok(Self::NotRated),
             1 => Ok(Self::OneStar),
             2 => Ok(Self::TwoStars),
             3 => Ok(Self::ThreeStars),
@@ -26,10 +28,11 @@ impl Rating
         }
     }
 
-    pub fn num_stars(&self) -> u8
+    pub fn num_stars(&self) -> i32
     {
         match self
         {
+            Self::NotRated => 0,
             Self::OneStar => 1,
             Self::TwoStars => 2,
             Self::ThreeStars => 3,
@@ -38,17 +41,23 @@ impl Rating
         }
     }
 
-    pub(crate) fn to_db_field(&self) -> i32
+    pub(crate) fn to_db_field(&self) -> Option<i32>
     {
-        self.num_stars() as i32
+        let num_stars = self.num_stars();
+
+        match num_stars
+        {
+            0 => None,
+            _ => Some(num_stars)
+        }
     }
 
-    pub(crate) fn from_db_field(num: Option<i32>) -> Result<Option<Self>, ParseError>
+    pub(crate) fn from_db_field(num: Option<i32>) -> Result<Self, ParseError>
     {
         match num
         {
-            Some(num) => Ok(Some(Self::from_num_stars(num as u8)?)),
-            None => Ok(None),
+            Some(num) => Ok(Self::from_num_stars(num)?),
+            None => Ok(Self::NotRated),
         }
     }
 }
@@ -67,6 +76,7 @@ impl ToString for Rating
     {
         match self
         {
+            Self::NotRated => "Not Rated",
             Self::OneStar => "1 star",
             Self::TwoStars => "2 stars",
             Self::ThreeStars => "3 stars",

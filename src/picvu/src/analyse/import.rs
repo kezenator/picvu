@@ -474,7 +474,7 @@ pub fn create_add_object_for_import(
                     tags.push(picvudb::data::add::Tag{
                         name: name,
                         kind: picvudb::data::TagKind::Location,
-                        rating: None,
+                        rating: picvudb::data::Rating::NotRated,
                         censor: picvudb::data::Censor::FamilyFriendly,
                     });
                 }
@@ -491,7 +491,7 @@ pub fn create_add_object_for_import(
     tags.push(picvudb::data::add::Tag{
         name: "Unsorted".to_owned(),
         kind: picvudb::data::TagKind::Label,
-        rating: None,
+        rating: picvudb::data::Rating::NotRated,
         censor: picvudb::data::Censor::FamilyFriendly,
     });
     
@@ -513,7 +513,7 @@ pub fn create_add_object_for_import(
     {
         title: title,
         notes: notes,
-        rating: None,
+        rating: picvudb::data::Rating::NotRated,
         censor: picvudb::data::Censor::FamilyFriendly,
         created_time: obj_created_time,
         modified_time: None,

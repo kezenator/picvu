@@ -81,7 +81,7 @@ async fn post_delete_object(state: web::Data<State>, object_id: web::Path<String
             {
                 name: "Trash".to_owned(),
                 kind: picvudb::data::TagKind::Trash,
-                rating: None,
+                rating: picvudb::data::Rating::NotRated,
                 censor: picvudb::data::Censor::FamilyFriendly,
             }];
 

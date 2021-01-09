@@ -211,16 +211,12 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                 td: "Rating";
                 td
                 {
-                    @if let Some(rating) = &object.rating
+                    @for _ in 0..object.rating.num_stars()
                     {
-                        @for _ in 0..rating.num_stars()
-                        {
-                            : ColoredIcon::Star.render(IconSize::Size16x16);
-                        }
-                        : " ";
+                        : ColoredIcon::Star.render(IconSize::Size16x16);
                     }
-
-                    : object.rating.clone().map_or("None".to_owned(), |r| { r.to_string() });
+                    : " ";
+                    : object.rating.to_string();
                 }
             }
 

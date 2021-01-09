@@ -546,7 +546,7 @@ pub struct UpdateObjectRequest
     pub activity_time: data::Date,
     pub title: Option<data::TitleMarkdown>,
     pub notes: Option<data::NotesMarkdown>,
-    pub rating: Option<data::Rating>,
+    pub rating: data::Rating,
     pub censor: data::Censor,
     pub location: Option<data::Location>,
 }
@@ -581,7 +581,7 @@ pub struct UpdateTagRequest
 {
     pub tag_id: data::TagId,
     pub name: String,
-    pub rating: Option<data::Rating>,
+    pub rating: data::Rating,
     pub censor: data::Censor,
     pub kind: data::TagKind,
 }

@@ -16,7 +16,7 @@ pub fn render(tag: &picvudb::data::get::TagMetadata) -> Raw<String>
                 picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
             }).render(IconSize::Size16x16);
 
-        @if tag.rating.is_some()
+        @if tag.rating != picvudb::data::Rating::NotRated
         {
             : OutlineIcon::Star.render(IconSize::Size16x16);
         }
