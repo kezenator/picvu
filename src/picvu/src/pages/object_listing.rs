@@ -376,7 +376,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
                             a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }),
                                 class="tag")
                             {
-                                : pages::templates::tags::render(tag);
+                                : pages::templates::tags::render_existing(tag);
                             }
                         }
                     }
@@ -401,7 +401,7 @@ pub fn render_objects_thumbnails(resp: GetObjectsResponse, tags: Vec<picvudb::da
                                 a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }),
                                     class="tag")
                                 {
-                                    : pages::templates::tags::render(&tag);
+                                    : pages::templates::tags::render_existing(&tag);
                                 }
                             }
                         }
@@ -468,6 +468,7 @@ pub fn render_objects_details(resp: GetObjectsResponse, tags: Vec<picvudb::data:
                                         picvudb::data::TagKind::Location => OutlineIcon::Location,
                                         picvudb::data::TagKind::Person => OutlineIcon::User,
                                         picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
+                                        picvudb::data::TagKind::Unsorted => OutlineIcon::PatchQuestion,
                                     }).render(IconSize::Size16x16);
                                 : &tag.name
                             }
@@ -571,6 +572,7 @@ fn get_title_and_icon(query: &picvudb::data::get::GetObjectsQuery, search_tag: &
             picvudb::data::TagKind::Location => OutlineIcon::Location,
             picvudb::data::TagKind::Person => OutlineIcon::User,
             picvudb::data::TagKind::Trash => OutlineIcon::Trash2,
+            picvudb::data::TagKind::Unsorted => OutlineIcon::PatchQuestion,
         }.into();
     }
 

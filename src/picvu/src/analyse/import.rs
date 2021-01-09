@@ -489,8 +489,8 @@ pub fn create_add_object_for_import(
     // Always mark it as unsorted
 
     tags.push(picvudb::data::add::Tag{
-        name: "Unsorted".to_owned(),
-        kind: picvudb::data::TagKind::Label,
+        name: picvudb::data::TagKind::system_name_unsorted(),
+        kind: picvudb::data::TagKind::Unsorted,
         rating: picvudb::data::Rating::NotRated,
         censor: picvudb::data::Censor::FamilyFriendly,
     });

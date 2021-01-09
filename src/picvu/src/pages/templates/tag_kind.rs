@@ -16,7 +16,7 @@ pub fn render(name: &str, kind: &TagKind) -> Raw<String>
 
         div(id=format!("combo-{}", name), class="combo-list")
         {
-            @for k in all_kinds()
+            @for k in all_kinds(kind)
             {
                 a(class=labels!(
                         "combo-item",
@@ -47,18 +47,13 @@ fn censor_to_strs(kind: &TagKind) -> (&'static str, OutlineIcon)
         TagKind::List => ("List", OutlineIcon::List),
         TagKind::Activity => ("Activity", OutlineIcon::Sun),
         TagKind::Trash => ("Trash", OutlineIcon::Trash2),
+        TagKind::Unsorted => ("Unsorted", OutlineIcon::PatchQuestion),
     }
 }
 
-fn all_kinds() -> Vec<TagKind>
+fn all_kinds(cur_kind: &TagKind) -> Vec<TagKind>
 {
-    vec! [
-        TagKind::Label,
-        TagKind::Location,
-        TagKind::Event,
-        TagKind::Person,
-        TagKind::List,
-        TagKind::Activity,
-        TagKind::Trash,
-    ]
+    TagKind::values().into_iter()
+        .filter(|k| !k.is_system_kind() || (*k == *cur_kind))
+        .collect()
 }

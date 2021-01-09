@@ -12,6 +12,7 @@ pub enum TagKind
     List,
     Activity,
     Trash,
+    Unsorted,
 }
 
 impl TagKind
@@ -27,6 +28,7 @@ impl TagKind
             Self::List => 0x10,
             Self::Activity => 0x20,
             Self::Trash => 0x40,
+            Self::Unsorted => 0x80,
         }
     }
 
@@ -41,6 +43,7 @@ impl TagKind
             0x10 => Ok(Self::List),
             0x20 => Ok(Self::Activity),
             0x40 => Ok(Self::Trash),
+            0x80 => Ok(Self::Unsorted),
             _ => Err(ParseError::new(format!("Invalid TagType field 0x{:0x}", val))),
         }
     }
@@ -55,7 +58,33 @@ impl TagKind
             Self::List,
             Self::Activity,
             Self::Trash,
+            Self::Unsorted,
         ]
+    }
+
+    pub fn is_system_kind(&self) -> bool
+    {
+        match self
+        {
+            Self::Location
+                | Self::Person
+                | Self::Event
+                | Self::Label
+                | Self::List
+                | Self::Activity => false,
+            Self::Trash
+                | Self::Unsorted => true,
+        }
+    }
+
+    pub fn system_name_unsorted() -> String
+    {
+        "Unsorted".to_owned()
+    }
+
+    pub fn system_name_trash() -> String
+    {
+        "Trash".to_owned()
     }
 }
 
@@ -72,6 +101,7 @@ impl ToString for TagKind
             Self::List => "List",
             Self::Activity => "Activity",
             Self::Trash => "Trash",
+            Self::Unsorted => "Unsorted",
         }.to_owned()
     }
 }
@@ -91,6 +121,7 @@ impl FromStr for TagKind
             "List" => Ok(TagKind::List),
             "Activity" => Ok(TagKind::Activity),
             "Trash" => Ok(TagKind::Trash),
+            "Unsorted" => Ok(TagKind::Unsorted),
             _ => Err(ParseError::new(format!("Invalid TagKind {:?}", s))),
         }
     }

@@ -248,7 +248,7 @@ impl ApiMessage for GetObjectsRequest
                     });
                 }
             }
-            tags.sort_by(|a, b| crate::text_utils::normalized_cmp(&a.name, &b.name));
+            tags.sort_by(|a, b| crate::stem::cmp(&a.name, &b.name));
 
             results.push(data::get::ObjectMetadata
             {
@@ -403,7 +403,7 @@ impl ApiMessage for SearchTagsRequest
             });
         }
 
-        tags.sort_by(|a, b| crate::text_utils::normalized_cmp(&a.name, &b.name));
+        tags.sort_by(|a, b| crate::stem::cmp(&a.name, &b.name));
 
         Ok(SearchTagsResponse{ tags })
     }

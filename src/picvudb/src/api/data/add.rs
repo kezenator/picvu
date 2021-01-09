@@ -13,7 +13,7 @@ pub struct Attachment
     pub bytes: Vec<u8>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tag
 {
     pub name: String,

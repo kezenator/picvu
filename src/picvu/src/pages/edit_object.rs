@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use horrorshow::{owned_html, Raw, Template};
@@ -56,7 +57,7 @@ async fn get_edit_object(state: web::Data<State>, object_id: web::Path<String>, 
     }
     else
     {
-        Ok(render_edit_object(response.object.unwrap(), response.all_objects_on_same_date, &req, &state.header_links))
+        Ok(render_edit_object(&state, response.object.unwrap(), response.all_objects_on_same_date, &req, &state.header_links))
     }
 }
 
@@ -163,21 +164,40 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
 
         if !form.remove_tag_id.is_empty()
         {
-            remove.push(form.remove_tag_id.parse::<picvudb::data::TagId>()?);
+            let removed_tag_id = form.remove_tag_id.parse::<picvudb::data::TagId>()?;
+
+            if let Some(removed_tag) = object.tags.iter().filter(|t| t.tag_id == removed_tag_id).next()
+            {
+                let mut recent_tags = state.recent_tags.lock().unwrap();
+
+                recent_tags.add_existing(removed_tag);
+            }
+
+            remove.push(removed_tag_id);
         }
         
         if !form.add_tag_name.is_empty()
         {
-            add.push(picvudb::data::add::Tag {
+            let new_tag = picvudb::data::add::Tag {
                 name: form.add_tag_name.clone(),
                 kind: form.add_tag_kind.parse()?,
                 rating: picvudb::data::Rating::from_num_stars(form.add_tag_rating.parse().unwrap_or(-1))?,
                 censor: form.add_tag_censor.parse()?,
-            });
+            };
+
+            {
+                let mut recent_tags = state.recent_tags.lock().unwrap();
+
+                recent_tags.add_new(&new_tag);
+            }
+
+            add.push(new_tag);
         }
 
+        let unsorted = picvudb::data::TagKind::system_name_unsorted();
+
         if let Some(unsorted_tag_id) = object.tags.iter()
-            .filter(|tag| tag.name == "Unsorted")
+            .filter(|tag| tag.name == unsorted)
             .map(|tag| tag.tag_id.clone())
             .next()
         {
@@ -211,6 +231,7 @@ async fn post_edit_object(state: web::Data<State>, object_id: web::Path<String>,
 #[derive(Deserialize)]
 struct FormFindTags
 {
+    object_id: String,
     name: String,
 }
 
@@ -221,36 +242,66 @@ async fn get_find_tags(state: web::Data<State>, form: web::Query<FormFindTags>) 
         return Ok(view::html_fragment(String::new()));
     }
 
+    let object_id = picvudb::data::ObjectId::try_new(form.object_id.clone())?;
+
     let msg = picvudb::msgs::SearchTagsRequest { search: picvudb::data::get::SearchString::Suggestion(form.name.clone()) };
 
     let response = state.db.send(msg).await??;
 
-    let found_matching = response.tags.iter()
-        .filter(|t| picvudb::text_utils::normalized_cmp(&t.name, &form.name) == std::cmp::Ordering::Equal)
+    let get_obj_msg = picvudb::msgs::GetObjectsRequest
+    {
+        query: picvudb::data::get::GetObjectsQuery::ByObjectId(object_id),
+        pagination: None,
+    };
+
+    let obj_response = state.db.send(get_obj_msg).await??;
+
+    let object = obj_response.objects.into_iter().next().unwrap();
+
+    let mut tags = response.tags;
+
+    tags.sort_by(|a, b| picvudb::stem::cmp(&a.name, &b.name));
+
+    let found_matching = tags.iter()
+        .filter(|t| picvudb::stem::cmp(&t.name, &form.name) == std::cmp::Ordering::Equal)
         .next()
         .is_some();
 
     let fragment = owned_html!
     {
-        @if !response.tags.is_empty()
+        @if !tags.is_empty()
         {
             h3
             {
                 : "Search Results";
             }
 
-            @for tag in response.tags
+            @for tag in tags
             {
-                a(href=format!(
-                        "javascript:picvu.add_tag(decodeURIComponent('{}'), '{}', '{}', '{}');",
-                        urlencoding::encode(&urlencoding::encode(&tag.name)),
-                        tag.kind.to_string(),
-                        tag.rating.num_stars().to_string(),
-                        tag.censor.to_string()),
-                    class="tag add-tag")
+                @if object.tags.iter().position(|obj_tag| obj_tag.tag_id == tag.tag_id).is_some()
                 {
-                    : OutlineIcon::PlusCircle.render(IconSize::Size16x16);
-                    : pages::templates::tags::render(&tag);
+                    // Existing tag on this object
+
+                    span(class="tag existing-tag")
+                    {
+                        : pages::templates::tags::render_existing(&tag);
+                    }
+                }
+                else
+                {
+                    // New tag we can add to this object
+
+                    a(href=format!(
+                            "javascript:picvu.add_tag(decodeURIComponent('{}'), '{}', '{}', '{}');",
+                            urlencoding::encode(&urlencoding::encode(&tag.name)),
+                            tag.kind.to_string(),
+                            tag.rating.num_stars().to_string(),
+                            tag.censor.to_string()),
+                        class="tag add-tag")
+                    {
+                        : OutlineIcon::PlusCircle.render(IconSize::Size16x16);
+                        : pages::templates::tags::render_existing(&tag);
+                    }
                 }
             }
         }
@@ -295,7 +346,7 @@ async fn get_find_tags(state: web::Data<State>, form: web::Query<FormFindTags>) 
     Ok(view::html_fragment(fragment))
 }
 
-fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_date: Vec<picvudb::data::get::ObjectMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
+fn render_edit_object(state: &crate::State, object: picvudb::data::get::ObjectMetadata, all_objs_on_date: Vec<picvudb::data::get::ObjectMetadata>, req: &HttpRequest, header_links: &HeaderLinkCollection) -> HttpResponse
 {
     let filename = object.attachment.filename.clone();
 
@@ -305,19 +356,64 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
         html: Raw(format!("Edit: {}", object.title.clone().map(|m| m.get_html()).unwrap_or(owned_html!{ : filename.clone() }.into_string().unwrap()))),
     };
 
-    let mut tags_on_same_day : Vec<picvudb::data::get::TagMetadata> = all_objs_on_date.iter()
-        .map(|obj| obj.tags.clone())
-        .flatten()
-        .map(|tag| (tag.tag_id.clone(), tag))
-        .collect::<std::collections::HashMap<_, _>>()
-        .values()
-        .filter(|tag| object.tags.iter().position(|otag| otag.tag_id == tag.tag_id).is_none())
-        .filter(|tag| tag.name != "Unsorted")
-        .filter(|tag| tag.name != "Trash")
-        .cloned()
-        .collect();
+    let mut tag_suggestions = Vec::new();
+    let mut seen_tags = HashSet::new();
 
-    tags_on_same_day.sort_by(|a, b| picvudb::text_utils::normalized_cmp(&a.name, &b.name));
+    {
+        let add_tags = |output: &mut Vec<(&'static str, Vec<picvudb::data::add::Tag>)>, 
+            seen_tags: &mut HashSet<String>,
+            name: &'static str,
+            tags: Vec<picvudb::data::add::Tag>|
+        {
+            let mut final_tags = Vec::new();
+            final_tags.reserve(tags.len());
+
+            for tag in tags.into_iter()
+            {
+                let normalized = picvudb::stem::normalize(&tag.name);
+
+                if seen_tags.contains(&normalized)
+                {
+                    // Already seen
+                }
+                else
+                {
+                    seen_tags.insert(normalized);
+                    final_tags.push(tag);
+                }
+            }
+
+            final_tags.sort_by(|a, b| picvudb::stem::cmp(&a.name, &b.name));
+
+            output.push((name, final_tags));
+        };
+
+        let tags_on_same_day = all_objs_on_date.iter()
+            .map(|obj| obj.tags.clone()) // Collect lists of tags from all objects on the same day
+            .flatten()  // Flatten into a list of tags - with repetition
+            .map(|tag| (tag.tag_id.clone(), tag)) // Prepare to insert into a map, by tag ID
+            .collect::<std::collections::HashMap<_, _>>()   // Remove duplicates
+            .values()   // Drop the tag IDs
+            .filter(|tag| object.tags.iter().position(|otag| otag.tag_id == tag.tag_id).is_none())  // Only tags not already set for this object
+            .filter(|tag| !tag.kind.is_system_kind())   // Filter out system tags
+            .map(|tag| picvudb::data::add::Tag { name: tag.name.clone(), kind: tag.kind.clone(), rating: tag.rating.clone(), censor: tag.censor.clone(), }) // Map to add structure
+            .collect();
+
+        let recent =
+        {
+            let recent_tags = state.recent_tags.lock().unwrap();
+
+            recent_tags.get_recent()
+        };
+
+        for tag in object.tags.iter()
+        {
+            seen_tags.insert(picvudb::stem::normalize(&tag.name));
+        }
+
+        add_tags(&mut tag_suggestions, &mut seen_tags, "On Same Day", tags_on_same_day);
+        add_tags(&mut tag_suggestions, &mut seen_tags, "Recent", recent);
+    }
 
     let index_of_this_obj = all_objs_on_date.iter()
         .position(|o| o.id == object.id)
@@ -341,6 +437,11 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                 {
                     : OutlineIcon::Cancel.render(IconSize::Size16x16);
                     : " Cancel"
+                }
+                a(href=pages::delete_object::DeleteObjectPage::path_for(&object.id), class="cmdbar-link")
+                {
+                    : OutlineIcon::Trash2.render(IconSize::Size16x16);
+                    : " Delete"
                 }
                 div(class="cmdbar-summary")
                 {
@@ -383,15 +484,17 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                 {
                     h2
                     {
-                        : "Details";
+                        : "Edit Details";
                     }
+
+                    input(id="hidden-object-id", type="hidden", value=object.id.to_string());
 
                     : pages::templates::rating::render("rating", &object.rating);
                     : pages::templates::censor::render("censor", &object.censor);
 
                     @if !object.tags.is_empty()
                     {
-                        h3 { : "Tags" }
+                        h3 { : "Remove Tags" }
 
                         @for tag in object.tags.iter()
                         {
@@ -399,7 +502,7 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                                 class="tag remove-tag")
                             {
                                 : OutlineIcon::Cancel.render(IconSize::Size16x16);
-                                : pages::templates::tags::render(tag);
+                                : pages::templates::tags::render_existing(tag);
                             }
                         }
                     }
@@ -454,25 +557,28 @@ fn render_edit_object(object: picvudb::data::get::ObjectMetadata, all_objs_on_da
                         input(id="hidden-add-tag-censor", type="hidden", name="add_tag_censor", value="");
                     }
 
-                    @if !tags_on_same_day.is_empty()
+                    @for (heading, suggestions) in tag_suggestions
                     {
-                        h3 { : "On Same Day" }
-
-                        @for tag in tags_on_same_day.iter()
+                        @if !suggestions.is_empty()
                         {
-                            // Needs to be URI encoded as the web-browswer decodes the URI
-                            // into the correct string.
+                            h3 { : heading }
 
-                            a(href=format!(
-                                    "javascript:picvu.add_tag(decodeURIComponent('{}'), '{}', '{}', '{}');",
-                                    urlencoding::encode(&urlencoding::encode(&tag.name)),
-                                    tag.kind.to_string(),
-                                    tag.rating.num_stars().to_string(),
-                                    tag.censor.to_string()),
-                                class="tag add-tag")
+                            @for tag in suggestions.iter()
                             {
-                                : OutlineIcon::PlusCircle.render(IconSize::Size16x16);
-                                : pages::templates::tags::render(tag);
+                                // Needs to be URI encoded as the web-browswer decodes the URI
+                                // into the correct string.
+
+                                a(href=format!(
+                                        "javascript:picvu.add_tag(decodeURIComponent('{}'), '{}', '{}', '{}');",
+                                        urlencoding::encode(&urlencoding::encode(&tag.name)),
+                                        tag.kind.to_string(),
+                                        tag.rating.num_stars().to_string(),
+                                        tag.censor.to_string()),
+                                    class="tag add-tag")
+                                {
+                                    : OutlineIcon::PlusCircle.render(IconSize::Size16x16);
+                                    : pages::templates::tags::render_add(tag);
+                                }
                             }
                         }
                     }

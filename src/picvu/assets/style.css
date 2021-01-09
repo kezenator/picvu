@@ -383,3 +383,9 @@ div.horiz-columns > div:last-child
     background-color: orangered;
     border: solid 1px red;
 }
+
+.existing-tag
+{
+    background-color: lightgray;
+    border: solid 1px darkgrey;
+}

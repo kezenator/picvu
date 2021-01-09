@@ -9,9 +9,9 @@ mod api;
 mod connection;
 mod err;
 mod models;
+pub mod stem;
 mod schema;
 mod store;
-pub mod text_utils;
 
 #[cfg(test)]
 mod tests;

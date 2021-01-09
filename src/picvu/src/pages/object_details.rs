@@ -250,7 +250,7 @@ fn render_object_details(object: picvudb::data::get::ObjectMetadata, image_analy
                             a(href=pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::TagByActivityDesc{ tag_id: tag.tag_id.clone() }),
                                 class="tag")
                             {
-                                : pages::templates::tags::render(tag);
+                                : pages::templates::tags::render_existing(tag);
                             }
                         }
                     }

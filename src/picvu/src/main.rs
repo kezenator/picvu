@@ -8,6 +8,7 @@ use googlephotos::auth::GoogleAuthClient;
 mod analyse;
 mod assets;
 mod bulk;
+mod cache;
 mod db;
 mod format;
 mod icons;
@@ -22,6 +23,7 @@ pub struct State {
     db: db::DbAddr,
     db_uri: String,
     google_auth_client: Arc<Mutex<GoogleAuthClient>>,
+    recent_tags: Arc<Mutex<cache::tags::RecentTagCache>>,
     header_links: pages::HeaderLinkCollection,
 }
 
@@ -71,6 +73,7 @@ async fn main() -> std::io::Result<()>
     let addr = rx.recv().unwrap();
     let bulk_queue = Arc::new(Mutex::new(bulk::BulkQueue::new()));
     let google_auth_client = Arc::new(Mutex::new(GoogleAuthClient::new()));
+    let recent_tags = Arc::new(Mutex::new(cache::tags::RecentTagCache::new()));
 
     HttpServer::new(move ||
     {
@@ -96,6 +99,7 @@ async fn main() -> std::io::Result<()>
             db: db::DbAddr::new(addr.clone()),
             db_uri: db_uri2.clone(),
             google_auth_client: google_auth_client.clone(),
+            recent_tags: recent_tags.clone(),
             header_links: page_builder.header_links,
         };
 

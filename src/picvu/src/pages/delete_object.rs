@@ -3,6 +3,7 @@ use horrorshow::{owned_html, Raw, Template};
 
 use crate::icons::{IconSize, OutlineIcon};
 use crate::pages::{HeaderLinkCollection, PageResources, PageResourcesBuilder};
+use crate::pages;
 use crate::view;
 use crate::State;
 
@@ -75,11 +76,20 @@ async fn post_delete_object(state: web::Data<State>, object_id: web::Path<String
         },
         Some(object) =>
         {
+            {
+                let mut recent_tags = state.recent_tags.lock().unwrap();
+
+                for removed_tag in object.tags.iter()
+                {
+                    recent_tags.add_existing(removed_tag);
+                }
+            }
+
             let remove = object.tags.iter().map(|t| t.tag_id.clone()).collect();
 
             let add = vec![picvudb::data::add::Tag
             {
-                name: "Trash".to_owned(),
+                name: picvudb::data::TagKind::system_name_trash(),
                 kind: picvudb::data::TagKind::Trash,
                 rating: picvudb::data::Rating::NotRated,
                 censor: picvudb::data::Censor::FamilyFriendly,
@@ -87,14 +97,14 @@ async fn post_delete_object(state: web::Data<State>, object_id: web::Path<String
 
             let msg = picvudb::msgs::UpdateObjectTagsRequest
             {
-                object_id,
+                object_id: object_id.clone(),
                 remove,
                 add,
             };
 
             state.db.send(msg).await??;
-            
-            Ok(view::redirect("/".to_owned()))
+
+            Ok(view::redirect(pages::edit_object::EditObjectPage::path_for(&object_id)))
         },
     }
 }

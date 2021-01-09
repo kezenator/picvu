@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
                 var name = document.getElementById('edit-search-tag-name').value;
 
-                window.fetch('/edit/find_tags?name=' + encodeURIComponent(name))
+                window.fetch('/edit/find_tags?name=' + encodeURIComponent(name) + '&object_id=' + document.getElementById('hidden-object-id').value)
                     .then(response => response.text())
                     .then(text => addSearchResults(text))
                     .catch((error) => addSearchError());
