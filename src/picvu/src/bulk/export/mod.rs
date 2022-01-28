@@ -37,7 +37,7 @@ impl Export
 
 impl BulkOperation for Export
 {
-    type Error = actix_rt::blocking::BlockingError<ExportError>;
+    type Error = actix_web::error::BlockingError<ExportError>;
     type Future = Pin<Box<dyn Future<Output=Result<(), Self::Error>>>>;
 
     fn name(&self) -> String

@@ -18,7 +18,7 @@ pub fn handle_embedded_file(req: HttpRequest) -> HttpResponse
     {
         Some(content) =>
         {
-            let body: Body = match content
+            let body: Body = match content.data
             {
                 Cow::Borrowed(bytes) => bytes.into(),
                 Cow::Owned(bytes) => bytes.into(),

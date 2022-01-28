@@ -18,27 +18,27 @@ impl SyncError
 {
     pub fn new_parse_err(msg: String) -> SyncError
     {
-        GooglePhotosParseError{msg}.fail::<()>().err().unwrap()
+        GooglePhotosParseSnafu{msg}.fail::<()>().err().unwrap()
     }
 }
 
 impl From<picvudb::DbConnectionError> for SyncError
 {
     fn from(source: picvudb::DbConnectionError) -> Self {
-        DbConnectionError{}.into_error(source)
+        DbConnectionSnafu{}.into_error(source)
     }
 }
 
 impl From<picvudb::Error> for SyncError
 {
     fn from(source: picvudb::Error) -> Self {
-        DbError{}.into_error(source)
+        DbSnafu{}.into_error(source)
     }
 }
 
 impl From<googlephotos::api::GoogleApiError> for SyncError
 {
     fn from(source: googlephotos::api::GoogleApiError) -> Self {
-        GooglePhotosError{}.into_error(source)
+        GooglePhotosSnafu{}.into_error(source)
     }
 }

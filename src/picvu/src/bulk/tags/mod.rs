@@ -28,7 +28,7 @@ impl DeleteTagBulkOp
 
 impl BulkOperation for DeleteTagBulkOp
 {
-    type Error = actix_rt::blocking::BlockingError<picvudb::Error>;
+    type Error = actix_web::error::BlockingError<picvudb::Error>;
     type Future = Pin<Box<dyn Future<Output=Result<(), Self::Error>>>>;
 
     fn name(&self) -> String

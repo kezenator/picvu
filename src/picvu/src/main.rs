@@ -44,7 +44,7 @@ async fn get_index() -> HttpResponse
     view::redirect(pages::object_listing::ObjectListingPage::path(picvudb::data::get::GetObjectsQuery::ByActivityDesc))
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
     let args = CmdArgs::from_args();
@@ -59,7 +59,7 @@ async fn main() -> std::io::Result<()>
     let (tx, rx) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
-        let sys = actix::System::new("picvu-db");
+        let sys = actix::System::new();
 
         let addr = SyncArbiter::start(1, move || {
             db::DbExecutor::new(picvudb::Store::new(&db_uri1).expect("Can't open database"))

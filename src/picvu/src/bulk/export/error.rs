@@ -15,20 +15,20 @@ pub enum ExportError
 impl From<std::io::Error> for ExportError
 {
     fn from(source: std::io::Error) -> Self {
-        IoError{}.into_error(source)
+        IoSnafu{}.into_error(source)
     }
 }
 
 impl From<picvudb::DbConnectionError> for ExportError
 {
     fn from(source: picvudb::DbConnectionError) -> Self {
-        DbConnectionError{}.into_error(source)
+        DbConnectionSnafu{}.into_error(source)
     }
 }
 
 impl From<picvudb::Error> for ExportError
 {
     fn from(source: picvudb::Error) -> Self {
-        DbError{}.into_error(source)
+        DbSnafu{}.into_error(source)
     }
 }

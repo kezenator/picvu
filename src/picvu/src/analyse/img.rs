@@ -158,8 +158,8 @@ impl ImgAnalysis
                         if let Some(model_entry) = find_single(&exif.entries, rexif::ExifTag::Model)
                         {
                             make_model = Some(MakeModel{
-                                make: make_entry.value_more_readable,
-                                model: model_entry.value_more_readable,
+                                make: make_entry.value_more_readable.to_string(),
+                                model: model_entry.value_more_readable.to_string(),
                             });
                         }
                     }
@@ -360,13 +360,13 @@ impl ImgAnalysis
                         {
                             if let Some(iso_entry) = find_single(&exif.entries, rexif::ExifTag::ISOSpeedRatings)
                             {
-                                let mut aperture = aperture_entry.value_more_readable;
+                                let mut aperture = aperture_entry.value_more_readable.to_string();
                                 if aperture.starts_with("f/")
                                 {
                                     aperture = format!("\u{0192}/{}", &aperture[2..]);
                                 }
 
-                                let mut iso = iso_entry.value_more_readable;
+                                let mut iso = iso_entry.value_more_readable.to_string();
                                 if iso.starts_with("ISO ")
                                 {
                                     iso = format!("ISO{}", &iso[4..]);
@@ -374,9 +374,9 @@ impl ImgAnalysis
 
                                 camera_settings = Some(CameraSettings
                                 {
-                                    exposure_time: time_entry.value_more_readable,
+                                    exposure_time: time_entry.value_more_readable.to_string(),
                                     aperture: aperture,
-                                    focal_length: focal_length_entry.value_more_readable,
+                                    focal_length: focal_length_entry.value_more_readable.to_string(),
                                     iso: iso,
                                 });
                             }

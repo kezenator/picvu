@@ -36,7 +36,7 @@ impl GooglePhotosSync
 
 impl BulkOperation for GooglePhotosSync
 {
-    type Error = actix_rt::blocking::BlockingError<error::SyncError>;
+    type Error = actix_web::error::BlockingError<error::SyncError>;
     type Future = Pin<Box<dyn Future<Output=Result<(), Self::Error>>>>;
 
     fn name(&self) -> String

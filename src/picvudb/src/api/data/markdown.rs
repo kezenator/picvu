@@ -309,7 +309,7 @@ fn get_search_text(s: &str) -> String
                 match tag
                 {
                     Tag::Paragraph
-                        | Tag::Heading(_)
+                        | Tag::Heading(_, _, _)
                         | Tag::BlockQuote
                         | Tag::CodeBlock(_)
                         | Tag::List(_)

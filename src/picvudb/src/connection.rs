@@ -31,15 +31,15 @@ impl DbConnection
     pub fn new(path: &str) -> DbConnectionResult
     {
         let db_connection = SqliteConnection::establish(path)
-            .context(LowerDbConnectionError{path: path.to_owned() })?;
+            .context(LowerDbConnectionSnafu{path: path.to_owned() })?;
 
         if schema::db_properties::table
             .load::<models::DbProperty>(&db_connection)
-            .context(LowerDbPropertiesError{})
+            .context(LowerDbPropertiesSnafu{})
             .is_err()
         {
             embedded_migrations::run(&db_connection)
-                .context(LowerDbMigrationError{})?;
+                .context(LowerDbMigrationSnafu{})?;
 
             let name = "version".to_owned();
             let value = "2020-07-05".to_owned();
@@ -47,12 +47,12 @@ impl DbConnection
             diesel::insert_into(schema::db_properties::table)
                 .values(&models::DbProperty{name, value})
                 .execute(&db_connection)
-                .context(LowerDbPropertiesError{})?;
+                .context(LowerDbPropertiesSnafu{})?;
         }
         
         let mut properties = schema::db_properties::table
             .load::<models::DbProperty>(&db_connection)
-            .context(LowerDbPropertiesError{})?;
+            .context(LowerDbPropertiesSnafu{})?;
 
         let versions = properties.drain(..)
             .filter(|prop| prop.name == "version")
@@ -66,7 +66,7 @@ impl DbConnection
             version = versions[0].clone();
         }
 
-        ensure!(version == "2020-07-05", UnsupportedVersionError{ version });
+        ensure!(version == "2020-07-05", UnsupportedVersionSnafu{ version });
 
         Ok(Self{ connection: db_connection })
     }

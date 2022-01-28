@@ -21,27 +21,27 @@ pub enum Error
 impl From<DbConnectionError> for Error
 {
     fn from(source: DbConnectionError) -> Self {
-        ConnectionError{}.into_error(source)
+        ConnectionSnafu{}.into_error(source)
     }
 }
 impl From<diesel::result::Error> for Error
 {
     fn from(source: diesel::result::Error) -> Self {
-        SqliteDatabaseError{}.into_error(source)
+        SqliteDatabaseSnafu{}.into_error(source)
     }
 }
 
 impl From<mime::FromStrError> for Error
 {
     fn from(source: mime::FromStrError) -> Self {
-        MimeError{}.into_error(source)
+        MimeSnafu{}.into_error(source)
     }
 }
 
 impl From<ParseError> for Error
 {
     fn from(source: ParseError) -> Self {
-        DataParseError{}.into_error(source)
+        DataParseSnafu{}.into_error(source)
     }
 }
 

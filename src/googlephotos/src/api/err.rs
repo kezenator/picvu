@@ -16,7 +16,7 @@ impl GoogleApiError
 {
     pub fn new_unexpected_response(body: String) -> GoogleApiError
     {
-        UnexpectedResponse{body}.fail::<()>().err().unwrap()
+        UnexpectedResponseSnafu{body}.fail::<()>().err().unwrap()
     }
 }
 
@@ -24,7 +24,7 @@ impl From<curl::Error> for GoogleApiError
 {
     fn from(source: curl::Error) -> Self
     {
-        CurlError{}.into_error(source)
+        CurlSnafu{}.into_error(source)
     }
 }
 
@@ -32,6 +32,6 @@ impl From<serde_json::error::Error> for GoogleApiError
 {
     fn from(source: serde_json::error::Error) -> Self
     {
-        JsonError{}.into_error(source)
+        JsonSnafu{}.into_error(source)
     }
 }

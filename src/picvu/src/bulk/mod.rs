@@ -45,7 +45,7 @@ impl BulkQueue
 
         let future = op.start(tx.clone());
 
-        actix_rt::spawn(async move
+        actix::spawn(async move
             {
                 match future.await
                 {

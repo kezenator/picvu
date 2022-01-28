@@ -19,27 +19,27 @@ pub enum ImportError
 impl From<std::io::Error> for ImportError
 {
     fn from(source: std::io::Error) -> Self {
-        IoError{}.into_error(source)
+        IoSnafu{}.into_error(source)
     }
 }
 
 impl From<picvudb::DbConnectionError> for ImportError
 {
     fn from(source: picvudb::DbConnectionError) -> Self {
-        DbConnectionError{}.into_error(source)
+        DbConnectionSnafu{}.into_error(source)
     }
 }
 
 impl From<picvudb::Error> for ImportError
 {
     fn from(source: picvudb::Error) -> Self {
-        DbError{}.into_error(source)
+        DbSnafu{}.into_error(source)
     }
 }
 
 impl From<SyncError> for ImportError
 {
     fn from(source: SyncError) -> Self {
-        GoogleSyncError{}.into_error(source)
+        GoogleSyncSnafu{}.into_error(source)
     }
 }

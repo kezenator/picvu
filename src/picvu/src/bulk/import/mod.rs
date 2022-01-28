@@ -53,7 +53,7 @@ impl FolderImport
 
 impl BulkOperation for FolderImport
 {
-    type Error = actix_rt::blocking::BlockingError<ImportError>;
+    type Error = actix_web::error::BlockingError<ImportError>;
     type Future = Pin<Box<dyn Future<Output=Result<(), Self::Error>>>>;
 
     fn name(&self) -> String
