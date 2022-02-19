@@ -147,10 +147,10 @@ async fn get_img_thumbnail(state: web::Data<State>, path: web::Path<String>, for
                     }
                 };
 
-                let mut bytes = Vec::new();
-                image.write_to(&mut bytes, image::ImageOutputFormat::Jpeg(100))?;
+                let mut cursor = std::io::Cursor::new(Vec::new());
+                image.write_to(&mut cursor, image::ImageOutputFormat::Jpeg(100))?;
 
-                Ok((bytes, metadata))
+                Ok((cursor.into_inner(), metadata))
             }).await?;
 
             Ok(view::binary(bytes, metadata.filename, mime::IMAGE_JPEG, metadata.hash))

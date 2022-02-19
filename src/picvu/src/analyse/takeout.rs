@@ -9,10 +9,11 @@ pub struct Metadata
     pub description: String,
     pub image_views: String,
     pub creation_time: Timestamp,
-    pub modification_time: Timestamp,
+    pub modification_time: Option<Timestamp>,
     pub geo_data: Option<GeoData>,
     pub geo_data_exif: Option<GeoData>,
     pub photo_taken_time: Timestamp,
+    pub photo_last_modified_time: Option<Timestamp>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

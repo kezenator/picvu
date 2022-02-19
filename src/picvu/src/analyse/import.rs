@@ -208,13 +208,16 @@ pub fn create_add_object_for_import(
             obj_created_time = Some(attachment_created_time.clone());
         }
 
-        if let Ok(md_modified_timestamp) = metadata.modification_time.timestamp.parse::<i64>()
+        if let Some(any_modified_time) = metadata.modification_time.or(metadata.photo_last_modified_time)
         {
-            let utc_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
-                    chrono::NaiveDateTime::from_timestamp(md_modified_timestamp, 0),
-                    chrono::Utc);
+            if let Ok(md_modified_timestamp) = any_modified_time.timestamp.parse::<i64>()
+            {
+                let utc_date_time = chrono::DateTime::<chrono::Utc>::from_utc(
+                        chrono::NaiveDateTime::from_timestamp(md_modified_timestamp, 0),
+                        chrono::Utc);
 
-            attachment_modified_time = picvudb::data::Date::from_chrono_utc(&utc_date_time);
+                attachment_modified_time = picvudb::data::Date::from_chrono_utc(&utc_date_time);
+            }
         }
 
         if let Some(md_location) = metadata.geo_data

@@ -59,7 +59,7 @@ async fn main() -> std::io::Result<()>
     let (tx, rx) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
-        let sys = actix::System::new();
+        let sys = actix::System::new("picvu");
 
         let addr = SyncArbiter::start(1, move || {
             db::DbExecutor::new(picvudb::Store::new(&db_uri1).expect("Can't open database"))
