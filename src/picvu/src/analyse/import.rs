@@ -1,5 +1,4 @@
 use std::path::Path;
-use image::GenericImageView;
 
 use crate::analyse;
 use crate::analyse::google::GoogleCache;

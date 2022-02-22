@@ -96,10 +96,9 @@ impl<'a> ReadOps for Transaction<'a>
             .select(diesel::dsl::count_star())
             .filter(
                 schema::objects::id.eq_any(
-                    schema::objects_fts::table
-                    .select(schema::objects_fts::id)
-                    .filter(schema::objects_fts::dsl::title.fts_match(&fts5_search)
-                        .or(schema::objects_fts::dsl::notes.fts_match(&fts5_search))))
+                    schema::objects_fts_query::table
+                    .select(schema::objects_fts_query::rowid)
+                    .filter(schema::objects_fts_query::dsl::whole_row.fts_match(&fts5_search)))
                 .or(schema::objects::id.eq_any(
                     schema::attachments_metadata::table
                     .select(schema::attachments_metadata::obj_id)
@@ -244,10 +243,9 @@ impl<'a> ReadOps for Transaction<'a>
         let results = schema::objects::table
             .filter(
                 schema::objects::id.eq_any(
-                    schema::objects_fts::table
-                    .select(schema::objects_fts::id)
-                    .filter(schema::objects_fts::dsl::title.fts_match(&fts5_search)
-                        .or(schema::objects_fts::dsl::notes.fts_match(&fts5_search))))
+                    schema::objects_fts_query::table
+                    .select(schema::objects_fts_query::rowid)
+                    .filter(schema::objects_fts_query::dsl::whole_row.fts_match(&fts5_search)))
                 .or(schema::objects::id.eq_any(
                     schema::attachments_metadata::table
                     .select(schema::attachments_metadata::obj_id)
@@ -376,11 +374,10 @@ impl<'a> ReadOps for Transaction<'a>
         let fts5_search = search.to_fts5_query();
 
         let results = schema::tags::table
-            .filter(
-                schema::tags::tag_id.eq_any(
-                    schema::tags_fts::table
-                    .select(schema::tags_fts::tag_id)
-                    .filter(schema::tags_fts::dsl::tag_name.fts_match(&fts5_search))))
+            .inner_join(schema::tags_fts_query::table)
+            .select(schema::tags::all_columns)
+            .filter(schema::tags_fts_query::dsl::whole_row.fts_match(&fts5_search))
+            .order_by(schema::tags_fts_query::dsl::rank.desc())
             .load::<Tag>(self.connection)?;
 
         Ok(results)
@@ -459,14 +456,14 @@ impl<'a> WriteOps for Transaction<'a>
 
         if title.is_some() || notes.is_some()
         {
-            let fts_insert_value = ObjectsFts
+            let fts_insert_value = InsertableObjectsFts
             {
-                id: new_id.new_id,
+                rowid: new_id.new_id,
                 title: title.map(|m| m.get_search_text()),
                 notes: notes.map(|m| m.get_search_text()),
             };
 
-            diesel::insert_into(schema::objects_fts::table)
+            diesel::insert_into(schema::objects_fts_insert::table)
                 .values(vec![fts_insert_value])
                 .execute(self.connection)?;
         }
@@ -587,22 +584,22 @@ impl<'a> WriteOps for Transaction<'a>
         // Full text search
 
         {
-            use schema::objects_fts::dsl::*;
+            use schema::objects_fts_query::dsl::*;
 
-            diesel::delete(objects_fts.filter(id.eq(obj_id)))
+            diesel::delete(objects_fts_query.filter(rowid.eq(obj_id)))
                 .execute(self.connection)?;
         }
 
         if title.is_some() || notes.is_some()
         {
-            let fts_insert_value = ObjectsFts
+            let fts_insert_value = InsertableObjectsFts
             {
-                id: obj_id,
+                rowid: obj_id,
                 title: title.map(|m| m.get_search_text()),
                 notes: notes.map(|m| m.get_search_text()),
             };
 
-            diesel::insert_into(schema::objects_fts::table)
+            diesel::insert_into(schema::objects_fts_insert::table)
                 .values(vec![fts_insert_value])
                 .execute(self.connection)?;
         }
@@ -695,16 +692,16 @@ impl<'a> WriteOps for Transaction<'a>
         // Update the full-text search
 
         {
-            diesel::delete(schema::tags_fts::table.filter(schema::tags_fts::dsl::tag_id.eq(tag_id.to_db_field())))
+            diesel::delete(schema::tags_fts_query::table.filter(schema::tags_fts_query::dsl::rowid.eq(tag_id.to_db_field())))
                 .execute(self.connection)?;
 
-            let fts_insert_value = TagsFts
+            let fts_insert_value = InsertableTagsFts
             {
-                tag_id: tag_id.to_db_field(),
+                rowid: tag_id.to_db_field(),
                 tag_name: name.clone(),
             };
 
-            diesel::insert_into(schema::tags_fts::table)
+            diesel::insert_into(schema::tags_fts_insert::table)
                 .values(vec![fts_insert_value])
                 .execute(self.connection)?;
         }
@@ -730,7 +727,7 @@ impl<'a> WriteOps for Transaction<'a>
         diesel::delete(schema::tags::table.filter(schema::tags::dsl::tag_id.eq(tag_id.to_db_field())))
             .execute(self.connection)?;
 
-        diesel::delete(schema::tags_fts::table.filter(schema::tags_fts::dsl::tag_id.eq(tag_id.to_db_field())))
+        diesel::delete(schema::tags_fts_query::table.filter(schema::tags_fts_query::dsl::rowid.eq(tag_id.to_db_field())))
             .execute(self.connection)?;
 
         Ok(())
@@ -761,13 +758,13 @@ impl<'a> WriteOps for Transaction<'a>
                 let new_id: NewId = diesel::sql_query("SELECT last_insert_rowid() as 'new_id'")
                     .get_result(self.connection)?;
 
-                let tag_fts = TagsFts
+                let tag_fts = InsertableTagsFts
                 {
-                    tag_id: new_id.new_id,
+                    rowid: new_id.new_id,
                     tag_name: name
                 };
 
-                diesel::insert_into(schema::tags_fts::table)
+                diesel::insert_into(schema::tags_fts_insert::table)
                     .values(&tag_fts)
                     .execute(self.connection)?;
 

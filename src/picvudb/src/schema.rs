@@ -55,10 +55,22 @@ table! {
 }
 
 table! {
-    objects_fts (id) {
-        id -> BigInt,
+    #[sql_name = "objects_fts"]
+    objects_fts_insert (rowid) {
+        rowid -> BigInt,
         title -> Nullable<Text>,
         notes -> Nullable<Text>,
+    }
+}
+
+table! {
+    #[sql_name = "objects_fts"]
+    objects_fts_query (rowid) {
+        rowid -> BigInt,
+
+        #[sql_name = "objects_fts"]
+        whole_row -> Text,
+        rank -> Float,
     }
 }
 
@@ -90,9 +102,21 @@ table! {
 }
 
 table! {
-    tags_fts (tag_id) {
-        tag_id -> BigInt,
+    #[sql_name = "tags_fts"]
+    tags_fts_insert (rowid) {
+        rowid -> BigInt,
         tag_name -> Text,
+    }
+}
+
+table! {
+    #[sql_name = "tags_fts"]
+    tags_fts_query (rowid) {
+        rowid -> BigInt,
+
+        #[sql_name = "tags_fts"]
+        whole_row -> Text,
+        rank -> Float,
     }
 }
 
@@ -102,11 +126,11 @@ allow_tables_to_appear_in_same_query!(objects, attachments_metadata);
 joinable!(objects_location -> objects (id));
 allow_tables_to_appear_in_same_query!(objects, objects_location);
 
-joinable!(objects_fts -> objects (id));
-allow_tables_to_appear_in_same_query!(objects, objects_fts);
+joinable!(objects_fts_query -> objects (rowid));
+allow_tables_to_appear_in_same_query!(objects, objects_fts_query);
 
 joinable!(object_tags -> objects (obj_id));
 allow_tables_to_appear_in_same_query!(objects, object_tags);
 
-joinable!(tags_fts -> tags (tag_id));
-allow_tables_to_appear_in_same_query!(tags, tags_fts);
+joinable!(tags_fts_query -> tags (rowid));
+allow_tables_to_appear_in_same_query!(tags, tags_fts_query);

@@ -129,12 +129,11 @@ pub struct AttachmentData
     pub bytes: Vec<u8>,
 }
 
-#[derive(Queryable)]
 #[derive(Insertable)]
-#[table_name="objects_fts"]
-pub struct ObjectsFts
+#[table_name="objects_fts_insert"]
+pub struct InsertableObjectsFts
 {
-    pub id: i64,
+    pub rowid: i64,
     pub title: Option<String>,
     pub notes: Option<String>,
 }
@@ -180,12 +179,11 @@ pub struct ObjectTags
     pub tag_id: i64,
 }
 
-#[derive(Queryable)]
 #[derive(Insertable)]
-#[table_name="tags_fts"]
-pub struct TagsFts
+#[table_name="tags_fts_insert"]
+pub struct InsertableTagsFts
 {
-    pub tag_id: i64,
+    pub rowid: i64,
     pub tag_name: String,
 }
 
